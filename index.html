@@ -957,10 +957,11 @@ const FX = {
   ring(x, y, { r1 = 700, color = '247,230,176', life = .7, w = 14 } = {}) { rings.push({ x, y, r1, color, life, w, t: 0 }); },
 };
 let lastT = performance.now();
-function loop(now) {
-  const dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
+// one particle step; motion scales with elapsed time so it is even at any refresh rate
+function fxStep(now, dt) {
+  const k = dt * 60, drag = Math.pow(.93, k);
   cx.clearRect(0, 0, 1920, 1080);
-  const slow = M.paused() ? .2 : 1;
+  const slow = (M.paused() ? .2 : 1) * k;
   cx.globalCompositeOperation = 'lighter';
   for (const p of embers) {
     p.y -= p.vy * slow; p.x += (p.vx + Math.sin(now / 900 + p.ph) * .3) * slow;
@@ -971,18 +972,21 @@ function loop(now) {
   }
   for (let i = sparks.length - 1; i >= 0; i--) {
     const s = sparks[i]; s.t += dt; if (s.t > s.life) { sparks.splice(i, 1); continue; }
-    const k = 1 - s.t / s.life; s.vx *= .93; s.vy = s.vy * .93 + .35;
-    cx.strokeStyle = `rgba(${s.color},${k})`; cx.lineWidth = s.size * k + .5;
+    const f = 1 - s.t / s.life; s.vx *= drag; s.vy = s.vy * drag + .35 * k;
+    cx.strokeStyle = `rgba(${s.color},${f})`; cx.lineWidth = s.size * f + .5;
     cx.beginPath(); cx.moveTo(s.x, s.y); cx.lineTo(s.x + s.vx * 2.2, s.y + s.vy * 2.2); cx.stroke();
-    s.x += s.vx; s.y += s.vy;
+    s.x += s.vx * k; s.y += s.vy * k;
   }
   for (let i = rings.length - 1; i >= 0; i--) {
     const r = rings[i]; r.t += dt; if (r.t > r.life) { rings.splice(i, 1); continue; }
-    const k = r.t / r.life, e = 1 - Math.pow(1 - k, 3);
-    cx.strokeStyle = `rgba(${r.color},${(1 - k) * .9})`; cx.lineWidth = r.w * (1 - k) + 1;
+    const q = r.t / r.life, e = 1 - Math.pow(1 - q, 3);
+    cx.strokeStyle = `rgba(${r.color},${(1 - q) * .9})`; cx.lineWidth = r.w * (1 - q) + 1;
     cx.beginPath(); cx.arc(r.x, r.y, 20 + (r.r1 - 20) * e, 0, 6.283); cx.stroke();
   }
   cx.globalCompositeOperation = 'source-over';
+}
+function loop(now) {
+  fxStep(now, Math.min(.05, (now - lastT) / 1000)); lastT = now;
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -1082,12 +1086,11 @@ const S = (at, fn) => M.call(fn, null, at);
 const snd = (at, k) => S(at, () => sfx(k));
 const show = (sel, at) => M.set(sel, { autoAlpha: 1 }, at);
 const hide = (sel, at) => M.set(sel, { autoAlpha: 0 }, at);
-const shake = (at, a = 14, d = .45) => { if (RM || a < 18) return; a *= .5; M.to('#cam', { keyframes: { x: [0, -a, a * .8, -a * .5, a * .3, 0], y: [0, a * .6, -a * .5, a * .35, -a * .1, 0], rotation: [0, -.3, .25, -.15, 0, 0] }, duration: d, ease: 'none' }, at); };
 const flash = (at, color = '#f4f0e6', peak = .85, d = .6) => M.fromTo('.flash', { opacity: RM ? peak * .25 : peak, backgroundColor: color }, { opacity: 0, duration: d, ease: 'power2.out', immediateRender: false }, at);
 const burst = (at, x, y, o) => S(at, () => FX.burst(x, y, o));
 const ring = (at, x, y, o) => S(at, () => FX.ring(x, y, o));
-const impact = (at, x = 960, y = 540, { shakeA = 16, color = '#f4f0e6', peak = .6, sound = 'hit', sparks = '255,214,140' } = {}) => {
-  shake(at, shakeA); flash(at, color, peak); ring(at, x, y); burst(at, x, y, { color: sparks }); snd(at, sound);
+const impact = (at, x = 960, y = 540, { color = '#f4f0e6', peak = .6, sound = 'hit', sparks = '255,214,140' } = {}) => {
+  flash(at, color, peak); ring(at, x, y); burst(at, x, y, { color: sparks }); snd(at, sound);
 };
 const charsIn = (target, at, o = {}) => M.fromTo(chars(target), { yPercent: 110, opacity: 0, filter: 'blur(12px)' }, { yPercent: 0, opacity: 1, filter: 'blur(0px)', duration: .7, stagger: .05, ease: 'expo.out', ...o }, at);
 const slamChars = (target, at, o = {}) => M.fromTo(chars(target), { scale: 2.6, opacity: 0, filter: 'blur(20px)' }, { scale: 1, opacity: 1, filter: 'blur(0px)', duration: .45, stagger: .07, ease: 'power4.out', ...o }, at);
@@ -1136,7 +1139,7 @@ $$('#s0 .shard').forEach((sh, k) => {
   const at = 4 + k * BEAT;
   M.fromTo(sh, { autoAlpha: 1, scale: 1.25, x: k % 2 ? 60 : -60 }, { scale: 1.08, x: 0, duration: BEAT, ease: 'expo.out', immediateRender: false }, at);
   M.set(sh, { autoAlpha: 0 }, at + BEAT - .02);
-  flash(at, '#f4f0e6', .55, .3); snd(at, 'hit'); shake(at, 8, .25);
+  flash(at, '#f4f0e6', .55, .3); snd(at, 'hit');
 });
 M.to('#crest .inner, #crest .wing, #crest .star', { strokeDashoffset: 0, duration: 1.2, stagger: .2, ease: 'expo.out' }, 6);
 M.to('#crest .fl', { opacity: 1, duration: 1.2, ease: 'power2.in' }, 6.4);
@@ -1149,7 +1152,6 @@ hide('#s0', 8);
 show('#s1', 8);
 flash(8, '#f4f0e6', 1, .9);
 S(8, () => { sfx('boom'); FX.ring(960, 700, { r1: 1200, w: 30 }); FX.burst(960, 760, { n: 90, speed: 34 }); });
-shake(8, 22, .6);
 M.fromTo('#s1 .bgplate', { scale: 1.35 }, { scale: 1.1, duration: 1.4, ease: 'expo.out' }, 8);
 M.to('#s1 .bgplate', { scale: 1.02, x: -30, duration: 4.6, ease: 'none' }, 9.4);
 M.fromTo('#s1 .fgart', { scale: 1.45, yPercent: 8 }, { scale: 1.1, yPercent: 0, duration: 1.4, ease: 'expo.out' }, 8);
@@ -1161,7 +1163,7 @@ M.to('#s1 .flare', { opacity: 0, duration: .8 }, 8.6);
 M.fromTo('#s1 .eyebrow', { opacity: 0, letterSpacing: '3px' }, { opacity: 1, letterSpacing: '18px', duration: 1.6, ease: 'expo.out' }, 8.2);
 M.fromTo('#s1 .rule', { scaleX: 0 }, { scaleX: 1, duration: 1, ease: 'expo.inOut' }, 8.2);
 M.fromTo(chars('#t1'), { scale: 3, opacity: 0, filter: 'blur(30px)', y: -60 }, { scale: 1, opacity: 1, filter: 'blur(0px)', y: 0, duration: .5, stagger: BEAT / 2, ease: 'power4.in' }, 8.25);
-[8.75, 9, 9.25, 9.5].forEach((t, i) => { snd(t, 'hit'); shake(t, 10, .3); burst(t, 610 + i * 235, 830, { n: 26, speed: 18 }); });
+[8.75, 9, 9.25, 9.5].forEach((t, i) => { snd(t, 'hit'); burst(t, 610 + i * 235, 830, { n: 26, speed: 18 }); });
 M.fromTo(chars('#s1 .sub'), { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: .5, stagger: .04, ease: 'power3.out' }, 10);
 M.fromTo('#t1', { '--sx': '-100%' }, { '--sx': '260%', duration: 1.4, ease: 'power2.inOut' }, 10.5);
 snd(10.5, 'shimmer');
@@ -1218,7 +1220,7 @@ $$('#coins .coin').forEach((c, i) => {
 });
 M.fromTo('#s4 .stamp', { scale: 3.2, rotation: -24, opacity: 0 }, { scale: 1, rotation: -7, opacity: 1, duration: .28, ease: 'power4.in' }, 24.72);
 M.to('#s4 .pcard', { rotationZ: () => gsap.utils.random(-25, 25), x: () => gsap.utils.random(-120, 120), y: () => gsap.utils.random(-60, 120), filter: 'grayscale(1) brightness(.45)', duration: .5, ease: 'power3.out', stagger: .02 }, 25);
-impact(25, 1330, 560, { shakeA: 26, color: '#ff4d2e', peak: .45, sound: 'boom', sparks: '255,120,80' });
+impact(25, 1330, 560, { color: '#ff4d2e', peak: .45, sound: 'boom', sparks: '255,120,80' });
 M.to('#s4 .stamp', { scale: 1.05, duration: 2.4, ease: 'none' }, 25.3);
 zoomOut('#s4', 27.6, .4);
 
@@ -1229,7 +1231,7 @@ tagIn('#s5 .tag', 28.2);
 M.fromTo('#s5 .l1', { yPercent: 110 }, { yPercent: 0, duration: .8, ease: 'expo.out' }, 28.3);
 M.fromTo('.nozone', { scale: 0, rotation: -90 }, { scale: 1, rotation: 0, duration: .6, ease: 'back.out(2)' }, 28.5);
 draw('.nozone circle', 28.6, .5); draw('.nozone line', 29, .3, { ease: 'expo.out' });
-snd(29, 'zap'); shake(29, 8, .25);
+snd(29, 'zap');
 $$('#pins .pin').forEach((p, i) => {
   const t = 29.25 + i * BEAT / 4;
   M.fromTo(p, { y: -700, scaleX: .7, scaleY: 1.4, opacity: 1 }, { keyframes: [{ y: 0, scaleX: .8, scaleY: 1.3, duration: .28, ease: 'power3.in' }, { scaleX: 1.35, scaleY: .6, duration: .08 }, { scaleX: .9, scaleY: 1.12, duration: .12 }, { scaleX: 1, scaleY: 1, duration: .2, ease: 'back.out(3)' }] }, t);
@@ -1237,7 +1239,7 @@ $$('#pins .pin').forEach((p, i) => {
   snd(t + .28, 'pop');
 });
 slamChars('#s5 .l2', 30.5, { stagger: BEAT });
-[30.5, 31, 31.5].forEach((t, i) => impact(t + .45, 270 + i * 300, 520, { shakeA: 12, peak: .25 }));
+[30.5, 31, 31.5].forEach((t, i) => impact(t + .45, 270 + i * 300, 520, { peak: .25 }));
 M.to('#s5', { clipPath: 'circle(0% at 50% 50%)', duration: .4, ease: 'power3.in' }, 31.6);
 hide('#s5', 32);
 
@@ -1263,7 +1265,7 @@ $$('#s6 .rrow').forEach((row, i) => {
   burst(t + .75, 1765, 322 + i * 172, { n: 16, speed: 12 });
 });
 M.to('#s6 .area', { fill: 'rgba(247,230,176,.7)', duration: .15, yoyo: true, repeat: 3 }, 37);
-impact(37, 520, 650, { shakeA: 10, peak: .3 });
+impact(37, 520, 650, { peak: .3 });
 M.to('#s6 .radar', { rotation: 8, scale: 1.04, duration: 2.5, ease: 'sine.inOut' }, 37);
 whipOut('#s6', 39.65);
 
@@ -1281,7 +1283,7 @@ tagIn('#s7 .tag', 40.2);
   M.to('#s7 .hp i', { scaleX: hp, duration: .06 }, t);
   M.to('#s7 .hp u', { scaleX: hp, duration: .4, ease: 'power2.in' }, t + .15);
   M.fromTo('#s7 .face', { x: 20, filter: 'brightness(3)' }, { x: 0, filter: 'brightness(1)', duration: .2, immediateRender: false }, t);
-  impact(t, 1430, 390, { shakeA: 10 + i * 5, peak: .35, color: i === 3 ? '#f7e6b0' : '#ff4d2e', sparks: '255,150,90' });
+  impact(t, 1430, 390, { peak: .35, color: i === 3 ? '#f7e6b0' : '#ff4d2e', sparks: '255,150,90' });
 });
 M.set('#s7 .face img', { opacity: 0 }, 42);
 M.set('#s7 .face .pc', { opacity: 1 }, 42);
@@ -1289,13 +1291,13 @@ M.set('#s7 .face', { overflow: 'visible', borderColor: 'transparent', boxShadow:
 $$('#s7 .face .pc').forEach(pc => M.to(pc, { x: gsap.utils.random(-500, 500), y: gsap.utils.random(-300, 500), rotation: gsap.utils.random(-120, 120), opacity: 0, duration: .9, ease: 'power3.out' }, 42));
 M.to('#s7 .hp, #s7 .nm', { opacity: 0, duration: .2 }, 42);
 S(42, () => { sfx('boom'); FX.burst(1430, 390, { n: 120, speed: 40, color: '255,120,70' }); FX.ring(1430, 390, { r1: 1400, w: 40, color: '255,120,70' }); });
-flash(42, '#ffffff', 1, .5); shake(42, 30, .7);
+flash(42, '#ffffff', 1, .5);
 M.to('#s7 .cracks path', { strokeDashoffset: 0, duration: .25, stagger: .03, ease: 'expo.out' }, 42);
 M.to('#s7 .cracks', { opacity: 0, duration: .6 }, 44.5);
 M.fromTo(chars('#s7 .l1'), { opacity: 0, x: 120, skewX: -25 }, { opacity: 1, x: 0, skewX: 0, duration: .45, stagger: .04, ease: 'expo.out' }, 42.3);
 M.fromTo(chars('#s7 .l2'), { scale: 5, opacity: 0, rotation: -14 }, { scale: 1, opacity: 1, rotation: 0, duration: .3, stagger: BEAT, ease: 'power4.in' }, 42.7);
 [43, 43.5].forEach((t, i) => {
-  impact(t, 300 + i * 400, 830, { shakeA: 28, peak: .5, color: '#ff4d2e', sound: 'boom', sparks: '255,120,70' });
+  impact(t, 300 + i * 400, 830, { peak: .5, color: '#ff4d2e', sound: 'boom', sparks: '255,120,70' });
   M.fromTo('#s7 .l2', { '--rgb': 18 }, { '--rgb': 0, duration: .5, ease: 'expo.out', immediateRender: false }, t);
 });
 M.to('#s7 .l2', { scale: 1.06, duration: 2, ease: 'none', transformOrigin: '0% 50%' }, 43.6);
@@ -1337,7 +1339,7 @@ M.fromTo('#s10 .h1', { y: -500, scale: .8, filter: 'brightness(4) blur(10px)', o
 M.fromTo('#s10 .pillar', { scaleY: 0, opacity: 1 }, { scaleY: 1, duration: .3, ease: 'expo.out' }, 55.5);
 M.to('#s10 .pillar', { opacity: .35, duration: 1 }, 55.8);
 M.fromTo('#s10 .pad', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: .6, ease: 'expo.out' }, 55.5);
-impact(55.5, 960, 860, { shakeA: 20, sound: 'boom', peak: .4 });
+impact(55.5, 960, 860, { sound: 'boom', peak: .4 });
 M.to('#s10 .h1', { y: -14, duration: 1.1, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 55.7);
 tagIn('#s10 .hinfo .tag', 55.6);
 charsIn('#s10 .hinfo h2', 55.7, { stagger: .08 });
@@ -1352,7 +1354,7 @@ M.fromTo('#s10 .s3', { scale: 1.12 }, { scale: 1, duration: .5, ease: 'back.out(
 M.to('#s10 .h1', { filter: 'brightness(5) blur(0px)', scale: 1.05, duration: .2 }, 57.8);
 M.set('#s10 .h1', { opacity: 0 }, 58);
 M.fromTo('#s10 .h2', { opacity: 1, scale: 1.2, filter: 'brightness(5)' }, { scale: 1, filter: 'brightness(1)', duration: .6, ease: 'expo.out', immediateRender: false }, 58);
-impact(58, 960, 600, { shakeA: 12, sound: 'boom', peak: .7 });
+impact(58, 960, 600, { sound: 'boom', peak: .7 });
 snd(58.05, 'shimmer');
 whipOut('#s10', 59.65);
 
@@ -1377,7 +1379,7 @@ M.fromTo('#reel', { x: reelX(0) + 400 }, { x: reelX(LAND), duration: 2, ease: 'p
 M.fromTo('#reel', { filter: 'blur(14px)' }, { filter: 'blur(0px)', duration: 1.8, ease: 'power3.in' }, 64);
 for (let k = 0; k < 14; k++) snd(64 + (1 - Math.pow(1 - k / 14, .45)) * 1.9, 'tick');
 M.fromTo('.lockring', { scale: 1.8, opacity: 0 }, { scale: 1, opacity: 1, duration: .35, ease: 'back.out(3)' }, 66);
-impact(66, 960, 520, { shakeA: 14, peak: .5 });
+impact(66, 960, 520, { peak: .5 });
 M.to(`#reel .ti:nth-child(${LAND + 1})`, { scale: 1.2, duration: .4, ease: 'back.out(3)' }, 66);
 M.to('#reel .ti', { opacity: i => i === LAND ? 1 : .3, duration: .4 }, 66);
 charsIn('.talentname h3', 66.1, { stagger: .05 });
@@ -1421,7 +1423,7 @@ M.to([dagger, glad], { scale: 1.12, duration: .3, ease: 'back.out(3)' }, 76);
 M.to('#s13 .tree path', { strokeDashoffset: 0, duration: .7, stagger: .15, ease: 'power2.inOut' }, 76.5);
 snd(76.5, 'zap');
 M.fromTo('#s13 .result .box', { scale: 0, rotation: -45 }, { scale: 1, rotation: 0, duration: .5, ease: 'back.out(2)' }, 77.25);
-impact(77.5, 1590, 380, { shakeA: 14, sound: 'boom', peak: .5, sparks: '140,220,255' });
+impact(77.5, 1590, 380, { sound: 'boom', peak: .5, sparks: '140,220,255' });
 charsIn('#s13 .result h3', 77.5, { stagger: .07 });
 M.fromTo('#s13 .result p', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: .5 }, 77.8);
 M.fromTo('#s13 .result .cost', { opacity: 0 }, { opacity: 1, duration: .3 }, 77.8);
@@ -1455,7 +1457,7 @@ charsIn('#s14b .vsl h3', 82.3, { stagger: .06 });
 M.fromTo('#s14b .vs', { scale: 4, opacity: 0, '--rgb': 30 }, { scale: 1, opacity: 1, '--rgb': 0, duration: .3, ease: 'power4.in' }, 82.2);
 M.to('#s14b .bolt path', { strokeDashoffset: 0, duration: .18, ease: 'none' }, 82.5);
 M.to('#s14b .bolt', { opacity: 0, duration: .4 }, 83);
-impact(82.5, 960, 540, { shakeA: 26, sound: 'boom', peak: .7, sparks: '150,220,255' });
+impact(82.5, 960, 540, { sound: 'boom', peak: .7, sparks: '150,220,255' });
 snd(82.5, 'zap');
 M.to('#s14b .vs', { scale: 1.1, duration: 1.1, ease: 'none' }, 82.5);
 M.to('#s14b .vsl', { x: 30, duration: 1.1, ease: 'none' }, 82.5); M.to('#s14b .vsr', { x: -30, duration: 1.1, ease: 'none' }, 82.5);
@@ -1487,7 +1489,6 @@ slate('c3', 88);
 show('#s16', 90);
 flash(90, '#ffffff', 1, .8);
 S(90, () => { sfx('boom'); FX.ring(960, 460, { r1: 1400, w: 30 }); FX.burst(960, 460, { n: 100, speed: 36 }); });
-shake(90, 24, .6);
 M.fromTo('#s16 .bgplate', { scale: 1.3 }, { scale: 1.05, duration: 8, ease: 'power2.out' }, 90);
 M.fromTo('#s16 .beam', { rotation: i => [-35, -15, 0, 15, 35][i], opacity: 0 }, { rotation: i => [25, 10, 0, -10, -25][i], opacity: 1, duration: 3.5, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 90);
 M.fromTo(chars('#s16 .title h2'), { scale: 2.5, opacity: 0, filter: 'blur(20px)' }, { scale: 1, opacity: 1, filter: 'blur(0px)', duration: .45, stagger: BEAT / 4, ease: 'power4.out' }, 90);
@@ -1499,7 +1500,7 @@ $$('#s16 .lg').forEach((lg, i) => {
   M.fromTo($('.plinth', lg), { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: .5, ease: 'expo.out' }, t);
   M.fromTo($('small', lg), { opacity: 0, letterSpacing: '.8em' }, { opacity: 1, letterSpacing: '.3em', duration: .6, ease: 'expo.out' }, t + .1);
   M.fromTo($('h3', lg), { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: .5, ease: 'expo.out' }, t + .15);
-  impact(t, 960 + (i - 1) * 550, 700, { shakeA: 14, sound: 'boom', peak: .3 });
+  impact(t, 960 + (i - 1) * 550, 700, { sound: 'boom', peak: .3 });
 });
 M.to('#s16 .lg .em img', { y: -16, duration: 1.2, stagger: .2, yoyo: true, repeat: 3, ease: 'sine.inOut' }, 93.5);
 M.fromTo('#s16 .leagues', { rotationY: -8 }, { rotationY: 8, duration: 5, ease: 'sine.inOut' }, 93);
@@ -1512,7 +1513,7 @@ M.fromTo('#s17 .beam', { rotation: i => [30, 12, 0, -12, -30][i], opacity: .3 },
 $$('#s17 .txo-big span').forEach((sp, i) => {
   const t = 98 + i * BEAT;
   M.fromTo(sp, { scale: 3, opacity: 0, y: -100, filter: 'blur(20px)' }, { scale: 1, opacity: 1, y: 0, filter: 'blur(0px)', duration: .35, ease: 'power4.in' }, t - .34);
-  impact(t, 560 + i * 400, 360, { shakeA: 18, sound: 'boom', peak: .35 });
+  impact(t, 560 + i * 400, 360, { sound: 'boom', peak: .35 });
 });
 M.fromTo('#s17 .team', { yPercent: 40, opacity: 0, filter: 'drop-shadow(0 0 30px rgba(0,0,0,.9)) brightness(3)' }, { yPercent: 0, opacity: 1, filter: 'drop-shadow(0 0 30px rgba(0,0,0,.9)) brightness(1)', duration: .9, ease: 'expo.out' }, 99.5);
 snd(99.5, 'whoosh');
@@ -1534,7 +1535,7 @@ charsIn('#s18 .pre', 105.6, { stagger: .05 });
 M.to('#s18 .big244 .o', { strokeDashoffset: 0, duration: 1.1, ease: 'power2.inOut' }, 105.7);
 M.to('#s18 .big244 .f', { opacity: 1, duration: .15 }, 107);
 M.fromTo('#s18 .big244', { scale: 1.15 }, { scale: 1, duration: .5, ease: 'back.out(3)', immediateRender: false }, 107);
-impact(107, 960, 520, { shakeA: 22, sound: 'boom', peak: .6 });
+impact(107, 960, 520, { sound: 'boom', peak: .6 });
 slamChars('#s18 .post', 107.25, { stagger: .12 });
 M.to('#s18', { scale: 3.5, opacity: 0, filter: 'blur(20px)', duration: .45, ease: 'power3.in', transformOrigin: '50% 48%' }, 107.55);
 hide('#s18', 108);
@@ -1550,7 +1551,7 @@ $$('#s19 .mem').forEach(m => {
   if (sp) {
     M.fromTo($('.rays', m), { rotation: 0 }, { rotation: 35, duration: dur + .5, ease: 'none' }, rt);
     M.fromTo($('.emblem', m), { scale: .2, rotation: -40, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: .5, ease: 'back.out(1.8)' }, rt + .2);
-    impact(rt + .5, 690, 540, { shakeA: 12, sound: 'boom', peak: .35, color: '#ff9a4d', sparks: '255,170,90' });
+    impact(rt + .5, 690, 540, { sound: 'boom', peak: .35, color: '#ff9a4d', sparks: '255,170,90' });
     snd(rt + .6, 'shimmer');
     M.fromTo(chars($('p', m)), { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: .4, stagger: .05, ease: 'expo.out' }, rt + .4);
     slamChars($('h3', m), rt + .75, { stagger: .1 });
@@ -1578,7 +1579,6 @@ M.to('#carousel', { rotationY: -560, z: -1800, scale: .2, duration: .7, ease: 'p
 M.to('#s20 .veil', { opacity: 1, duration: .5 }, 127.3);
 flash(127.6, '#ffffff', 1, 1);
 S(127.7, () => { sfx('boom'); FX.ring(960, 420, { r1: 1500, w: 34 }); FX.burst(960, 420, { n: 120, speed: 38 }); });
-shake(127.7, 18, .6);
 M.set('#carousel', { opacity: 0 }, 127.7);
 M.fromTo('#endcrest', { scale: .3, opacity: 0, rotationY: 180 }, { scale: 1, opacity: 1, rotationY: 0, duration: 1, ease: 'expo.out' }, 127.7);
 M.fromTo('#s20 .eyebrow', { opacity: 0, letterSpacing: '3px' }, { opacity: 1, letterSpacing: '18px', duration: 1.4, ease: 'expo.out' }, 128);
