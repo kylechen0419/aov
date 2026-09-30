@@ -1082,13 +1082,12 @@ const S = (at, fn) => M.call(fn, null, at);
 const snd = (at, k) => S(at, () => sfx(k));
 const show = (sel, at) => M.set(sel, { autoAlpha: 1 }, at);
 const hide = (sel, at) => M.set(sel, { autoAlpha: 0 }, at);
-const shake = (at, a = 14, d = .45) => { if (RM) return; M.to('#cam', { keyframes: { x: [0, -a, a * .8, -a * .5, a * .3, 0], y: [0, a * .6, -a * .5, a * .35, -a * .1, 0], rotation: [0, -.3, .25, -.15, 0, 0] }, duration: d, ease: 'none' }, at); };
+const shake = (at, a = 14, d = .45) => { if (RM || a < 18) return; a *= .5; M.to('#cam', { keyframes: { x: [0, -a, a * .8, -a * .5, a * .3, 0], y: [0, a * .6, -a * .5, a * .35, -a * .1, 0], rotation: [0, -.3, .25, -.15, 0, 0] }, duration: d, ease: 'none' }, at); };
 const flash = (at, color = '#f4f0e6', peak = .85, d = .6) => M.fromTo('.flash', { opacity: RM ? peak * .25 : peak, backgroundColor: color }, { opacity: 0, duration: d, ease: 'power2.out', immediateRender: false }, at);
-const punch = (at, s = 1.04) => { if (RM) return; M.fromTo('#cam', { scale: s }, { scale: 1, duration: .5, ease: 'expo.out', immediateRender: false }, at); };
 const burst = (at, x, y, o) => S(at, () => FX.burst(x, y, o));
 const ring = (at, x, y, o) => S(at, () => FX.ring(x, y, o));
 const impact = (at, x = 960, y = 540, { shakeA = 16, color = '#f4f0e6', peak = .6, sound = 'hit', sparks = '255,214,140' } = {}) => {
-  shake(at, shakeA); flash(at, color, peak); ring(at, x, y); burst(at, x, y, { color: sparks }); snd(at, sound); punch(at);
+  shake(at, shakeA); flash(at, color, peak); ring(at, x, y); burst(at, x, y, { color: sparks }); snd(at, sound);
 };
 const charsIn = (target, at, o = {}) => M.fromTo(chars(target), { yPercent: 110, opacity: 0, filter: 'blur(12px)' }, { yPercent: 0, opacity: 1, filter: 'blur(0px)', duration: .7, stagger: .05, ease: 'expo.out', ...o }, at);
 const slamChars = (target, at, o = {}) => M.fromTo(chars(target), { scale: 2.6, opacity: 0, filter: 'blur(20px)' }, { scale: 1, opacity: 1, filter: 'blur(0px)', duration: .45, stagger: .07, ease: 'power4.out', ...o }, at);
@@ -1564,7 +1563,7 @@ $$('#s19 .mem').forEach(m => {
     M.fromTo(chars($('.nm', m)), { opacity: 0, yPercent: 80, skewY: 10 }, { opacity: 1, yPercent: 0, skewY: 0, duration: .45, stagger: .06, ease: 'expo.out' }, rt + .2);
     M.fromTo($('.rule', m), { scaleX: 0 }, { scaleX: 1, duration: .5, ease: 'expo.out' }, rt + .35);
     M.fromTo(chars($('.ln', m)), { opacity: 0, x: r ? -50 : 50 }, { opacity: 1, x: 0, duration: .35, stagger: .04, ease: 'expo.out' }, rt + .5);
-    snd(rt + .2, 'hit'); punch(rt + 1, 1.025);
+    snd(rt + .2, 'hit');
   }
   rt += dur;
 });
