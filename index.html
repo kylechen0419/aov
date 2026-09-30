@@ -434,6 +434,11 @@ h1,h2,h3,h4,p{margin:0;font-weight:inherit}
 #playbig small{display:block;margin-top:12px;font-size:22px;letter-spacing:.24em;color:var(--mist)}
 #playbig:focus-visible .disc{outline:3px solid var(--gold-hi);outline-offset:6px}
 
+/* phone held upright: the 16:9 film letterboxes, so suggest turning it */
+.rotatehint{display:none;position:fixed;left:16px;right:16px;top:calc(24px + env(safe-area-inset-top,0px));z-index:90;text-align:center;font-size:15px;letter-spacing:.12em;color:var(--mist)}
+.rotatehint b{color:var(--gold-hi);font-weight:500}
+@media (orientation:portrait) and (max-width:900px){.rotatehint{display:block}}
+
 /* transport */
 .ctrl{position:fixed;left:0;right:0;bottom:0;z-index:100;display:flex;align-items:center;gap:12px;padding:28px 16px calc(14px + env(safe-area-inset-bottom,0px));background:linear-gradient(0deg,rgba(5,7,12,.9),transparent);transition:opacity .5s;font-family:var(--body)}
 .ctrl.idle,.ctrl.pre{opacity:0;pointer-events:none}
@@ -773,6 +778,8 @@ h1,h2,h3,h4,p{margin:0;font-weight:inherit}
 </div>
 </div>
 </div>
+
+<p class="rotatehint" id="rotatehint"><b>將手機轉為橫向</b>，全螢幕觀看效果最佳</p>
 
 <div class="ctrl pre" id="ctrl">
   <button id="b-play" type="button" aria-label="暫停"><svg viewBox="0 0 16 16" id="i-play"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg></button>
@@ -1271,7 +1278,7 @@ tagIn('#s7 .tag', 40.2);
   const p = $$('#projs .proj')[i], dmg = $$('#dmgs .dmg')[i];
   M.fromTo(p, { x: -200, y: 300 + i * 60, scale: .6, opacity: 1, filter: 'blur(0px)' }, { x: 1355, y: 315, scale: 1, filter: 'blur(3px)', duration: .24, ease: 'power2.in' }, t - .24);
   M.to(p, { opacity: 0, scale: 1.8, duration: .15 }, t);
-  M.fromTo(dmg, { x: 1260 + i * 30, y: 300, opacity: 0, scale: .4 }, { keyframes: [{ opacity: 1, scale: 1.25, y: 220, duration: .15, ease: 'power2.out' }, { scale: 1, duration: .1 }, { y: 110 - i * 20, opacity: 0, duration: .7, ease: 'power1.in' }] }, t);
+  M.fromTo(dmg, { x: i === 3 ? 1030 : 1260 + i * 30, y: 300, opacity: 0, scale: .4 }, { keyframes: [{ opacity: 1, scale: 1.25, y: 220, duration: .15, ease: 'power2.out' }, { scale: 1, duration: .1 }, { y: 110 - i * 20, opacity: 0, duration: .7, ease: 'power1.in' }] }, t);
   M.to('#s7 .hp i', { scaleX: hp, duration: .06 }, t);
   M.to('#s7 .hp u', { scaleX: hp, duration: .4, ease: 'power2.in' }, t + .15);
   M.fromTo('#s7 .face', { x: 20, filter: 'brightness(3)' }, { x: 0, filter: 'brightness(1)', duration: .2, immediateRender: false }, t);
