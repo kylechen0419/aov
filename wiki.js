@@ -4,7 +4,7 @@ const LANGS = {
   en: { host: 'en.wikipedia.org', variant: null },
 };
 
-// 熱門條目清單，「隨機」時從中挑選，避免抽到太冷門的條目
+// 備用熱門條目（隨機條目池載入失敗時使用）
 const POPULAR = {
   zh: [
     '臺灣', '日本', '珍珠奶茶', '周杰倫', 'IPhone', '披薩', '吉薩金字塔', '威廉·莎士比亞', '貓', '恐龍',
@@ -58,11 +58,48 @@ export async function suggest(lang, text) {
   return Array.isArray(data) ? data[1] : [];
 }
 
+let topicsPromise = null;
+const loadTopics = () => (topicsPromise ||= import('./topics.js').then((m) => m.TOPICS));
+const recent = [];
+
+// 確認條目存在且不是消歧義頁；回傳實際標題或 null
+async function checkTitle(lang, title) {
+  const data = await api(lang, {
+    action: 'query', titles: title, redirects: '1', converttitles: '1', prop: 'pageprops', ppprop: 'disambiguation',
+  });
+  const page = data.query?.pages?.[0];
+  if (!page || page.missing || page.invalid || page.ns !== 0) return null;
+  if (page.pageprops && 'disambiguation' in page.pageprops) return null;
+  return page.title;
+}
+
+// 中文條目透過跨語言連結找到英文條目
+async function toEnglish(zhTitle) {
+  const data = await api('zh', {
+    action: 'query', titles: zhTitle, redirects: '1', converttitles: '1', prop: 'langlinks', lllang: 'en',
+  });
+  const en = data.query?.pages?.[0]?.langlinks?.[0]?.title;
+  return en ? checkTitle('en', en) : null;
+}
+
 export async function randomTitle(lang, trueRandom) {
   if (trueRandom) {
     const data = await api(lang, { action: 'query', list: 'random', rnnamespace: '0', rnlimit: '1' });
     return data.query.random[0].title;
   }
+  try {
+    const topics = await loadTopics();
+    for (let i = 0; i < 8; i++) {
+      const pick = topics[Math.floor(Math.random() * topics.length)];
+      if (recent.includes(pick)) continue;
+      const title = lang === 'zh' ? await checkTitle('zh', pick) : await toEnglish(pick);
+      if (title) {
+        recent.push(pick);
+        if (recent.length > 50) recent.shift();
+        return title;
+      }
+    }
+  } catch { /* 網路錯誤時退回內建清單 */ }
   const list = POPULAR[lang];
   return list[Math.floor(Math.random() * list.length)];
 }

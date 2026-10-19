@@ -1,6 +1,6 @@
 import { Net } from './net.js';
 import * as wiki from './wiki.js';
-import { sfx, unlockAudio, isMuted, setMuted, vibrate, flash, shake, confetti } from './fx.js';
+import { sfx, music, unlockAudio, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js';
 
 const $ = (sel) => document.querySelector(sel);
 const net = new Net();
@@ -43,7 +43,8 @@ function showError(sel, msg) {
 function show(view) {
   state.view = view;
   for (const v of ['home', 'room', 'game', 'result']) $(`#view-${v}`).hidden = v !== view;
-  $('.topbar').hidden = view === 'game';
+  $('.masthead').hidden = view === 'game';
+  if (view === 'home' || view === 'room') music.play('lobby');
   window.scrollTo(0, 0);
 }
 
@@ -68,18 +69,47 @@ function fillPath(ol, path, target) {
   }));
 }
 
-// ---------- 音效開關 ----------
+// ---------- 音效、音樂、觸覺 ----------
 function initSound() {
-  const btn = $('#btn-sound');
-  const paint = () => { btn.textContent = isMuted() ? '🔇' : '🔊'; };
+  const paint = () => {
+    $('#btn-sound').textContent = isSfxOn() ? '🔊' : '🔇';
+    for (const b of [$('#btn-music'), $('#btn-music-game')]) b.classList.toggle('off', !isMusicOn());
+  };
   paint();
-  btn.onclick = () => { setMuted(!isMuted()); paint(); if (!isMuted()) { unlockAudio(); sfx.click(); } };
+  $('#btn-sound').onclick = () => { setSfxOn(!isSfxOn()); paint(); };
+  const toggleMusic = () => { setMusicOn(!isMusicOn()); paint(); toast(isMusicOn() ? '背景音樂：開' : '背景音樂：關', 1200); };
+  $('#btn-music').onclick = toggleMusic;
+  $('#btn-music-game').onclick = toggleMusic;
   // 瀏覽器要求使用者先操作過才能出聲
   for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
+  // 每次點擊按鈕、選項都給一下觸覺與聲音回饋
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('button, input[type=checkbox], select, .article a');
+    if (!el || el.disabled) return;
+    if (el.matches('.article a')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }
+    haptic('light');
+    sfx.tap();
+  }, true);
 }
+
+const DYK = [
+  '在英文維基百科，從大部分條目開始一直點擊內文的第一個連結，最後常常會走到「哲學」條目？',
+  '維基百科在 2001 年 1 月 15 日上線，中文維基百科則在同年 5 月建立？',
+  '「六度分隔理論」認為，世界上任意兩個人之間平均只隔著大約六個人？',
+  '高手常把「國家」、「城市」、「年份」這類連結特別多的條目當作轉運站？',
+  '這種比賽在英文圈叫做 Wikiracing，也有人叫它 Wiki Game？',
+  '條目最上方的資訊框（Infobox）常常藏著通往國家、首都和人物的捷徑？',
+  '條目最下方的導航框（Navbox）收錄同類主題，是跳到相關條目的好地方？',
+  '「上一頁」也算一步，走錯路時要想清楚是回頭還是繼續往前？',
+];
 
 // ---------- 首頁 ----------
 function initHome() {
+  $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
+  // 閒置時預先載入題庫並顯示數量
+  setTimeout(() => {
+    import('./topics.js').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+  }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   const params = new URLSearchParams(location.search);
   const room = params.get('room');
@@ -175,7 +205,7 @@ function renderRoom() {
   $('#slot-host .pname').textContent = hostName || '—';
   $('#slot-host .pstate').textContent = '';
   $('#slot-guest .pname').textContent = hasGuest && guestName ? guestName : '等待對手加入…';
-  $('#slot-guest .pstate').textContent = hasGuest ? (state.guestReady ? 'READY' : '準備中…') : '';
+  $('#slot-guest .pstate').textContent = hasGuest ? (state.guestReady ? '✓ 已準備' : '尚未準備') : '';
   $('#slot-guest').classList.toggle('ready', hasGuest && state.guestReady);
   $('#slot-guest').classList.toggle('empty', !hasGuest);
   $('#slot-host').classList.toggle('is-me', host);
@@ -186,12 +216,12 @@ function renderRoom() {
   $('#slot-guest').classList.toggle('me-side', !host);
   $('#slot-guest').classList.toggle('opp-side', host);
 
-  for (const el of form().elements) el.disabled = !host;
+  for (const el of form().elements) if (!el.matches('#btn-ready, #btn-start')) el.disabled = !host;
   $('#host-only-hint').hidden = host;
 
   const ready = $('#btn-ready');
   ready.hidden = host;
-  ready.textContent = state.guestReady ? '已準備 ✓（點擊取消）' : '準備';
+  ready.textContent = state.guestReady ? '已準備 ✓（再按一次取消）' : '準備';
   ready.classList.toggle('is-ready', state.guestReady);
   $('#btn-start').hidden = !host;
   $('#btn-start').disabled = !(hasGuest && state.guestReady);
@@ -199,7 +229,7 @@ function renderRoom() {
   let hint = '';
   if (host && !hasGuest) hint = '把房間代碼或邀請連結傳給朋友吧！';
   else if (host && !state.guestReady) hint = '等待對手按下「準備」…';
-  else if (host) hint = '對手準備好了，按下開始！';
+  else if (host) hint = '對手準備好了，按下開始！起點或終點留空會從題庫隨機抽。';
   else if (!state.guestReady) hint = '確認路線後按「準備」';
   else hint = '等待房主開始比賽…';
   $('#room-hint').textContent = hint;
@@ -219,8 +249,6 @@ function broadcastSettings() {
   const next = readForm();
   if (JSON.stringify(next) === JSON.stringify(state.settings)) return;
   state.settings = next;
-  // 設定變動時讓對手重新確認
-  if (state.guestReady) { state.guestReady = false; renderRoom(); }
   clearTimeout(settingsTimer);
   settingsTimer = setTimeout(() => net.send({ t: 'settings', settings: state.settings }), 150);
 }
@@ -249,17 +277,20 @@ function initRoom() {
     btn.onclick = async () => {
       const key = btn.dataset.random;
       btn.disabled = true;
+      btn.textContent = '抽籤中…';
       try {
         const s = readForm();
         let t;
         do { t = await wiki.randomTitle(s.lang, s.trueRandom); } while (t === s[key === 'start' ? 'target' : 'start']);
         form().elements[key].value = t;
         sfx.click();
+        haptic('light');
         broadcastSettings();
       } catch (e) {
         showError('#room-error', e.message);
       } finally {
-        btn.disabled = false;
+        btn.disabled = !net.isHost;
+        btn.textContent = '隨機';
       }
     };
   });
@@ -283,7 +314,7 @@ function initRoom() {
   $('#btn-ready').onclick = () => {
     state.guestReady = !state.guestReady;
     net.send({ t: 'ready', ready: state.guestReady });
-    if (state.guestReady) sfx.near();
+    if (state.guestReady) { sfx.ready(); haptic('success'); }
     renderRoom();
   };
 
@@ -356,6 +387,9 @@ function startGame(settings) {
   $('#btn-back').disabled = true;
   $('#article').replaceChildren();
   $('#article-title').textContent = '';
+  $('#breadcrumb').textContent = '';
+  music.stop();
+  music.setIntensity(0);
   $('#brief-start').textContent = settings.start;
   $('#brief-target').textContent = settings.target;
   show('game');
@@ -377,14 +411,16 @@ function startGame(settings) {
   let n = 3;
   showNum(n);
   sfx.count();
+  haptic('countdown');
   const iv = setInterval(() => {
     n--;
-    if (n > 0) { showNum(n); sfx.count(); vibrate(40); return; }
+    if (n > 0) { showNum(n); sfx.count(); haptic('countdown'); return; }
     clearInterval(iv);
     showNum('GO!', true);
     sfx.go();
-    vibrate([80, 40, 80]);
-    flash('#3ddc84');
+    haptic('go');
+    flash('#14866d');
+    music.play('race');
     setTimeout(() => { overlay.hidden = true; }, 450);
     const g = state.game;
     g.startAt = performance.now();
@@ -404,15 +440,25 @@ function tick() {
   const ms = elapsed();
   const limit = g.settings.timeLimit * 1000;
   const timer = $('#hud-timer');
-  if (!limit) { timer.textContent = fmtTime(ms); return; }
+  if (!limit) { timer.textContent = fmtTime(ms); updateIntensity(); return; }
   const left = limit - ms;
   timer.textContent = fmtTime(left);
   timer.classList.toggle('warn', left < 60000 && left >= 10000);
   timer.classList.toggle('crit', left < 10000);
   // 最後 10 秒每秒滴答
   const sec = Math.ceil(left / 1000);
-  if (left < 10000 && sec !== g.lastSecond) { g.lastSecond = sec; sfx.tick(); vibrate(20); }
+  if (left < 10000 && sec !== g.lastSecond) { g.lastSecond = sec; sfx.tick(); haptic('light'); }
+  updateIntensity(left);
   if (left <= 0) finishGame('timeout');
+}
+
+// 音樂隨局勢加快：對手接近終點或剩不到一分鐘時加速，最後 15 秒再加速
+function updateIntensity(left = Infinity) {
+  const g = state.game;
+  let lvl = 0;
+  if (g.opp.near || g.near || left < 60000) lvl = 1;
+  if (left < 15000 || (g.opp.near && g.near)) lvl = 2;
+  music.setIntensity(lvl);
 }
 
 async function goTo(title, { first = false, back = false, preload = null } = {}) {
@@ -429,6 +475,7 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
     g.current = art.title;
     g.path.push(art.title);
     renderArticle(art);
+    renderBreadcrumb(g);
     $('#hud-clicks').textContent = g.clicks;
     fillPath($('#hud-path'), g.path, g.settings.target);
     $('#path-count').textContent = g.path.length;
@@ -436,10 +483,10 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
 
     const reached = art.title === g.settings.target;
     const near = !reached && !!$('#article a.is-target');
-    if (near && !g.near) { sfx.near(); vibrate(60); }
+    if (near && !g.near) { sfx.near(); haptic('success'); }
     g.near = near;
     $('#hud-alert-me').hidden = !near;
-    $('#hud-alert-me').textContent = '🎯 終點連結就在這一頁！快找！';
+    $('#hud-alert-me').textContent = '終點連結就在這一頁！快找！';
 
     net.send({ t: 'progress', title: art.title, clicks: g.clicks, near });
     if (reached) finishGame('win');
@@ -449,6 +496,19 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
     g.loading = false;
     $('#article-loading').hidden = true;
   }
+}
+
+function renderBreadcrumb(g) {
+  const bc = $('#breadcrumb');
+  const shown = g.path.slice(-4);
+  const parts = [];
+  if (g.path.length > shown.length) parts.push('…');
+  shown.forEach((t, i) => {
+    if (i === shown.length - 1) parts.push(Object.assign(document.createElement('span'), { className: 'here', textContent: t }));
+    else parts.push(t);
+  });
+  bc.replaceChildren('路線：');
+  parts.forEach((p, i) => { if (i) bc.append(' › '); bc.append(p); });
 }
 
 function renderArticle(art) {
@@ -512,9 +572,10 @@ function initGame() {
   $('#btn-path-close').onclick = () => { $('#path-drawer').hidden = true; };
 }
 
-function feed(parts) {
+function feed(parts, step) {
   const el = document.createElement('div');
   el.className = 'feed-item';
+  el.append(Object.assign(document.createElement('span'), { className: 'feed-time', textContent: `第${step}步` }));
   for (const p of parts) {
     if (typeof p === 'string') el.append(p);
     else el.append(Object.assign(document.createElement('b'), { textContent: p.b }));
@@ -531,12 +592,12 @@ function setOppDanger(on) {
   const g = state.game;
   $('#hud').classList.toggle('danger', on);
   $('#hud-alert-opp').hidden = !on;
-  $('#hud-alert-opp').textContent = `⚠️ ${state.oppName || '對手'} 只差一步就到終點！`;
+  $('#hud-alert-opp').textContent = `${state.oppName || '對手'} 只差一步就到終點！`;
   clearInterval(g.heart);
   g.heart = null;
   if (on) {
     sfx.alarm();
-    vibrate([120, 60, 120, 60, 120]);
+    haptic('warning');
     g.heart = setInterval(() => sfx.heartbeat(), 900);
   }
 }
@@ -551,7 +612,7 @@ function onOppProgress(msg) {
   $('#hud-opp-clicks').textContent = msg.clicks;
   $('#hud-opp-page').textContent = g.settings.showOpponentPage ? `在：${msg.title}` : '';
   const near = !!msg.near;
-  if (near !== g.opp.near) { g.opp.near = near; setOppDanger(near); }
+  if (near !== g.opp.near) { g.opp.near = near; setOppDanger(near); updateIntensity(); }
   if (moved && g.startAt) {
     const racer = $('#hud-opp');
     racer.classList.remove('bump');
@@ -559,7 +620,8 @@ function onOppProgress(msg) {
     racer.classList.add('bump');
     sfx.oppMove();
     const name = state.oppName || '對手';
-    feed(g.settings.showOpponentPage ? [{ b: name }, ` 衝到《${msg.title}》`] : [{ b: name }, ' 又前進了一步']);
+    feed(g.settings.showOpponentPage ? [{ b: name }, ` 前往《${msg.title}》`] : [{ b: name }, ' 又前進了一步'], msg.clicks);
+    haptic('light');
   }
 }
 
@@ -573,6 +635,7 @@ function finishGame(reason) {
   const g = state.game;
   if (!g || g.finished) return;
   stopGameLoops(g);
+  music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
   net.send({ t: 'finish', ...g.finished });
   $('#countdown').hidden = true;
@@ -617,15 +680,11 @@ function outcome(g) {
   return 'draw';
 }
 
-function describe(f, target) {
-  if (!f) return '等待資料…';
-  const time = fmtTime(f.elapsed);
-  switch (f.reason) {
-    case 'win': return `抵達終點 · ${f.clicks} 步 · ${time}`;
-    case 'giveup': return `投降 · ${f.clicks} 步 · ${time}`;
-    case 'timeout': return `時間到 · ${f.clicks} 步`;
-    default: return `${f.clicks} 步 · ${time}${f.path?.at(-1) && f.path.at(-1) !== target ? ` · 停在《${f.path.at(-1)}》` : ''}`;
-  }
+function resultLabel(f) {
+  if (!f) return '—';
+  return {
+    win: '抵達終點', lose: '未抵達', giveup: '投降', timeout: '時間到', oppGaveUp: '對手投降', oppLeft: '對手離線',
+  }[f.reason] || '—';
 }
 
 let lastOutcome = null;
@@ -633,28 +692,35 @@ function showResult(update = false) {
   const g = state.game;
   const res = outcome(g);
   const map = {
-    win: ['VICTORY', '你贏了！'],
-    lose: ['DEFEAT', '你輸了…'],
-    draw: ['DRAW', '平手！'],
+    win: ['勝利', '你先抵達了終點！'],
+    lose: ['敗北', '對手搶先一步…'],
+    draw: ['平手', '不分勝負'],
   };
   const hero = $('#result-hero');
   hero.className = `result-hero ${res}`;
   $('#result-kicker').textContent = map[res][0];
   $('#result-title').textContent = map[res][1];
-  let sub = `${g.settings.start} → ${g.settings.target}`;
+  let sub = `《${g.settings.start}》→《${g.settings.target}》`;
   if (g.finished.reason === 'oppGaveUp') sub += '（對手投降）';
   if (g.finished.reason === 'oppLeft') sub += '（對手離線）';
   if (g.finished.reason === 'timeout') sub += '（時間到）';
   $('#result-sub').textContent = sub;
 
+  const me = g.finished;
+  const opp = g.opp.finished;
   $('#res-me-name').textContent = `${state.myName}（你）`;
-  $('#res-me-stat').textContent = describe(g.finished, g.settings.target);
-  fillPath($('#res-me-path'), g.finished.path, g.settings.target);
   $('#res-opp-name').textContent = state.oppName || '對手';
-  $('#res-opp-stat').textContent = g.opp.left && !g.opp.finished ? '已離線' : describe(g.opp.finished, g.settings.target);
+  $('#res-opp-path-head').textContent = `${state.oppName || '對手'} 的路線`;
+  $('#res-me-result').textContent = resultLabel(me);
+  $('#res-opp-result').textContent = g.opp.left && !opp ? '離線' : resultLabel(opp);
+  $('#res-me-result').classList.toggle('win', res === 'win');
+  $('#res-opp-result').classList.toggle('win', res === 'lose');
+  $('#res-me-steps').textContent = `${me.clicks} 步`;
+  $('#res-opp-steps').textContent = opp ? `${opp.clicks} 步` : `${g.opp.clicks} 步`;
+  $('#res-me-time').textContent = fmtTime(me.elapsed);
+  $('#res-opp-time').textContent = opp ? fmtTime(opp.elapsed) : '—';
+  fillPath($('#res-me-path'), me.path, g.settings.target);
   fillPath($('#res-opp-path'), g.opp.path, g.settings.target);
-  $('.result-card.me-side').classList.toggle('winner', res === 'win');
-  $('.result-card.opp-side').classList.toggle('winner', res === 'lose');
   $('#btn-rematch').disabled = !net.connected;
   $('#btn-rematch').textContent = net.connected ? '再來一局' : '對手已離線';
 
@@ -662,8 +728,10 @@ function showResult(update = false) {
   lastOutcome = res;
   show('result');
   if (!changed) return;
-  if (res === 'win') { sfx.win(); confetti(); vibrate([60, 40, 60, 40, 200]); }
-  else if (res === 'lose') { sfx.lose(); shake(hero); vibrate(400); }
+  if (res === 'win') { sfx.win(); confetti(); haptic('success'); }
+  else if (res === 'lose') { sfx.lose(); shake(hero); haptic('error'); }
+  // 結算音效播完後回到大廳音樂
+  setTimeout(() => { if (state.view === 'result') music.play('lobby'); }, 3500);
 }
 
 function initResult() {
@@ -704,8 +772,8 @@ net.onMessage = (msg) => {
       state.guestReady = false;
       net.send({ t: 'welcome', name: state.myName, settings: readForm() });
       toast(`${state.oppName} 加入了房間`);
-      sfx.near();
-      vibrate(80);
+      sfx.ready();
+      haptic('medium');
       if (state.view === 'room') renderRoom();
       break;
     case 'welcome':
@@ -724,16 +792,12 @@ net.onMessage = (msg) => {
       if (net.isHost) return;
       state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
       writeForm(state.settings);
-      if (state.guestReady) {
-        state.guestReady = false;
-        net.send({ t: 'ready', ready: false });
-      }
       if (state.view === 'room') renderRoom();
       break;
     case 'ready':
       if (!net.isHost) return;
       state.guestReady = !!msg.ready;
-      if (state.guestReady) sfx.near();
+      if (state.guestReady) { sfx.ready(); haptic('medium'); }
       if (state.view === 'room') renderRoom();
       break;
     case 'start':
