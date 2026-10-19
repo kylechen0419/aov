@@ -1,5 +1,6 @@
 import { Net } from './net.js';
 import * as wiki from './wiki.js';
+import { tw, twTree, zhReady } from './zh.js';
 import { sfx, music, unlockAudio, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -69,7 +70,7 @@ function initial(name) {
 function fillPath(ol, path, target) {
   ol.replaceChildren(...path.map((t) => {
     const li = document.createElement('li');
-    li.textContent = t;
+    li.textContent = tw(t);
     if (t === target) li.classList.add('hit');
     return li;
   }));
@@ -198,8 +199,8 @@ function writeForm(s) {
   const f = form().elements;
   f.lang.value = s.lang;
   f.timeLimit.value = String(s.timeLimit);
-  if (document.activeElement !== f.start) f.start.value = s.start;
-  if (document.activeElement !== f.target) f.target.value = s.target;
+  if (document.activeElement !== f.start) f.start.value = tw(s.start);
+  if (document.activeElement !== f.target) f.target.value = tw(s.target);
   f.showOpponentPage.checked = s.showOpponentPage;
   f.allowBack.checked = s.allowBack;
   f.trueRandom.checked = s.trueRandom;
@@ -276,7 +277,7 @@ function initRoom() {
       suggestTimer = setTimeout(async () => {
         try {
           const list = await wiki.suggest(state.settings.lang, text);
-          $(`#suggest-${name}`).replaceChildren(...list.map((t) => Object.assign(document.createElement('option'), { value: t })));
+          $(`#suggest-${name}`).replaceChildren(...list.map((t) => Object.assign(document.createElement('option'), { value: tw(t) })));
         } catch { /* 建議失敗不影響遊戲 */ }
       }, 250);
     }
@@ -293,7 +294,8 @@ function initRoom() {
         const s = readForm();
         let t;
         do { t = await wiki.randomTitle(s.lang, s.trueRandom); } while (t === s[key === 'start' ? 'target' : 'start']);
-        form().elements[key].value = t;
+        await zhReady;
+        form().elements[key].value = tw(t);
         sfx.click();
         haptic('light');
         broadcastSettings();
@@ -388,7 +390,7 @@ function startGame(settings) {
     timer: null,
     heart: null,
   };
-  $('#hud-target').textContent = settings.target;
+  $('#hud-target').textContent = tw(settings.target);
   $('#hud-clicks').textContent = '0';
   $('#hud-timer').textContent = settings.timeLimit ? fmtTime(settings.timeLimit * 1000) : '00:00';
   $('#hud-timer').className = 'hud-timer';
@@ -396,7 +398,7 @@ function startGame(settings) {
   $('#hud-me-avatar').textContent = initial(state.myName);
   $('#hud-opp-avatar').textContent = initial(state.oppName);
   $('#hud-opp-clicks').textContent = '0';
-  $('#hud-opp-page').textContent = settings.showOpponentPage ? `在：${settings.start}` : '';
+  $('#hud-opp-page').textContent = settings.showOpponentPage ? `在：${tw(settings.start)}` : '';
   $('#hud-alert-opp').hidden = true;
   $('#hud-alert-me').hidden = true;
   $('#hud').classList.remove('danger');
@@ -411,8 +413,8 @@ function startGame(settings) {
   $('#breadcrumb').textContent = '';
   music.stop();
   music.setIntensity(0);
-  $('#brief-start').textContent = settings.start;
-  $('#brief-target').textContent = settings.target;
+  $('#brief-start').textContent = tw(settings.start);
+  $('#brief-target').textContent = tw(settings.target);
   show('game');
 
   // 先在背景載入起點條目，倒數結束時直接顯示
@@ -498,6 +500,7 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
   if (!first) sfx.click();
   try {
     const art = await (preload || wiki.fetchArticle(g.settings.lang, title));
+    await zhReady;
     if (g !== state.game || g.finished) return;
     if (!first) g.clicks++;
     if (g.current && !back) g.stack.push(g.current);
@@ -533,8 +536,8 @@ function renderBreadcrumb(g) {
   const parts = [];
   if (g.path.length > shown.length) parts.push('…');
   shown.forEach((t, i) => {
-    if (i === shown.length - 1) parts.push(Object.assign(document.createElement('span'), { className: 'here', textContent: t }));
-    else parts.push(t);
+    if (i === shown.length - 1) parts.push(Object.assign(document.createElement('span'), { className: 'here', textContent: tw(t) }));
+    else parts.push(tw(t));
   });
   bc.replaceChildren('路線：');
   parts.forEach((p, i) => { if (i) bc.append(' › '); bc.append(p); });
@@ -543,11 +546,12 @@ function renderBreadcrumb(g) {
 function renderArticle(art) {
   const tmp = document.createElement('div');
   tmp.innerHTML = art.displayTitle || art.title;
-  $('#article-title').textContent = tmp.textContent;
+  $('#article-title').textContent = tw(tmp.textContent);
 
   const root = $('#article');
   root.innerHTML = art.html;
   root.querySelectorAll('.mw-editsection, .mw-empty-elt, script').forEach((el) => el.remove());
+  if (state.game.settings.lang === 'zh') twTree(root);
   const target = state.game.settings.target;
   root.querySelectorAll('a').forEach((a) => {
     const href = a.getAttribute('href') || '';
@@ -639,7 +643,7 @@ function onOppProgress(msg) {
   g.opp.current = msg.title;
   g.opp.path.push(msg.title);
   $('#hud-opp-clicks').textContent = msg.clicks;
-  $('#hud-opp-page').textContent = g.settings.showOpponentPage ? `在：${msg.title}` : '';
+  $('#hud-opp-page').textContent = g.settings.showOpponentPage ? `在：${tw(msg.title)}` : '';
   const near = !!msg.near;
   if (near !== g.opp.near) { g.opp.near = near; setOppDanger(near); updateIntensity(); }
   if (moved && g.startAt) {
@@ -649,7 +653,7 @@ function onOppProgress(msg) {
     racer.classList.add('bump');
     sfx.oppMove();
     const name = state.oppName || '對手';
-    feed(g.settings.showOpponentPage ? [{ b: name }, ` 前往《${msg.title}》`] : [{ b: name }, ' 又前進了一步'], msg.clicks);
+    feed(g.settings.showOpponentPage ? [{ b: name }, ` 前往《${tw(msg.title)}》`] : [{ b: name }, ' 又前進了一步'], msg.clicks);
     haptic('light');
   }
 }
@@ -729,7 +733,7 @@ function showResult(update = false) {
   hero.className = `result-hero ${res}`;
   $('#result-kicker').textContent = map[res][0];
   $('#result-title').textContent = map[res][1];
-  let sub = `《${g.settings.start}》→《${g.settings.target}》`;
+  let sub = `《${tw(g.settings.start)}》→《${tw(g.settings.target)}》`;
   if (g.finished.reason === 'oppGaveUp') sub += '（對手投降）';
   if (g.finished.reason === 'oppLeft') sub += '（對手離線）';
   if (g.finished.reason === 'timeout') sub += '（時間到）';
