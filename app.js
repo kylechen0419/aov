@@ -1,5 +1,6 @@
 import { Net } from './net.js';
 import * as wiki from './wiki.js';
+import { sfx, unlockAudio, isMuted, setMuted, vibrate, flash, shake, confetti } from './fx.js';
 
 const $ = (sel) => document.querySelector(sel);
 const net = new Net();
@@ -42,6 +43,7 @@ function showError(sel, msg) {
 function show(view) {
   state.view = view;
   for (const v of ['home', 'room', 'game', 'result']) $(`#view-${v}`).hidden = v !== view;
+  $('.topbar').hidden = view === 'game';
   window.scrollTo(0, 0);
 }
 
@@ -64,6 +66,16 @@ function fillPath(ol, path, target) {
     if (t === target) li.classList.add('hit');
     return li;
   }));
+}
+
+// ---------- 音效開關 ----------
+function initSound() {
+  const btn = $('#btn-sound');
+  const paint = () => { btn.textContent = isMuted() ? '🔇' : '🔊'; };
+  paint();
+  btn.onclick = () => { setMuted(!isMuted()); paint(); if (!isMuted()) { unlockAudio(); sfx.click(); } };
+  // 瀏覽器要求使用者先操作過才能出聲
+  for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
 }
 
 // ---------- 首頁 ----------
@@ -89,10 +101,10 @@ function initHome() {
     showError('#home-error');
     state.myName = name;
     $('#btn-create').disabled = true;
-    setConn('建立房間中…');
+    setConn('建立中…');
     try {
       const code = await net.createRoom();
-      setConn('等待對手', false);
+      setConn('等待對手');
       enterRoom(code);
     } catch (e) {
       showError('#home-error', e.message);
@@ -161,27 +173,34 @@ function renderRoom() {
   const hasGuest = net.connected;
 
   $('#slot-host .pname').textContent = hostName || '—';
-  $('#slot-host .pstate').textContent = '房主';
+  $('#slot-host .pstate').textContent = '';
   $('#slot-guest .pname').textContent = hasGuest && guestName ? guestName : '等待對手加入…';
-  $('#slot-guest .pstate').textContent = hasGuest ? (state.guestReady ? '✅ 已準備' : '尚未準備') : '';
+  $('#slot-guest .pstate').textContent = hasGuest ? (state.guestReady ? 'READY' : '準備中…') : '';
   $('#slot-guest').classList.toggle('ready', hasGuest && state.guestReady);
-  $('#slot-host').classList.toggle('me', host);
-  $('#slot-guest').classList.toggle('me', !host);
+  $('#slot-guest').classList.toggle('empty', !hasGuest);
+  $('#slot-host').classList.toggle('is-me', host);
+  $('#slot-guest').classList.toggle('is-me', !host);
+  // 自己永遠是青色、對手永遠是洋紅
+  $('#slot-host').classList.toggle('me-side', host);
+  $('#slot-host').classList.toggle('opp-side', !host);
+  $('#slot-guest').classList.toggle('me-side', !host);
+  $('#slot-guest').classList.toggle('opp-side', host);
 
   for (const el of form().elements) el.disabled = !host;
   $('#host-only-hint').hidden = host;
 
-  $('#btn-ready').hidden = host;
-  $('#btn-ready').textContent = state.guestReady ? '取消準備' : '準備';
-  $('#btn-ready').classList.toggle('primary', !state.guestReady);
+  const ready = $('#btn-ready');
+  ready.hidden = host;
+  ready.textContent = state.guestReady ? '已準備 ✓（點擊取消）' : '準備';
+  ready.classList.toggle('is-ready', state.guestReady);
   $('#btn-start').hidden = !host;
   $('#btn-start').disabled = !(hasGuest && state.guestReady);
 
   let hint = '';
   if (host && !hasGuest) hint = '把房間代碼或邀請連結傳給朋友吧！';
   else if (host && !state.guestReady) hint = '等待對手按下「準備」…';
-  else if (host) hint = '對手已準備好，可以開始了！起點或終點留空會自動隨機。';
-  else if (!state.guestReady) hint = '確認設定後按下「準備」';
+  else if (host) hint = '對手準備好了，按下開始！';
+  else if (!state.guestReady) hint = '確認路線後按「準備」';
   else hint = '等待房主開始比賽…';
   $('#room-hint').textContent = hint;
 }
@@ -235,6 +254,7 @@ function initRoom() {
         let t;
         do { t = await wiki.randomTitle(s.lang, s.trueRandom); } while (t === s[key === 'start' ? 'target' : 'start']);
         form().elements[key].value = t;
+        sfx.click();
         broadcastSettings();
       } catch (e) {
         showError('#room-error', e.message);
@@ -263,6 +283,7 @@ function initRoom() {
   $('#btn-ready').onclick = () => {
     state.guestReady = !state.guestReady;
     net.send({ t: 'ready', ready: state.guestReady });
+    if (state.guestReady) sfx.near();
     renderRoom();
   };
 
@@ -272,7 +293,7 @@ function initRoom() {
 async function hostStart() {
   const btn = $('#btn-start');
   btn.disabled = true;
-  btn.textContent = '準備條目中…';
+  btn.textContent = '準備路線中…';
   showError('#room-error');
   try {
     const s = readForm();
@@ -310,20 +331,33 @@ function startGame(settings) {
     stack: [],
     current: null,
     loading: false,
+    near: false,
     finished: null,
-    opp: { clicks: 0, current: settings.start, path: [], finished: null, left: false },
+    lastSecond: null,
+    opp: { clicks: 0, current: settings.start, path: [], finished: null, left: false, near: false },
     timer: null,
+    heart: null,
   };
   $('#hud-target').textContent = settings.target;
   $('#hud-clicks').textContent = '0';
   $('#hud-timer').textContent = settings.timeLimit ? fmtTime(settings.timeLimit * 1000) : '00:00';
-  $('#hud-opp-name').textContent = state.oppName;
+  $('#hud-timer').className = 'hud-timer';
+  $('#hud-opp-name').textContent = state.oppName || '對手';
   $('#hud-opp-clicks').textContent = '0';
-  $('#hud-opp-page').textContent = '';
+  $('#hud-opp-page').textContent = settings.showOpponentPage ? `在：${settings.start}` : '';
+  $('#hud-alert-opp').hidden = true;
+  $('#hud-alert-me').hidden = true;
+  $('#hud').classList.remove('danger');
   $('#hud-path').replaceChildren();
+  $('#path-count').textContent = '0';
+  $('#path-drawer').hidden = true;
+  $('#feed').replaceChildren();
   $('#btn-back').hidden = !settings.allowBack;
+  $('#btn-back').disabled = true;
   $('#article').replaceChildren();
   $('#article-title').textContent = '';
+  $('#brief-start').textContent = settings.start;
+  $('#brief-target').textContent = settings.target;
   show('game');
 
   // 先在背景載入起點條目，倒數結束時直接顯示
@@ -331,18 +365,30 @@ function startGame(settings) {
   preload.catch(() => {});
 
   const overlay = $('#countdown');
+  const num = $('#countdown-num');
   overlay.hidden = false;
+  const showNum = (txt, isGo) => {
+    num.textContent = txt;
+    num.classList.toggle('go', !!isGo);
+    num.classList.remove('pop');
+    void num.offsetWidth;
+    num.classList.add('pop');
+  };
   let n = 3;
-  $('#countdown-num').textContent = n;
+  showNum(n);
+  sfx.count();
   const iv = setInterval(() => {
     n--;
-    if (n > 0) { $('#countdown-num').textContent = n; return; }
+    if (n > 0) { showNum(n); sfx.count(); vibrate(40); return; }
     clearInterval(iv);
-    $('#countdown-num').textContent = 'GO!';
-    setTimeout(() => { overlay.hidden = true; }, 500);
+    showNum('GO!', true);
+    sfx.go();
+    vibrate([80, 40, 80]);
+    flash('#3ddc84');
+    setTimeout(() => { overlay.hidden = true; }, 450);
     const g = state.game;
     g.startAt = performance.now();
-    g.timer = setInterval(tick, 250);
+    g.timer = setInterval(tick, 200);
     goTo(settings.start, { first: true, preload });
   }, 1000);
 }
@@ -357,9 +403,16 @@ function tick() {
   if (!g || g.finished) return;
   const ms = elapsed();
   const limit = g.settings.timeLimit * 1000;
-  $('#hud-timer').textContent = limit ? fmtTime(limit - ms) : fmtTime(ms);
-  $('#hud-timer').classList.toggle('warn', !!limit && limit - ms < 30000);
-  if (limit && ms >= limit) finishGame('timeout');
+  const timer = $('#hud-timer');
+  if (!limit) { timer.textContent = fmtTime(ms); return; }
+  const left = limit - ms;
+  timer.textContent = fmtTime(left);
+  timer.classList.toggle('warn', left < 60000 && left >= 10000);
+  timer.classList.toggle('crit', left < 10000);
+  // 最後 10 秒每秒滴答
+  const sec = Math.ceil(left / 1000);
+  if (left < 10000 && sec !== g.lastSecond) { g.lastSecond = sec; sfx.tick(); vibrate(20); }
+  if (left <= 0) finishGame('timeout');
 }
 
 async function goTo(title, { first = false, back = false, preload = null } = {}) {
@@ -367,6 +420,7 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
   if (!g || g.finished || g.loading) return;
   g.loading = true;
   $('#article-loading').hidden = false;
+  if (!first) sfx.click();
   try {
     const art = await (preload || wiki.fetchArticle(g.settings.lang, title));
     if (g !== state.game || g.finished) return;
@@ -377,9 +431,18 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
     renderArticle(art);
     $('#hud-clicks').textContent = g.clicks;
     fillPath($('#hud-path'), g.path, g.settings.target);
+    $('#path-count').textContent = g.path.length;
     $('#btn-back').disabled = g.stack.length === 0;
-    net.send({ t: 'progress', title: art.title, clicks: g.clicks });
-    if (art.title === g.settings.target) finishGame('win');
+
+    const reached = art.title === g.settings.target;
+    const near = !reached && !!$('#article a.is-target');
+    if (near && !g.near) { sfx.near(); vibrate(60); }
+    g.near = near;
+    $('#hud-alert-me').hidden = !near;
+    $('#hud-alert-me').textContent = '🎯 終點連結就在這一頁！快找！';
+
+    net.send({ t: 'progress', title: art.title, clicks: g.clicks, near });
+    if (reached) finishGame('win');
   } catch (e) {
     toast(`載入失敗：${e.message}`);
   } finally {
@@ -395,7 +458,8 @@ function renderArticle(art) {
 
   const root = $('#article');
   root.innerHTML = art.html;
-  root.querySelectorAll('.mw-editsection, .mw-empty-elt, script, style[data-mw-deduplicate=""]').forEach((el) => el.remove());
+  root.querySelectorAll('.mw-editsection, .mw-empty-elt, script').forEach((el) => el.remove());
+  const target = state.game.settings.target;
   root.querySelectorAll('a').forEach((a) => {
     const href = a.getAttribute('href') || '';
     if (href.startsWith('#')) return;
@@ -403,7 +467,7 @@ function renderArticle(art) {
     if (t) {
       a.dataset.title = t;
       a.classList.add('wl');
-      if (t === state.game.settings.target) a.classList.add('is-target');
+      if (t === target) a.classList.add('is-target');
     } else {
       a.classList.add('dead');
     }
@@ -441,28 +505,87 @@ function initGame() {
   };
 
   $('#btn-giveup').onclick = () => {
-    if (confirm('確定要放棄這一局嗎？')) finishGame('giveup');
+    if (confirm('確定要投降嗎？對手會直接獲勝。')) finishGame('giveup');
   };
+
+  $('#btn-path').onclick = () => { $('#path-drawer').hidden = !$('#path-drawer').hidden; };
+  $('#btn-path-close').onclick = () => { $('#path-drawer').hidden = true; };
 }
 
-function renderOpp() {
+function feed(parts) {
+  const el = document.createElement('div');
+  el.className = 'feed-item';
+  for (const p of parts) {
+    if (typeof p === 'string') el.append(p);
+    else el.append(Object.assign(document.createElement('b'), { textContent: p.b }));
+  }
+  const box = $('#feed');
+  // 放在 HUD 正下方，避免蓋住警告
+  box.style.top = `${$('#hud').getBoundingClientRect().bottom + 8}px`;
+  box.append(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.remove(), 2700);
+}
+
+function setOppDanger(on) {
   const g = state.game;
-  if (!g) return;
-  $('#hud-opp-clicks').textContent = g.opp.clicks;
-  let txt = '';
-  if (g.opp.left) txt = '⚠️ 對手已離線';
-  else if (g.settings.showOpponentPage && g.opp.current) txt = `目前在：${g.opp.current}`;
-  $('#hud-opp-page').textContent = txt;
+  $('#hud').classList.toggle('danger', on);
+  $('#hud-alert-opp').hidden = !on;
+  $('#hud-alert-opp').textContent = `⚠️ ${state.oppName || '對手'} 只差一步就到終點！`;
+  clearInterval(g.heart);
+  g.heart = null;
+  if (on) {
+    sfx.alarm();
+    vibrate([120, 60, 120, 60, 120]);
+    g.heart = setInterval(() => sfx.heartbeat(), 900);
+  }
+}
+
+function onOppProgress(msg) {
+  const g = state.game;
+  if (!g || g.opp.finished || g.finished) return;
+  const moved = msg.clicks !== g.opp.clicks || msg.title !== g.opp.current;
+  g.opp.clicks = msg.clicks;
+  g.opp.current = msg.title;
+  g.opp.path.push(msg.title);
+  $('#hud-opp-clicks').textContent = msg.clicks;
+  $('#hud-opp-page').textContent = g.settings.showOpponentPage ? `在：${msg.title}` : '';
+  const near = !!msg.near;
+  if (near !== g.opp.near) { g.opp.near = near; setOppDanger(near); }
+  if (moved && g.startAt) {
+    const racer = $('#hud-opp');
+    racer.classList.remove('bump');
+    void racer.offsetWidth;
+    racer.classList.add('bump');
+    sfx.oppMove();
+    const name = state.oppName || '對手';
+    feed(g.settings.showOpponentPage ? [{ b: name }, ` 衝到《${msg.title}》`] : [{ b: name }, ' 又前進了一步']);
+  }
+}
+
+function stopGameLoops(g) {
+  clearInterval(g.timer);
+  clearInterval(g.heart);
+  g.heart = null;
 }
 
 function finishGame(reason) {
   const g = state.game;
   if (!g || g.finished) return;
-  clearInterval(g.timer);
+  stopGameLoops(g);
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
   net.send({ t: 'finish', ...g.finished });
   $('#countdown').hidden = true;
-  showResult();
+  $('#path-drawer').hidden = true;
+  if (reason === 'win') {
+    flash('#ffc53d');
+    setTimeout(showResult, 350);
+  } else if (reason === 'lose') {
+    flash('#ff4d6d');
+    setTimeout(showResult, 350);
+  } else {
+    showResult();
+  }
 }
 
 // 對手的結束訊息會決定我方的結果
@@ -477,7 +600,7 @@ function onOppFinish(msg) {
     else if (msg.reason === 'giveup') finishGame('oppGaveUp');
     else if (msg.reason === 'timeout') finishGame('timeout');
   } else if (state.view === 'result') {
-    showResult();
+    showResult(true);
   }
 }
 
@@ -498,25 +621,28 @@ function describe(f, target) {
   if (!f) return '等待資料…';
   const time = fmtTime(f.elapsed);
   switch (f.reason) {
-    case 'win': return `抵達終點！${f.clicks} 步 · ${time}`;
-    case 'giveup': return `放棄 · ${f.clicks} 步 · ${time}`;
+    case 'win': return `抵達終點 · ${f.clicks} 步 · ${time}`;
+    case 'giveup': return `投降 · ${f.clicks} 步 · ${time}`;
     case 'timeout': return `時間到 · ${f.clicks} 步`;
-    default: return `${f.clicks} 步 · ${time}${f.path?.at(-1) && f.path.at(-1) !== target ? ` · 停在「${f.path.at(-1)}」` : ''}`;
+    default: return `${f.clicks} 步 · ${time}${f.path?.at(-1) && f.path.at(-1) !== target ? ` · 停在《${f.path.at(-1)}》` : ''}`;
   }
 }
 
-function showResult() {
+let lastOutcome = null;
+function showResult(update = false) {
   const g = state.game;
   const res = outcome(g);
   const map = {
-    win: ['🏆', '你贏了！'],
-    lose: ['😵', '你輸了…'],
-    draw: ['🤝', '平手！'],
+    win: ['VICTORY', '你贏了！'],
+    lose: ['DEFEAT', '你輸了…'],
+    draw: ['DRAW', '平手！'],
   };
-  $('#result-emoji').textContent = map[res][0];
+  const hero = $('#result-hero');
+  hero.className = `result-hero ${res}`;
+  $('#result-kicker').textContent = map[res][0];
   $('#result-title').textContent = map[res][1];
   let sub = `${g.settings.start} → ${g.settings.target}`;
-  if (g.finished.reason === 'oppGaveUp') sub += '（對手放棄）';
+  if (g.finished.reason === 'oppGaveUp') sub += '（對手投降）';
   if (g.finished.reason === 'oppLeft') sub += '（對手離線）';
   if (g.finished.reason === 'timeout') sub += '（時間到）';
   $('#result-sub').textContent = sub;
@@ -527,9 +653,17 @@ function showResult() {
   $('#res-opp-name').textContent = state.oppName || '對手';
   $('#res-opp-stat').textContent = g.opp.left && !g.opp.finished ? '已離線' : describe(g.opp.finished, g.settings.target);
   fillPath($('#res-opp-path'), g.opp.path, g.settings.target);
+  $('.result-card.me-side').classList.toggle('winner', res === 'win');
+  $('.result-card.opp-side').classList.toggle('winner', res === 'lose');
   $('#btn-rematch').disabled = !net.connected;
-  $('#btn-rematch').textContent = net.connected ? '回到房間再來一局' : '對手已離線';
+  $('#btn-rematch').textContent = net.connected ? '再來一局' : '對手已離線';
+
+  const changed = !update || res !== lastOutcome;
+  lastOutcome = res;
   show('result');
+  if (!changed) return;
+  if (res === 'win') { sfx.win(); confetti(); vibrate([60, 40, 60, 40, 200]); }
+  else if (res === 'lose') { sfx.lose(); shake(hero); vibrate(400); }
 }
 
 function initResult() {
@@ -547,12 +681,11 @@ net.onPeerLeave = () => {
   const g = state.game;
   if (state.view === 'game' && g && !g.finished) {
     g.opp.left = true;
-    renderOpp();
     finishGame('oppLeft');
     return;
   }
   if (g) g.opp.left = true;
-  if (state.view === 'result') showResult();
+  if (state.view === 'result') showResult(true);
   if (net.isHost) {
     state.oppName = '';
     state.guestReady = false;
@@ -571,6 +704,8 @@ net.onMessage = (msg) => {
       state.guestReady = false;
       net.send({ t: 'welcome', name: state.myName, settings: readForm() });
       toast(`${state.oppName} 加入了房間`);
+      sfx.near();
+      vibrate(80);
       if (state.view === 'room') renderRoom();
       break;
     case 'welcome':
@@ -598,6 +733,7 @@ net.onMessage = (msg) => {
     case 'ready':
       if (!net.isHost) return;
       state.guestReady = !!msg.ready;
+      if (state.guestReady) sfx.near();
       if (state.view === 'room') renderRoom();
       break;
     case 'start':
@@ -605,12 +741,7 @@ net.onMessage = (msg) => {
       startGame({ ...DEFAULT_SETTINGS, ...msg.settings });
       break;
     case 'progress':
-      if (state.game && !state.game.opp.finished) {
-        state.game.opp.clicks = msg.clicks;
-        state.game.opp.current = msg.title;
-        state.game.opp.path.push(msg.title);
-        renderOpp();
-      }
+      onOppProgress(msg);
       break;
     case 'finish':
       onOppFinish(msg);
@@ -625,6 +756,7 @@ window.addEventListener('beforeunload', (e) => {
 // 關閉分頁時主動斷線，讓對手立刻收到通知
 window.addEventListener('pagehide', () => net.destroy());
 
+initSound();
 initHome();
 initRoom();
 initGame();
