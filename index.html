@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>維基百科競速 · 1v1 線上對戰</title>
+  <meta name="description" content="和朋友一對一比賽：只能點條目內的連結，誰先抵達目標條目誰就獲勝。">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏁</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./">🏁 維基百科競速</a>
+    <span id="conn-status" class="conn" hidden></span>
+  </header>
+
+  <!-- 首頁：輸入暱稱、建立或加入房間 -->
+  <main id="view-home" class="view">
+    <section class="card hero">
+      <h1>維基百科競速</h1>
+      <p class="lead">從起點條目出發，<b>只能點擊條目內的連結</b>，誰先抵達目標條目誰就獲勝！</p>
+      <label class="field">
+        <span>你的暱稱</span>
+        <input id="nickname" maxlength="16" placeholder="例如：小明" autocomplete="nickname">
+      </label>
+      <div class="actions">
+        <button id="btn-create" class="btn primary">建立房間</button>
+      </div>
+      <div class="divider"><span>或</span></div>
+      <div class="join-row">
+        <input id="join-code" maxlength="6" placeholder="輸入房間代碼" autocomplete="off" spellcheck="false">
+        <button id="btn-join" class="btn">加入房間</button>
+      </div>
+      <p id="home-error" class="error" hidden></p>
+    </section>
+    <section class="card rules">
+      <h2>遊戲規則</h2>
+      <ol>
+        <li>房主建立房間，把<b>房間代碼或邀請連結</b>傳給朋友。</li>
+        <li>房主設定起點與終點條目（可隨機），雙方按下「準備」。</li>
+        <li>倒數結束後同時開始，只能點條目內文的藍色連結前進。</li>
+        <li>先抵達終點條目的人獲勝；同時抵達則比較用時。</li>
+      </ol>
+    </section>
+  </main>
+
+  <!-- 房間設定 -->
+  <main id="view-room" class="view" hidden>
+    <section class="card">
+      <div class="room-head">
+        <div>
+          <div class="muted small">房間代碼</div>
+          <div class="room-code" id="room-code">------</div>
+        </div>
+        <div class="room-share">
+          <button id="btn-copy-link" class="btn small">複製邀請連結</button>
+          <button id="btn-leave" class="btn small ghost">離開</button>
+        </div>
+      </div>
+
+      <div class="players">
+        <div class="player" id="slot-host">
+          <div class="avatar">👑</div>
+          <div class="pname">—</div>
+          <div class="pstate">—</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="player" id="slot-guest">
+          <div class="avatar">🎯</div>
+          <div class="pname">等待對手加入…</div>
+          <div class="pstate"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>比賽設定 <span id="host-only-hint" class="muted small" hidden>（只有房主可以修改）</span></h2>
+      <form id="settings-form" autocomplete="off">
+        <div class="grid2">
+          <label class="field">
+            <span>語言版本</span>
+            <select name="lang">
+              <option value="zh">中文維基（台灣正體）</option>
+              <option value="en">English Wikipedia</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>時間限制</span>
+            <select name="timeLimit">
+              <option value="0">不限時</option>
+              <option value="180">3 分鐘</option>
+              <option value="300">5 分鐘</option>
+              <option value="600">10 分鐘</option>
+              <option value="900">15 分鐘</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span>起點條目</span>
+          <div class="title-row">
+            <input name="start" list="suggest-start" placeholder="輸入條目名稱">
+            <button type="button" class="btn small" data-random="start">🎲 隨機</button>
+          </div>
+          <datalist id="suggest-start"></datalist>
+        </label>
+        <label class="field">
+          <span>終點條目</span>
+          <div class="title-row">
+            <input name="target" list="suggest-target" placeholder="輸入條目名稱">
+            <button type="button" class="btn small" data-random="target">🎲 隨機</button>
+          </div>
+          <datalist id="suggest-target"></datalist>
+        </label>
+        <div class="checks">
+          <label><input type="checkbox" name="showOpponentPage" checked> 比賽中顯示對手目前所在條目</label>
+          <label><input type="checkbox" name="allowBack" checked> 允許「上一頁」（會計入步數）</label>
+          <label><input type="checkbox" name="trueRandom"> 隨機時使用維基「真·隨機條目」（較冷門）</label>
+        </div>
+      </form>
+      <p id="room-error" class="error" hidden></p>
+      <div class="actions">
+        <button id="btn-ready" class="btn">準備</button>
+        <button id="btn-start" class="btn primary" hidden disabled>開始比賽</button>
+      </div>
+      <p id="room-hint" class="muted small center"></p>
+    </section>
+  </main>
+
+  <!-- 比賽畫面 -->
+  <main id="view-game" class="view game" hidden>
+    <aside class="hud">
+      <div class="hud-block target">
+        <div class="muted small">目標</div>
+        <div class="target-title" id="hud-target">—</div>
+      </div>
+      <div class="hud-stats">
+        <div><div class="muted small">時間</div><div id="hud-timer" class="big">00:00</div></div>
+        <div><div class="muted small">步數</div><div id="hud-clicks" class="big">0</div></div>
+      </div>
+      <div class="hud-block opp">
+        <div class="muted small">對手 <span id="hud-opp-name"></span></div>
+        <div><b id="hud-opp-clicks">0</b> 步</div>
+        <div id="hud-opp-page" class="muted small"></div>
+      </div>
+      <div class="hud-block">
+        <div class="muted small">你的路徑</div>
+        <ol id="hud-path" class="path"></ol>
+      </div>
+      <div class="hud-actions">
+        <button id="btn-back" class="btn small">← 上一頁</button>
+        <button id="btn-giveup" class="btn small danger">放棄</button>
+      </div>
+    </aside>
+    <section class="article-wrap">
+      <h1 id="article-title" class="article-title"></h1>
+      <div id="article" class="article"></div>
+      <div id="article-loading" class="loading" hidden><div class="spinner"></div></div>
+    </section>
+  </main>
+
+  <!-- 結果 -->
+  <main id="view-result" class="view" hidden>
+    <section class="card center">
+      <div id="result-emoji" class="result-emoji">🏆</div>
+      <h1 id="result-title">你贏了！</h1>
+      <p id="result-sub" class="muted"></p>
+    </section>
+    <section class="result-grid">
+      <div class="card"><h2 id="res-me-name">你</h2><p id="res-me-stat" class="muted"></p><ol id="res-me-path" class="path"></ol></div>
+      <div class="card"><h2 id="res-opp-name">對手</h2><p id="res-opp-stat" class="muted"></p><ol id="res-opp-path" class="path"></ol></div>
+    </section>
+    <div class="actions center">
+      <button id="btn-rematch" class="btn primary">回到房間再來一局</button>
+    </div>
+  </main>
+
+  <div id="countdown" class="overlay" hidden><div id="countdown-num">3</div></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

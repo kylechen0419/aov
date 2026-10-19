@@ -1,2 +1,34 @@
-# aov
-Handsome 
+# 🏁 維基百科競速 · 1v1 線上對戰
+
+和朋友一對一比賽：從起點條目出發，**只能點擊條目內的連結**，誰先抵達終點條目誰就獲勝。
+
+## 玩法
+
+1. 輸入暱稱，按「建立房間」，取得 5 碼房間代碼。
+2. 按「複製邀請連結」傳給朋友（或讓朋友輸入代碼加入）。
+3. 房主設定起點／終點條目（可輸入、可按 🎲 隨機，留空開始時也會自動隨機）、語言版本、時間限制。
+4. 朋友按「準備」，房主按「開始比賽」，倒數 3 秒後同時開始。
+5. 比賽中可以看到對手的步數與（可選）目前所在條目；先抵達終點的人獲勝，雙方都抵達則比用時。
+
+## 技術說明
+
+- **純靜態網站**，不需要後端：`index.html`、`style.css`、`app.js`、`wiki.js`、`net.js`。
+- 線上對戰使用 [PeerJS](https://peerjs.com/)（WebRTC 點對點連線），透過 PeerJS 免費的公開配對伺服器建立連線。
+- 條目內容即時從維基百科 API 讀取，中文版使用 `zh-tw` 台灣正體轉換；也支援英文維基。
+
+## 本機執行
+
+```bash
+python3 -m http.server 8000
+# 開啟 http://localhost:8000
+```
+
+（要用 http server 開，不能直接雙擊 html 檔，因為使用了 ES modules。）
+
+## 部署到 GitHub Pages
+
+1. 把程式合併到 `main` 分支。
+2. 到 GitHub repo 的 **Settings → Pages**，Source 選 **GitHub Actions**。
+3. 之後每次推送到 `main` 都會自動部署，網址為 `https://<你的帳號>.github.io/<repo 名稱>/`。
+
+也可以部署到 Firebase Hosting、Netlify、Vercel 等任何靜態網站服務。
