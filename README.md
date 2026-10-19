@@ -12,7 +12,7 @@
 
 ## 技術說明
 
-- **純靜態網站**，不需要後端：`index.html`、`style.css`、`app.js`、`wiki.js`、`net.js`、`fx.js`（背景音樂、音效、觸覺回饋與特效）、`topics.js`（超過一萬個隨機條目）。
+- **純靜態網站**，不需要後端：`index.html`、`style.css`、`app.js`、`wiki.js`、`net.js`、`fx.js`（背景音樂、音效、觸覺回饋與特效）、`topics.js`（超過一萬個隨機條目）、`zh.js`（簡轉繁）、`graph.js`（首頁動態知識網）。
 - 線上對戰使用 [PeerJS](https://peerjs.com/)（WebRTC 點對點連線），透過 PeerJS 免費的公開配對伺服器建立連線。
 - 條目內容即時從維基百科 API 讀取，中文版使用 `zh-tw` 台灣正體轉換；也支援英文維基。
 

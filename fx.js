@@ -27,27 +27,35 @@ function makeImpulse(seconds, decay) {
 export function unlockAudio() {
   try {
     if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const comp = ctx.createDynamicsCompressor();
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
       master = ctx.createGain();
-      master.gain.value = 0.9;
-      master.connect(comp).connect(ctx.destination);
+      master.gain.value = 0.7;
+      master.connect(ctx.destination);
       sfxBus = ctx.createGain();
       sfxBus.gain.value = prefs.sfx ? 1 : 0;
       sfxBus.connect(master);
       musicBus = ctx.createGain();
-      musicBus.gain.value = prefs.music ? 0.55 : 0;
+      musicBus.gain.value = prefs.music ? MUSIC_VOL : 0;
       musicBus.connect(master);
-      reverb = ctx.createConvolver();
-      reverb.buffer = makeImpulse(2.6, 3);
+      // 輕量的回音（延遲線），取代吃效能的摺積殘響，避免手機上爆音
+      reverb = ctx.createDelay(1);
+      reverb.delayTime.value = 0.32;
+      const fb = ctx.createGain();
+      fb.gain.value = 0.28;
+      const damp = ctx.createBiquadFilter();
+      damp.type = 'lowpass';
+      damp.frequency.value = 2200;
       const wet = ctx.createGain();
-      wet.gain.value = 0.35;
-      reverb.connect(wet).connect(musicBus);
+      wet.gain.value = 0.3;
+      reverb.connect(damp).connect(fb).connect(reverb);
+      damp.connect(wet).connect(musicBus);
     }
     if (ctx.state === 'suspended') ctx.resume();
     if (music.pending) music.play(music.pending);
   } catch { /* 不支援就安靜 */ }
 }
+
+const MUSIC_VOL = 0.5;
 
 export const isSfxOn = () => prefs.sfx;
 export const isMusicOn = () => prefs.music;
@@ -57,7 +65,7 @@ export function setSfxOn(v) {
 }
 export function setMusicOn(v) {
   savePref('music', v);
-  if (musicBus) musicBus.gain.setTargetAtTime(v ? 0.55 : 0, ctx.currentTime, 0.2);
+  if (musicBus) musicBus.gain.setTargetAtTime(v ? MUSIC_VOL : 0, ctx.currentTime, 0.2);
 }
 
 // ---------- 音色 ----------
@@ -83,64 +91,64 @@ function tone(freq, dur, { type = 'square', vol = 0.06, at = 0, to = null, bus =
 
 const midi = (n) => 440 * 2 ** ((n - 69) / 12);
 
-// 像鋼琴／鋼片琴的音色
+// 柔和的音色：只用正弦／三角波，起音與收尾都有斜坡，避免爆音
+function softEnv(gain, t, a, peak, len) {
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(peak, t + a);
+  gain.gain.setTargetAtTime(0, t + a, len / 4);
+}
+
+// 像鋼片琴的音色
 function bell(t, note, vol, len = 1.6) {
   const f = midi(note);
   const g = ctx.createGain();
-  env(g, t, 0.004, vol, len);
+  softEnv(g, t, 0.012, vol, len);
   g.connect(musicBus);
   g.connect(reverb);
-  for (const [mult, amp, type] of [[1, 1, 'triangle'], [2, 0.35, 'sine'], [3, 0.12, 'sine']]) {
+  for (const [mult, amp] of [[1, 1], [2, 0.18], [4, 0.04]]) {
     const o = ctx.createOscillator();
     const og = ctx.createGain();
-    o.type = type;
+    o.type = 'sine';
     o.frequency.value = f * mult;
     og.gain.value = amp;
     o.connect(og).connect(g);
     o.start(t);
-    o.stop(t + len + 0.1);
+    o.stop(t + len + 0.3);
   }
 }
 
 function pad(t, notes, vol, len) {
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + len * 0.35);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-  const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = 900;
-  g.connect(lp).connect(musicBus);
-  lp.connect(reverb);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + len * 0.4);
+  g.gain.linearRampToValueAtTime(0, t + len);
+  g.connect(musicBus);
   for (const n of notes) {
-    for (const det of [-7, 7]) {
-      const o = ctx.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = midi(n);
-      o.detune.value = det;
-      o.connect(g);
-      o.start(t);
-      o.stop(t + len + 0.1);
-    }
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = midi(n);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + len + 0.05);
   }
 }
 
 function bass(t, note, vol, len) {
   const o = ctx.createOscillator();
   const g = ctx.createGain();
-  o.type = 'triangle';
+  o.type = 'sine';
   o.frequency.value = midi(note);
-  env(g, t, 0.01, vol, len);
+  softEnv(g, t, 0.015, vol, len);
   o.connect(g).connect(musicBus);
   o.start(t);
-  o.stop(t + len + 0.05);
+  o.stop(t + len + 0.3);
 }
 
 function pluck(t, note, vol, len, cutoff) {
   const o = ctx.createOscillator();
   const g = ctx.createGain();
   const lp = ctx.createBiquadFilter();
-  o.type = 'sawtooth';
+  o.type = 'triangle';
   o.frequency.value = midi(note);
   lp.type = 'lowpass';
   lp.frequency.setValueAtTime(cutoff, t);
@@ -214,7 +222,7 @@ export const music = {
     this.step = 0;
     this.nextTime = ctx.currentTime + 0.1;
     clearInterval(this.timer);
-    this.timer = mode ? setInterval(() => this.schedule(), 25) : null;
+    this.timer = mode ? setInterval(() => this.schedule(), 60) : null;
   },
 
   stop() { this.play(null); this.pending = null; },
@@ -227,7 +235,9 @@ export const music = {
   },
 
   schedule() {
-    while (this.nextTime < ctx.currentTime + 0.15) {
+    // 若分頁曾被暫停，跳過落後的音符，不要一次全部擠出來
+    if (this.nextTime < ctx.currentTime - 0.1) this.nextTime = ctx.currentTime + 0.05;
+    while (this.nextTime < ctx.currentTime + 0.3) {
       if (prefs.music) {
         if (this.mode === 'lobby') this.lobbyStep(this.nextTime, this.step);
         else if (this.mode === 'race') this.raceStep(this.nextTime, this.step);
@@ -243,13 +253,13 @@ export const music = {
     const pos = s % 8;
     const c = LOBBY.chords[bar];
     if (pos === 0) {
-      bass(t, c.root, 0.12, 2.2);
-      pad(t, c.tones.slice(0, 3), 0.018, 60 / LOBBY.bpm * 4);
+      bass(t, c.root, 0.1, 2.4);
+      pad(t, c.tones.slice(0, 3), 0.012, 60 / LOBBY.bpm * 4);
     }
     const pattern = [0, 2, 1, 3, 2, 1, 3, 2];
     if (pos !== 7 || Math.random() < 0.5) {
       const n = c.tones[pattern[pos]] + (Math.random() < 0.15 ? 12 : 0);
-      bell(t, n, 0.05 + Math.random() * 0.02);
+      bell(t, n, 0.045 + Math.random() * 0.015);
     }
   },
 

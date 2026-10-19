@@ -3,11 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f2f3f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0d1014" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#16223d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="維基競速">
   <title>維基競速 · 1v1 知識競賽</title>
   <meta name="description" content="和朋友一對一比賽：只能點條目內的連結，誰先抵達目標條目誰就獲勝。">
@@ -52,76 +51,83 @@
 
   <!-- 首頁 -->
   <main id="view-home" class="view">
-    <section class="hero-card">
-      <div class="hero-art" aria-hidden="true">
-        <span class="node n1">貓</span><span class="node n2">埃及</span><span class="node n3">金字塔</span><span class="node n4">月球</span>
-        <svg class="hero-lines" viewBox="0 0 300 120" preserveAspectRatio="none"><path d="M40 30 C 100 10, 120 90, 170 70 S 240 20, 270 90"/></svg>
+    <section class="cover home-cover">
+      <canvas id="graph" class="graph" aria-hidden="true"></canvas>
+      <div class="cover-inner">
+        <div class="foil-rule" aria-hidden="true"></div>
+        <h1 class="cover-title foil">維基競速</h1>
+        <p class="cover-sub">從一個條目，連到另一個條目</p>
+        <div class="chips">
+          <span class="chip"><b id="topic-count">10,000+</b> 個條目</span>
+          <span class="chip">1 對 1</span>
+          <span class="chip">即時對戰</span>
+        </div>
+        <div class="foil-rule" aria-hidden="true"></div>
       </div>
-      <h1 class="hero-title">一條連結<br>接一條連結</h1>
-      <p class="hero-sub">和朋友 1 對 1 比賽，只能點條目裡的連結，誰先抵達終點條目誰就贏。題庫收錄 <b id="topic-count">10,000+</b> 個條目。</p>
     </section>
 
-    <section class="card">
-      <div class="profile-row">
-        <span class="avatar me-side" id="home-avatar">?</span>
-        <label class="field grow" for="nickname">
-          <span class="field-label">你的暱稱</span>
-          <input id="nickname" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname">
-        </label>
+    <section class="page">
+      <div class="card">
+        <div class="profile-row">
+          <span class="avatar me-side" id="home-avatar">?</span>
+          <label class="field grow" for="nickname">
+            <span class="field-label">你的暱稱</span>
+            <input id="nickname" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname">
+          </label>
+        </div>
+        <button id="btn-create" class="btn primary wide">建立房間</button>
+        <div class="divider"><span>或加入朋友的房間</span></div>
+        <div class="join-row">
+          <input id="join-code" maxlength="6" placeholder="房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼">
+          <button id="btn-join" class="btn dark">加入</button>
+        </div>
+        <p id="home-error" class="error" hidden></p>
       </div>
-      <button id="btn-create" class="btn primary wide">建立房間</button>
-      <div class="divider"><span>或加入朋友的房間</span></div>
-      <div class="join-row">
-        <input id="join-code" maxlength="6" placeholder="房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼">
-        <button id="btn-join" class="btn tinted">加入</button>
-      </div>
-      <p id="home-error" class="error" hidden></p>
-    </section>
 
-    <section class="list-section">
       <h2 class="section-title">怎麼玩</h2>
-      <ol class="steps">
-        <li><span class="step-n">1</span><div><b>建立房間</b><span>把代碼或邀請連結傳給朋友</span></div></li>
-        <li><span class="step-n">2</span><div><b>決定路線</b><span>房主設定起點與終點，也可以隨機</span></div></li>
-        <li><span class="step-n">3</span><div><b>開始競速</b><span>只能點條目內文裡的藍色連結</span></div></li>
-        <li><span class="step-n">4</span><div><b>抵達終點</b><span>先到者獲勝，同時抵達比用時</span></div></li>
+      <ol class="howto">
+        <li><span class="howto-n">壹</span><b>建立房間</b><span>把代碼或邀請連結傳給朋友</span></li>
+        <li><span class="howto-n">貳</span><b>決定路線</b><span>房主設定起點與終點，也能隨機</span></li>
+        <li><span class="howto-n">參</span><b>開始競速</b><span>只能點條目內文裡的連結</span></li>
+        <li><span class="howto-n">肆</span><b>抵達終點</b><span>先到者勝，同時抵達比用時</span></li>
       </ol>
-    </section>
 
-    <section class="tip-card">
-      <svg class="ic tip-ic"><use href="#i-bulb"/></svg>
-      <div><b>你知道嗎？</b><p id="dyk-text"></p></div>
+      <section class="tip-card">
+        <svg class="ic tip-ic"><use href="#i-bulb"/></svg>
+        <div><b>你知道嗎？</b><p id="dyk-text"></p></div>
+      </section>
     </section>
   </main>
 
   <!-- 房間 -->
   <main id="view-room" class="view" hidden>
-    <section class="room-head">
-      <div>
-        <div class="eyebrow">房間代碼</div>
-        <div class="room-code" id="room-code">-----</div>
+    <section class="cover room-cover">
+      <div class="room-head">
+        <div>
+          <div class="eyebrow">房間代碼</div>
+          <div class="room-code foil" id="room-code">-----</div>
+        </div>
+        <div class="head-actions">
+          <button id="btn-copy-link" class="btn gold small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
+          <button id="btn-leave" class="icon-btn" aria-label="離開房間" title="離開房間"><svg class="ic"><use href="#i-exit"/></svg></button>
+        </div>
       </div>
-      <div class="head-actions">
-        <button id="btn-copy-link" class="btn tinted small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
-        <button id="btn-leave" class="icon-btn" aria-label="離開房間" title="離開房間"><svg class="ic"><use href="#i-exit"/></svg></button>
+      <div class="versus">
+        <div class="player me-side" id="slot-host">
+          <span class="avatar big">?</span>
+          <div class="pname">—</div>
+          <div class="pstate"></div>
+        </div>
+        <div class="vs foil">VS</div>
+        <div class="player opp-side" id="slot-guest">
+          <span class="avatar big">?</span>
+          <div class="pname">等待對手…</div>
+          <div class="pstate"></div>
+        </div>
       </div>
     </section>
 
-    <section class="card versus">
-      <div class="player me-side" id="slot-host">
-        <span class="avatar big">?</span>
-        <div class="pname">—</div>
-        <div class="pstate"></div>
-      </div>
-      <div class="vs">VS</div>
-      <div class="player opp-side" id="slot-guest">
-        <span class="avatar big">?</span>
-        <div class="pname">等待對手…</div>
-        <div class="pstate"></div>
-      </div>
-    </section>
-
-    <form id="settings-form" class="settings" autocomplete="off">
+    <form id="settings-form" class="page settings" autocomplete="off">
       <h2 class="section-title">路線 <span id="host-only-hint" class="section-note" hidden>只有房主可以修改</span></h2>
       <div class="card route-card">
         <div class="route-line" aria-hidden="true"></div>
@@ -184,6 +190,7 @@
       <div class="hud-top">
         <div class="hud-target">
           <svg class="ic"><use href="#i-target"/></svg>
+          <span class="hud-target-label">終點</span>
           <b id="hud-target">—</b>
         </div>
         <div class="hud-timer" id="hud-timer">00:00</div>
@@ -230,33 +237,35 @@
 
   <!-- 結果 -->
   <main id="view-result" class="view" hidden>
-    <section class="result-hero" id="result-hero">
+    <section class="cover result-hero" id="result-hero">
       <div class="medal" aria-hidden="true"><span id="result-kicker">勝</span></div>
       <h1 id="result-title" class="result-title">你贏了！</h1>
       <p id="result-sub" class="result-sub"></p>
     </section>
 
-    <section class="card score">
-      <div class="score-head">
-        <div class="score-player me-side"><span class="avatar" id="res-me-avatar">?</span><b id="res-me-name">你</b></div>
-        <div class="score-player opp-side"><span class="avatar" id="res-opp-avatar">?</span><b id="res-opp-name">對手</b></div>
+    <section class="page">
+      <div class="card score">
+        <div class="score-head">
+          <div class="score-player me-side"><span class="avatar" id="res-me-avatar">?</span><b id="res-me-name">你</b></div>
+          <div class="score-player opp-side"><span class="avatar" id="res-opp-avatar">?</span><b id="res-opp-name">對手</b></div>
+        </div>
+        <div class="score-row"><span id="res-me-result"></span><em>結果</em><span id="res-opp-result"></span></div>
+        <div class="score-row"><span id="res-me-steps"></span><em>步數</em><span id="res-opp-steps"></span></div>
+        <div class="score-row"><span id="res-me-time"></span><em>用時</em><span id="res-opp-time"></span></div>
       </div>
-      <div class="score-row"><span id="res-me-result"></span><em>結果</em><span id="res-opp-result"></span></div>
-      <div class="score-row"><span id="res-me-steps"></span><em>步數</em><span id="res-opp-steps"></span></div>
-      <div class="score-row"><span id="res-me-time"></span><em>用時</em><span id="res-opp-time"></span></div>
-    </section>
 
-    <section class="result-grid">
-      <div class="card me-side">
-        <h2 class="card-title">你的路線</h2>
-        <ol id="res-me-path" class="metro"></ol>
+      <div class="result-grid">
+        <div class="card me-side">
+          <h2 class="card-title">你的路線</h2>
+          <ol id="res-me-path" class="metro"></ol>
+        </div>
+        <div class="card opp-side">
+          <h2 class="card-title" id="res-opp-path-head">對手的路線</h2>
+          <ol id="res-opp-path" class="metro"></ol>
+        </div>
       </div>
-      <div class="card opp-side">
-        <h2 class="card-title" id="res-opp-path-head">對手的路線</h2>
-        <ol id="res-opp-path" class="metro"></ol>
-      </div>
+      <button id="btn-rematch" class="btn primary wide">再來一局</button>
     </section>
-    <button id="btn-rematch" class="btn primary wide">再來一局</button>
   </main>
 
   <div id="countdown" class="overlay" hidden>

@@ -1,6 +1,9 @@
 import { Net } from './net.js';
 import * as wiki from './wiki.js';
 import { tw, twTree, zhReady } from './zh.js';
+import { startGraph } from './graph.js';
+
+let graph = null;
 import { sfx, music, unlockAudio, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -46,6 +49,7 @@ function show(view) {
   for (const v of ['home', 'room', 'game', 'result']) $(`#view-${v}`).hidden = v !== view;
   $('.masthead').hidden = view === 'game';
   if (view === 'home' || view === 'room') music.play('lobby');
+  if (view === 'home') graph?.resume();
   window.scrollTo(0, 0);
 }
 
@@ -112,6 +116,7 @@ const DYK = [
 
 // ---------- 首頁 ----------
 function initHome() {
+  graph = startGraph($('#graph'), () => state.view === 'home');
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
@@ -730,7 +735,7 @@ function showResult(update = false) {
     draw: ['和', '平手！'],
   };
   const hero = $('#result-hero');
-  hero.className = `result-hero ${res}`;
+  hero.className = `cover result-hero ${res}`;
   $('#result-kicker').textContent = map[res][0];
   $('#result-title').textContent = map[res][1];
   let sub = `《${tw(g.settings.start)}》→《${tw(g.settings.target)}》`;
