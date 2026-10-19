@@ -1,0 +1,11 @@
+{
+  "name": "維基競速",
+  "short_name": "維基競速",
+  "description": "和朋友 1 對 1 比賽的維基百科競速遊戲",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f3f7",
+  "theme_color": "#2f5bd3",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

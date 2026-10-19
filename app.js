@@ -60,6 +60,12 @@ function setConn(text, ok) {
   el.classList.toggle('ok', !!ok);
 }
 
+// 頭像顯示名字的第一個字
+function initial(name) {
+  const ch = Array.from((name || '').trim())[0];
+  return ch ? ch.toUpperCase() : '?';
+}
+
 function fillPath(ol, path, target) {
   ol.replaceChildren(...path.map((t) => {
     const li = document.createElement('li');
@@ -72,7 +78,7 @@ function fillPath(ol, path, target) {
 // ---------- 音效、音樂、觸覺 ----------
 function initSound() {
   const paint = () => {
-    $('#btn-sound').textContent = isSfxOn() ? '🔊' : '🔇';
+    $('#btn-sound').classList.toggle('off', !isSfxOn());
     for (const b of [$('#btn-music'), $('#btn-music-game')]) b.classList.toggle('off', !isMusicOn());
   };
   paint();
@@ -84,7 +90,7 @@ function initSound() {
   for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
   // 每次點擊按鈕、選項都給一下觸覺與聲音回饋
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('button, input[type=checkbox], select, .article a');
+    const el = e.target.closest('button, input[type=checkbox], input[type=radio], .article a');
     if (!el || el.disabled) return;
     if (el.matches('.article a')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }
     haptic('light');
@@ -111,6 +117,9 @@ function initHome() {
     import('./topics.js').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
+  const paintAvatar = () => { $('#home-avatar').textContent = initial($('#nickname').value); };
+  paintAvatar();
+  $('#nickname').addEventListener('input', paintAvatar);
   const params = new URLSearchParams(location.search);
   const room = params.get('room');
   if (room) {
@@ -202,6 +211,8 @@ function renderRoom() {
   const guestName = host ? state.oppName : state.myName;
   const hasGuest = net.connected;
 
+  $('#slot-host .avatar').textContent = initial(hostName);
+  $('#slot-guest .avatar').textContent = hasGuest ? initial(guestName) : '?';
   $('#slot-host .pname').textContent = hostName || '—';
   $('#slot-host .pstate').textContent = '';
   $('#slot-guest .pname').textContent = hasGuest && guestName ? guestName : '等待對手加入…';
@@ -277,7 +288,7 @@ function initRoom() {
     btn.onclick = async () => {
       const key = btn.dataset.random;
       btn.disabled = true;
-      btn.textContent = '抽籤中…';
+      btn.classList.add('busy');
       try {
         const s = readForm();
         let t;
@@ -290,13 +301,21 @@ function initRoom() {
         showError('#room-error', e.message);
       } finally {
         btn.disabled = !net.isHost;
-        btn.textContent = '隨機';
+        btn.classList.remove('busy');
       }
     };
   });
 
   $('#btn-copy-link').onclick = async () => {
     const url = `${location.origin}${location.pathname}?room=${net.code}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: '維基競速', text: `來跟我比維基競速！房間代碼 ${net.code}`, url });
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
       toast('已複製邀請連結！');
@@ -345,7 +364,7 @@ async function hostStart() {
   } catch (e) {
     showError('#room-error', e.message);
   } finally {
-    btn.textContent = '開始比賽';
+    btn.textContent = '開始對局';
     renderRoom();
   }
 }
@@ -374,6 +393,8 @@ function startGame(settings) {
   $('#hud-timer').textContent = settings.timeLimit ? fmtTime(settings.timeLimit * 1000) : '00:00';
   $('#hud-timer').className = 'hud-timer';
   $('#hud-opp-name').textContent = state.oppName || '對手';
+  $('#hud-me-avatar').textContent = initial(state.myName);
+  $('#hud-opp-avatar').textContent = initial(state.oppName);
   $('#hud-opp-clicks').textContent = '0';
   $('#hud-opp-page').textContent = settings.showOpponentPage ? `在：${settings.start}` : '';
   $('#hud-alert-opp').hidden = true;
@@ -401,8 +422,16 @@ function startGame(settings) {
   const overlay = $('#countdown');
   const num = $('#countdown-num');
   overlay.hidden = false;
+  const ring = $('#count-ring');
+  ring.style.transition = 'none';
+  ring.style.strokeDashoffset = '0';
+  ring.style.stroke = '';
+  void ring.getBoundingClientRect();
+  ring.style.transition = '';
   const showNum = (txt, isGo) => {
     num.textContent = txt;
+    ring.style.strokeDashoffset = String(339.3 * (isGo ? 1 : (3 - Number(txt) + 1) / 3));
+    if (isGo) ring.style.stroke = 'var(--green)';
     num.classList.toggle('go', !!isGo);
     num.classList.remove('pop');
     void num.offsetWidth;
@@ -692,9 +721,9 @@ function showResult(update = false) {
   const g = state.game;
   const res = outcome(g);
   const map = {
-    win: ['勝利', '你先抵達了終點！'],
-    lose: ['敗北', '對手搶先一步…'],
-    draw: ['平手', '不分勝負'],
+    win: ['勝', '你贏了！'],
+    lose: ['敗', '對手搶先一步…'],
+    draw: ['和', '平手！'],
   };
   const hero = $('#result-hero');
   hero.className = `result-hero ${res}`;
@@ -709,6 +738,8 @@ function showResult(update = false) {
   const me = g.finished;
   const opp = g.opp.finished;
   $('#res-me-name').textContent = `${state.myName}（你）`;
+  $('#res-me-avatar').textContent = initial(state.myName);
+  $('#res-opp-avatar').textContent = initial(state.oppName);
   $('#res-opp-name').textContent = state.oppName || '對手';
   $('#res-opp-path-head').textContent = `${state.oppName || '對手'} 的路線`;
   $('#res-me-result').textContent = resultLabel(me);

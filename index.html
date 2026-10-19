@@ -3,159 +3,179 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f6f6" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f1316" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2f3f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1014" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="維基競速">
   <title>維基競速 · 1v1 知識競賽</title>
   <meta name="description" content="和朋友一對一比賽：只能點條目內的連結，誰先抵達目標條目誰就獲勝。">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='white' stroke='%23202122' stroke-width='4'/><ellipse cx='32' cy='32' rx='12' ry='28' fill='none' stroke='%23202122' stroke-width='3'/><path d='M4 32h56M9 18h46M9 46h46' stroke='%23202122' stroke-width='3'/></svg>">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;900&display=swap">
   <link rel="stylesheet" href="style.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
+  <!-- 圖示 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><ellipse cx="12" cy="12" rx="4" ry="9.5"/><path d="M2.5 12h19M4 7h16M4 17h16"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.2"/><circle cx="18" cy="19" r="2.2"/><path d="M8 5h7a3.5 3.5 0 0 1 0 7H9a3.5 3.5 0 0 0 0 7h7"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-dice" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" class="fill"/><circle cx="15.5" cy="15.5" r="1.2" class="fill"/><circle cx="12" cy="12" r="1.2" class="fill"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" class="fill"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+  </svg>
+
   <header class="masthead">
     <a class="logo" href="./" aria-label="維基競速首頁">
-      <svg class="globe" viewBox="0 0 64 64" aria-hidden="true">
-        <circle cx="32" cy="32" r="28" />
-        <ellipse cx="32" cy="32" rx="12" ry="28" />
-        <path d="M4 32h56M9 18h46M9 46h46" />
-        <path class="globe-gap" d="M44 6 L58 14 L50 26 L38 18 Z" />
-      </svg>
-      <span class="wordmark">
-        <span class="wordmark-name">維基競速</span>
-        <span class="wordmark-tag">自由的知識競賽</span>
-      </span>
+      <span class="logo-mark"><svg class="ic"><use href="#i-globe"/></svg></span>
+      <span class="wordmark">維基競速</span>
     </a>
     <div class="masthead-tools">
       <span id="conn-status" class="conn" hidden></span>
-      <button id="btn-music" class="tool-btn" aria-label="背景音樂" title="背景音樂">♪</button>
-      <button id="btn-sound" class="tool-btn" aria-label="音效" title="音效">🔊</button>
+      <button id="btn-music" class="icon-btn" aria-label="背景音樂" title="背景音樂"><svg class="ic"><use href="#i-music"/></svg></button>
+      <button id="btn-sound" class="icon-btn" aria-label="音效" title="音效"><svg class="ic"><use href="#i-sound"/></svg></button>
     </div>
   </header>
 
   <!-- 首頁 -->
   <main id="view-home" class="view">
-    <section class="welcome">
-      <h1 class="page-title">歡迎來到維基競速</h1>
-      <p class="page-sub">一場只能靠<a href="#rules" class="inline-link">超連結</a>前進的一對一知識競賽。隨機題庫收錄 <b id="topic-count">10,000+</b> 個條目。</p>
+    <section class="hero-card">
+      <div class="hero-art" aria-hidden="true">
+        <span class="node n1">貓</span><span class="node n2">埃及</span><span class="node n3">金字塔</span><span class="node n4">月球</span>
+        <svg class="hero-lines" viewBox="0 0 300 120" preserveAspectRatio="none"><path d="M40 30 C 100 10, 120 90, 170 70 S 240 20, 270 90"/></svg>
+      </div>
+      <h1 class="hero-title">一條連結<br>接一條連結</h1>
+      <p class="hero-sub">和朋友 1 對 1 比賽，只能點條目裡的連結，誰先抵達終點條目誰就贏。題庫收錄 <b id="topic-count">10,000+</b> 個條目。</p>
     </section>
 
-    <section class="mp-box">
-      <h2 class="mp-head">開始對局</h2>
-      <div class="mp-body">
-        <label class="field" for="nickname">
+    <section class="card">
+      <div class="profile-row">
+        <span class="avatar me-side" id="home-avatar">?</span>
+        <label class="field grow" for="nickname">
           <span class="field-label">你的暱稱</span>
-          <input id="nickname" maxlength="16" placeholder="例如：小明" autocomplete="nickname">
+          <input id="nickname" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname">
         </label>
-        <button id="btn-create" class="btn primary wide">建立房間</button>
-        <div class="divider"><span>或加入朋友的房間</span></div>
-        <div class="join-row">
-          <input id="join-code" maxlength="6" placeholder="房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼">
-          <button id="btn-join" class="btn">加入</button>
-        </div>
-        <p id="home-error" class="error" hidden></p>
       </div>
+      <button id="btn-create" class="btn primary wide">建立房間</button>
+      <div class="divider"><span>或加入朋友的房間</span></div>
+      <div class="join-row">
+        <input id="join-code" maxlength="6" placeholder="房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼">
+        <button id="btn-join" class="btn tinted">加入</button>
+      </div>
+      <p id="home-error" class="error" hidden></p>
     </section>
 
-    <section class="mp-box" id="rules">
-      <h2 class="mp-head">規則</h2>
-      <div class="mp-body">
-        <ol class="rules">
-          <li>建房後，把<b>房間代碼</b>或邀請連結傳給朋友。</li>
-          <li>房主決定<b>起點</b>與<b>終點</b>條目，留空會從題庫隨機抽。</li>
-          <li>倒數後同時出發，<b>只能點條目內文的藍色連結</b>。</li>
-          <li>先抵達終點者獲勝；同時抵達則比用時。</li>
-        </ol>
-      </div>
+    <section class="list-section">
+      <h2 class="section-title">怎麼玩</h2>
+      <ol class="steps">
+        <li><span class="step-n">1</span><div><b>建立房間</b><span>把代碼或邀請連結傳給朋友</span></div></li>
+        <li><span class="step-n">2</span><div><b>決定路線</b><span>房主設定起點與終點，也可以隨機</span></div></li>
+        <li><span class="step-n">3</span><div><b>開始競速</b><span>只能點條目內文裡的藍色連結</span></div></li>
+        <li><span class="step-n">4</span><div><b>抵達終點</b><span>先到者獲勝，同時抵達比用時</span></div></li>
+      </ol>
     </section>
 
-    <section class="mp-box dyk">
-      <h2 class="mp-head">你知道嗎？</h2>
-      <div class="mp-body">
-        <p id="dyk-text"></p>
-      </div>
+    <section class="tip-card">
+      <svg class="ic tip-ic"><use href="#i-bulb"/></svg>
+      <div><b>你知道嗎？</b><p id="dyk-text"></p></div>
     </section>
   </main>
 
   <!-- 房間 -->
   <main id="view-room" class="view" hidden>
-    <section class="article-head">
-      <h1 class="page-title">房間 <span class="room-code" id="room-code">-----</span></h1>
-      <p class="page-sub">出自維基競速 · 把代碼或連結傳給對手</p>
+    <section class="room-head">
+      <div>
+        <div class="eyebrow">房間代碼</div>
+        <div class="room-code" id="room-code">-----</div>
+      </div>
       <div class="head-actions">
-        <button id="btn-copy-link" class="btn small">複製邀請連結</button>
-        <button id="btn-leave" class="btn small quiet">離開房間</button>
+        <button id="btn-copy-link" class="btn tinted small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
+        <button id="btn-leave" class="icon-btn" aria-label="離開房間" title="離開房間"><svg class="ic"><use href="#i-exit"/></svg></button>
       </div>
     </section>
 
-    <section class="versus">
-      <div class="player-card me-side" id="slot-host">
-        <div class="player-role">P1 · 房主</div>
+    <section class="card versus">
+      <div class="player me-side" id="slot-host">
+        <span class="avatar big">?</span>
         <div class="pname">—</div>
         <div class="pstate"></div>
       </div>
-      <div class="vs">對</div>
-      <div class="player-card opp-side" id="slot-guest">
-        <div class="player-role">P2 · 挑戰者</div>
+      <div class="vs">VS</div>
+      <div class="player opp-side" id="slot-guest">
+        <span class="avatar big">?</span>
         <div class="pname">等待對手…</div>
         <div class="pstate"></div>
       </div>
     </section>
 
-    <section class="mp-box">
-      <h2 class="mp-head">對局設定 <span id="host-only-hint" class="mp-head-note" hidden>只有房主可以修改</span></h2>
-      <form id="settings-form" class="mp-body" autocomplete="off">
-        <div class="route">
-          <label class="field" for="set-start">
-            <span class="field-label"><span class="dot start"></span>起點條目</span>
-            <div class="title-row">
-              <input id="set-start" name="start" list="suggest-start" placeholder="留空＝隨機">
-              <button type="button" class="btn small dice" data-random="start" aria-label="隨機起點">隨機</button>
-            </div>
-            <datalist id="suggest-start"></datalist>
-          </label>
-          <label class="field" for="set-target">
-            <span class="field-label"><span class="dot goal"></span>終點條目</span>
-            <div class="title-row">
-              <input id="set-target" name="target" list="suggest-target" placeholder="留空＝隨機">
-              <button type="button" class="btn small dice" data-random="target" aria-label="隨機終點">隨機</button>
-            </div>
-            <datalist id="suggest-target"></datalist>
-          </label>
+    <form id="settings-form" class="settings" autocomplete="off">
+      <h2 class="section-title">路線 <span id="host-only-hint" class="section-note" hidden>只有房主可以修改</span></h2>
+      <div class="card route-card">
+        <div class="route-line" aria-hidden="true"></div>
+        <label class="route-stop" for="set-start">
+          <span class="stop-dot start"></span>
+          <span class="stop-body">
+            <span class="field-label">起點</span>
+            <input id="set-start" name="start" list="suggest-start" placeholder="留空＝隨機">
+          </span>
+          <button type="button" class="icon-btn dice" data-random="start" aria-label="隨機起點"><svg class="ic"><use href="#i-dice"/></svg></button>
+        </label>
+        <datalist id="suggest-start"></datalist>
+        <label class="route-stop" for="set-target">
+          <span class="stop-dot goal"></span>
+          <span class="stop-body">
+            <span class="field-label">終點</span>
+            <input id="set-target" name="target" list="suggest-target" placeholder="留空＝隨機">
+          </span>
+          <button type="button" class="icon-btn dice" data-random="target" aria-label="隨機終點"><svg class="ic"><use href="#i-dice"/></svg></button>
+        </label>
+        <datalist id="suggest-target"></datalist>
+      </div>
+
+      <h2 class="section-title">規則</h2>
+      <div class="card group">
+        <div class="row">
+          <span class="row-label">語言</span>
+          <div class="segmented" role="radiogroup" aria-label="語言">
+            <label><input type="radio" name="lang" value="zh" checked><span>中文</span></label>
+            <label><input type="radio" name="lang" value="en"><span>English</span></label>
+          </div>
         </div>
-        <div class="grid2">
-          <label class="field" for="set-lang">
-            <span class="field-label">語言版本</span>
-            <select id="set-lang" name="lang">
-              <option value="zh">中文維基（台灣正體）</option>
-              <option value="en">English Wikipedia</option>
-            </select>
-          </label>
-          <label class="field" for="set-time">
-            <span class="field-label">時間限制</span>
-            <select id="set-time" name="timeLimit">
-              <option value="0">不限時</option>
-              <option value="120">2 分鐘</option>
-              <option value="180">3 分鐘</option>
-              <option value="300">5 分鐘</option>
-              <option value="600">10 分鐘</option>
-            </select>
-          </label>
+        <div class="row stack">
+          <span class="row-label">時間限制</span>
+          <div class="segmented" role="radiogroup" aria-label="時間限制">
+            <label><input type="radio" name="timeLimit" value="0" checked><span>不限</span></label>
+            <label><input type="radio" name="timeLimit" value="120"><span>2分</span></label>
+            <label><input type="radio" name="timeLimit" value="180"><span>3分</span></label>
+            <label><input type="radio" name="timeLimit" value="300"><span>5分</span></label>
+            <label><input type="radio" name="timeLimit" value="600"><span>10分</span></label>
+          </div>
         </div>
-        <fieldset class="checks">
-          <legend class="field-label">規則選項</legend>
-          <label><input id="set-showopp" type="checkbox" name="showOpponentPage" checked><span>顯示對手所在條目</span></label>
-          <label><input id="set-back" type="checkbox" name="allowBack" checked><span>允許上一頁（算一步）</span></label>
-          <label><input id="set-random" type="checkbox" name="trueRandom"><span>隨機改抽冷門條目（地獄模式）</span></label>
-        </fieldset>
-        <p id="room-error" class="error" hidden></p>
+        <label class="row" for="set-showopp"><span class="row-label">顯示對手所在條目</span><input id="set-showopp" class="switch" type="checkbox" name="showOpponentPage" checked></label>
+        <label class="row" for="set-back"><span class="row-label">允許上一頁<small>算一步</small></span><input id="set-back" class="switch" type="checkbox" name="allowBack" checked></label>
+        <label class="row" for="set-random"><span class="row-label">地獄模式<small>隨機改抽冷門條目</small></span><input id="set-random" class="switch" type="checkbox" name="trueRandom"></label>
+      </div>
+
+      <p id="room-error" class="error" hidden></p>
+      <div class="cta">
         <button type="button" id="btn-ready" class="btn primary wide">準備</button>
         <button type="button" id="btn-start" class="btn primary wide" hidden disabled>開始對局</button>
         <p id="room-hint" class="hint"></p>
-      </form>
-    </section>
+      </div>
+    </form>
   </main>
 
   <!-- 比賽 -->
@@ -163,72 +183,77 @@
     <div class="hud" id="hud">
       <div class="hud-top">
         <div class="hud-target">
-          <span class="hud-label">終點</span>
+          <svg class="ic"><use href="#i-target"/></svg>
           <b id="hud-target">—</b>
         </div>
         <div class="hud-timer" id="hud-timer">00:00</div>
       </div>
       <div class="hud-race">
         <div class="racer me-side">
+          <span class="avatar sm" id="hud-me-avatar">你</span>
           <span class="racer-name">你</span>
           <b id="hud-clicks" class="racer-steps">0</b><span class="racer-unit">步</span>
         </div>
         <div class="racer opp-side" id="hud-opp">
+          <span class="avatar sm" id="hud-opp-avatar">?</span>
           <span class="racer-name" id="hud-opp-name">對手</span>
           <b id="hud-opp-clicks" class="racer-steps">0</b><span class="racer-unit">步</span>
           <span id="hud-opp-page" class="racer-page"></span>
         </div>
       </div>
-      <div id="hud-alert-opp" class="ambox danger" hidden></div>
-      <div id="hud-alert-me" class="ambox notice" hidden></div>
+      <div id="hud-alert-opp" class="banner danger" hidden></div>
+      <div id="hud-alert-me" class="banner notice" hidden></div>
     </div>
 
     <div id="feed" class="feed" aria-live="polite"></div>
 
     <article class="paper">
-      <h1 id="article-title" class="article-title"></h1>
       <p id="breadcrumb" class="breadcrumb"></p>
+      <h1 id="article-title" class="article-title"></h1>
       <div id="article" class="article"></div>
       <div id="article-loading" class="loading" hidden><div class="spinner"></div></div>
     </article>
 
-    <nav class="dock">
-      <button id="btn-back" class="btn small">← 上一頁</button>
-      <button id="btn-path" class="btn small">路線 <b id="path-count">1</b></button>
-      <button id="btn-music-game" class="btn small icon" aria-label="背景音樂">♪</button>
-      <button id="btn-giveup" class="btn small danger">投降</button>
+    <nav class="tabbar">
+      <button id="btn-back" class="tab"><svg class="ic"><use href="#i-back"/></svg><span>上一頁</span></button>
+      <button id="btn-path" class="tab"><svg class="ic"><use href="#i-route"/></svg><span>路線 <b id="path-count">1</b></span></button>
+      <button id="btn-music-game" class="tab"><svg class="ic"><use href="#i-music"/></svg><span>音樂</span></button>
+      <button id="btn-giveup" class="tab danger"><svg class="ic"><use href="#i-flag"/></svg><span>投降</span></button>
     </nav>
 
-    <div id="path-drawer" class="drawer" hidden>
-      <div class="drawer-head"><span class="field-label">你的路線</span><button id="btn-path-close" class="tool-btn" aria-label="關閉">✕</button></div>
-      <ol id="hud-path" class="route-list"></ol>
+    <div id="path-drawer" class="sheet" hidden>
+      <div class="sheet-grabber"></div>
+      <div class="sheet-head"><b>你的路線</b><button id="btn-path-close" class="icon-btn" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <ol id="hud-path" class="metro"></ol>
     </div>
   </main>
 
   <!-- 結果 -->
   <main id="view-result" class="view" hidden>
     <section class="result-hero" id="result-hero">
-      <div id="result-kicker" class="result-kicker">勝利</div>
+      <div class="medal" aria-hidden="true"><span id="result-kicker">勝</span></div>
       <h1 id="result-title" class="result-title">你贏了！</h1>
-      <p id="result-sub" class="page-sub"></p>
+      <p id="result-sub" class="result-sub"></p>
     </section>
-    <table class="infobox result-table">
-      <caption>對局紀錄</caption>
-      <thead><tr><th></th><th id="res-me-name" class="me-side">你</th><th id="res-opp-name" class="opp-side">對手</th></tr></thead>
-      <tbody>
-        <tr><th>結果</th><td id="res-me-result"></td><td id="res-opp-result"></td></tr>
-        <tr><th>步數</th><td id="res-me-steps"></td><td id="res-opp-steps"></td></tr>
-        <tr><th>用時</th><td id="res-me-time"></td><td id="res-opp-time"></td></tr>
-      </tbody>
-    </table>
-    <section class="result-grid">
-      <div class="mp-box me-side">
-        <h2 class="mp-head">你的路線</h2>
-        <div class="mp-body"><ol id="res-me-path" class="route-list"></ol></div>
+
+    <section class="card score">
+      <div class="score-head">
+        <div class="score-player me-side"><span class="avatar" id="res-me-avatar">?</span><b id="res-me-name">你</b></div>
+        <div class="score-player opp-side"><span class="avatar" id="res-opp-avatar">?</span><b id="res-opp-name">對手</b></div>
       </div>
-      <div class="mp-box opp-side">
-        <h2 class="mp-head" id="res-opp-path-head">對手的路線</h2>
-        <div class="mp-body"><ol id="res-opp-path" class="route-list"></ol></div>
+      <div class="score-row"><span id="res-me-result"></span><em>結果</em><span id="res-opp-result"></span></div>
+      <div class="score-row"><span id="res-me-steps"></span><em>步數</em><span id="res-opp-steps"></span></div>
+      <div class="score-row"><span id="res-me-time"></span><em>用時</em><span id="res-opp-time"></span></div>
+    </section>
+
+    <section class="result-grid">
+      <div class="card me-side">
+        <h2 class="card-title">你的路線</h2>
+        <ol id="res-me-path" class="metro"></ol>
+      </div>
+      <div class="card opp-side">
+        <h2 class="card-title" id="res-opp-path-head">對手的路線</h2>
+        <ol id="res-opp-path" class="metro"></ol>
       </div>
     </section>
     <button id="btn-rematch" class="btn primary wide">再來一局</button>
@@ -236,12 +261,16 @@
 
   <div id="countdown" class="overlay" hidden>
     <div class="brief">
-      <div class="brief-kicker">對局即將開始</div>
-      <div class="brief-row"><span class="field-label"><span class="dot start"></span>起點</span><b id="brief-start"></b></div>
-      <div class="brief-arrow" aria-hidden="true">↓</div>
-      <div class="brief-row"><span class="field-label"><span class="dot goal"></span>終點</span><b id="brief-target"></b></div>
+      <div class="eyebrow">對局即將開始</div>
+      <div class="brief-route">
+        <div class="brief-stop"><span class="stop-dot start"></span><b id="brief-start"></b></div>
+        <div class="brief-stop"><span class="stop-dot goal"></span><b id="brief-target"></b></div>
+      </div>
     </div>
-    <div id="countdown-num" class="count">3</div>
+    <div class="count-ring">
+      <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle class="ring-fg" id="count-ring" cx="60" cy="60" r="54"/></svg>
+      <div id="countdown-num" class="count">3</div>
+    </div>
   </div>
   <div id="flash" class="flash" hidden></div>
   <canvas id="confetti" class="confetti" hidden></canvas>
