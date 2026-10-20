@@ -100,6 +100,8 @@
         </div>
         <p id="home-error" class="error" hidden></p>
         <button id="tut-hint" class="tut-hint" type="button" hidden>👋 第一次玩？30 秒看懂怎麼玩</button>
+        <div class="divider"><span>或一個人練習</span></div>
+        <button id="btn-solo" class="btn ghost wide solo-btn" type="button">🎯 單人訓練<small>不用連線，自己練路線</small></button>
       </div>
 
       <div class="card record-card">
@@ -380,6 +382,7 @@
         <ol id="solution-path" class="metro" hidden></ol>
       </div>
       <div class="result-actions">
+        <button id="btn-solo-home" class="btn ghost" type="button" hidden>回首頁</button>
         <button id="btn-share" class="btn pink"><svg class="ic"><use href="#i-image"/></svg>分享戰績</button>
         <button id="btn-rematch" class="btn primary">再來一局</button>
       </div>
@@ -453,6 +456,32 @@
       <div class="music-slot"><b>比賽音樂</b><div class="music-opts" data-slot="race"></div></div>
       <p class="pick-sub">選「我的音樂」可以用手機裡的音樂檔（mp3、m4a 等），只會存在這支手機上。</p>
       <input id="music-file" type="file" accept="audio/*" hidden>
+    </div>
+  </div>
+
+  <div id="solo-modal" class="modal" hidden>
+    <div class="modal-card solo-card" role="dialog" aria-modal="true" aria-labelledby="solo-title">
+      <div class="modal-head"><b id="solo-title">🎯 單人訓練</b><button id="solo-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <p class="solo-intro">自己練習從一個條目連到另一個條目。沒有對手、不計勝負，比完會給你最短解答。留空就隨機出題。</p>
+      <div class="card route-card">
+        <div class="route-line" aria-hidden="true"></div>
+        <label class="route-stop" for="solo-start-input">
+          <span class="stop-dot start"></span>
+          <span class="stop-body"><span class="field-label">起點</span><input id="solo-start-input" list="suggest-start" placeholder="留空＝隨機"></span>
+          <button type="button" class="icon-btn dice" data-solo-random="start" aria-label="隨機起點"><svg class="ic"><use href="#i-dice"/></svg></button>
+        </label>
+        <label class="route-stop" for="solo-target-input">
+          <span class="stop-dot goal"></span>
+          <span class="stop-body"><span class="field-label">終點</span><input id="solo-target-input" list="suggest-target" placeholder="留空＝隨機"></span>
+          <button type="button" class="icon-btn dice" data-solo-random="target" aria-label="隨機終點"><svg class="ic"><use href="#i-dice"/></svg></button>
+        </label>
+      </div>
+      <div class="card group">
+        <label class="row" for="solo-back"><span class="row-label">允許上一頁<small>算一步</small></span><input id="solo-back" class="switch" type="checkbox" checked></label>
+        <label class="row" for="solo-hell"><span class="row-label">地獄模式<small>隨機改抽冷門條目</small></span><input id="solo-hell" class="switch" type="checkbox"></label>
+      </div>
+      <p id="solo-error" class="error" hidden></p>
+      <button id="solo-start" class="btn primary wide" type="button">開始訓練</button>
     </div>
   </div>
 

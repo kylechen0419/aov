@@ -210,6 +210,17 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .btn.wide { width: 100%; padding: 16px; font-size: 20px; letter-spacing: .12em; border-radius: 18px; }
 .btn.small { padding: 8px 14px; font-size: 14px; border-radius: 99px; box-shadow: 0 4px 0 var(--bd); }
 .btn.is-ready { --bg: var(--green); --bd: var(--green-d); --fg: #fff; }
+.btn.ghost { --bg: #f1eeff; --bd: #ddd6f5; --fg: var(--ink); }
+/* 單人訓練按鈕：主標題＋小字副標 */
+.solo-btn { flex-direction: column; gap: 2px; letter-spacing: .04em; }
+.solo-btn small { font-size: 12px; font-weight: 700; opacity: .7; letter-spacing: 0; }
+/* 單人訓練設定視窗 */
+.solo-card { max-width: 440px; }
+.solo-intro { margin: 0 0 2px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+/* 單人訓練結算：只看自己的路線，藏掉聊天室與對手欄 */
+body.solo #view-result [data-chat] { display: none; }
+body.solo #route-grid { grid-template-columns: 1fr; }
+body.solo #route-grid .opp-side { display: none; }
 
 .divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 700; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 2px; border-radius: 2px; background: var(--line); }
@@ -732,6 +743,8 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .chat-msg.mine .chat-bubble { background: var(--blue); color: #fff; border-radius: 16px 16px 4px 16px; }
 .chat-msg.mine .chat-bubble b { color: rgba(255, 255, 255, .8); text-align: right; }
 .chat-form { display: flex; gap: 8px; }
+/* 浮動表情鈕浮在右下角，聊天室捲到底時會壓到送出鈕，所以留一條空間讓它們分開 */
+body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 .chat-form .chat-input { flex: 1; padding: 10px 14px; }
 .chat-send { padding: 10px 14px; border-radius: 14px; box-shadow: 0 4px 0 var(--bd); }
 .chat-send .ic { width: 20px; height: 20px; }

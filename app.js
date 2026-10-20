@@ -55,6 +55,7 @@ const state = {
   game: null,
   chat: [],
   hostLocked: false,
+  solo: false,  // 單人訓練模式：沒有對手、不連線、不計勝負
 };
 
 // 房主用：斷線玩家的保留計時、聊天與表情的頻率限制
@@ -103,7 +104,10 @@ function show(view) {
   state.view = view;
   for (const v of ['home', 'room', 'game', 'result', 'watch']) $(`#view-${v}`).hidden = v !== view;
   $('.masthead').hidden = view === 'game' || view === 'watch';
-  $('#emote-fab').hidden = !(view === 'room' || view === 'result' || view === 'watch');
+  const fabOn = !state.solo && (view === 'room' || view === 'result' || view === 'watch');
+  $('#emote-fab').hidden = !fabOn;
+  document.body.classList.toggle('has-fab', fabOn);  // 有浮動表情鈕時，聊天室底下留空間，送出鈕才不會被壓到
+  document.body.classList.toggle('solo', state.solo);  // 單人訓練：隱藏對手欄、聊天室等多人元素
   if (view !== 'watch') { stopWatchTimer(); $('#btn-follow').hidden = true; }
   if (view !== 'room' && view !== 'game') closePick(null);
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
@@ -822,6 +826,7 @@ function syncRoom(force = false) {
 }
 
 function enterRoom(code) {
+  state.solo = false;  // 進到真的房間就不是單人訓練了
   $('#room-code').textContent = code;
   if (net.isHost) state.hostLocked = false;
   writeForm(state.settings);
@@ -1186,6 +1191,85 @@ async function hostStart() {
     btn.textContent = '開始對局';
     renderRoom();
   }
+}
+
+// ---------- 單人訓練 ----------
+function openSolo() {
+  $('#solo-error').hidden = true;
+  $('#solo-modal').hidden = false;
+}
+
+function initSolo() {
+  $('#btn-solo').onclick = openSolo;
+  $('#solo-close').onclick = () => { $('#solo-modal').hidden = true; };
+  $('#solo-modal').addEventListener('click', (e) => { if (e.target.id === 'solo-modal') $('#solo-modal').hidden = true; });
+  // 隨機出題：抽一個條目填進去（起點、終點不會抽到一樣的）
+  $('#solo-modal').querySelectorAll('[data-solo-random]').forEach((btn) => {
+    btn.onclick = async () => {
+      const key = btn.dataset.soloRandom;
+      const field = $(key === 'start' ? '#solo-start-input' : '#solo-target-input');
+      const other = $(key === 'start' ? '#solo-target-input' : '#solo-start-input');
+      const token = {};
+      field.diceToken = token;
+      btn.disabled = true; btn.classList.add('busy');
+      try {
+        let t;
+        do { t = await wiki.randomTitle('zh', $('#solo-hell').checked); } while (tw(t) === other.value.trim());
+        await zhReady;
+        if (field.diceToken === token) { field.value = tw(t); sfx.click(); haptic('light'); }
+      } catch { /* 抽題失敗就算了 */ } finally { btn.disabled = false; btn.classList.remove('busy'); }
+    };
+  });
+  $('#solo-start').onclick = startTraining;
+}
+
+async function startTraining() {
+  const btn = $('#solo-start');
+  btn.disabled = true;
+  btn.textContent = '準備路線中…';
+  $('#solo-error').hidden = true;
+  try {
+    const name = $('#nickname').value.trim() || '你';
+    state.myName = name;
+    store.set('wikirace-name', name);
+    state.myId = 'me';
+    state.mode = 'duel';
+    state.solo = true;
+    state.chat = [];
+    state.roomScore = { games: 0, wins: {} };
+    state.players = new Map([['me', { id: 'me', name, avatar: state.myAvatar, ready: true, host: true, color: COLORS[0], online: true }]]);
+    session.clear();
+    const s = {
+      ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed',
+      start: $('#solo-start-input').value.trim(),
+      target: $('#solo-target-input').value.trim(),
+      allowBack: $('#solo-back').checked,
+      trueRandom: $('#solo-hell').checked,
+    };
+    const pick = async (val) => (val ? val : wiki.randomTitle(s.lang, s.trueRandom));
+    s.start = await wiki.resolveTitle(s.lang, await pick(s.start));
+    s.target = await wiki.resolveTitle(s.lang, await pick(s.target));
+    let guard = 0;
+    while (s.start === s.target && guard++ < 5) s.target = await wiki.resolveTitle(s.lang, await wiki.randomTitle(s.lang, s.trueRandom));
+    if (s.start === s.target) throw new Error('起點和終點不能是同一個條目，再試一次');
+    state.settings = s;
+    $('#solo-modal').hidden = true;
+    setConn('單人練習');
+    startGame(s, randomKey());
+  } catch (e) {
+    showError('#solo-error', e.message || '出了點問題，再試一次');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '開始訓練';
+  }
+}
+
+// 單人訓練：回首頁，清掉這一局
+function exitSolo() {
+  state.solo = false;
+  state.game = null;
+  setConn('');
+  show('home');
 }
 
 // ---------- 比賽 ----------
@@ -2159,7 +2243,11 @@ function resultInfo(g) {
 let lastOutcome = null;
 function showResult(update = false) {
   const g = state.game;
+  if (state.solo) return showSoloResult(g);
   const party = g.mode === 'party';
+  // 從單人訓練切回一般對局時，把被訓練結算改過的元素還原
+  $('#btn-share').hidden = false;
+  $('#btn-solo-home').hidden = true;
   const info = resultInfo(g);
   const { res } = info;
   if (party) renderRanking(g, info.entries);
@@ -2209,8 +2297,42 @@ function showResult(update = false) {
   setTimeout(() => { if (state.view === 'result') music.play('lobby'); }, 3500);
 }
 
+// 單人訓練的結算：只看自己的成績＋最短解答，不計勝負、不記戰績
+function showSoloResult(g) {
+  const reason = g.finished.reason;
+  const win = reason === 'win';
+  const tone = win ? 'win' : 'lose';
+  $('#result-hero').className = `cover result-hero ${tone}`;
+  $('#result-kicker').textContent = win ? '達' : '練';
+  $('#result-title').textContent = win ? '抵達終點！' : (reason === 'timeout' ? '時間到了' : '這次先放棄');
+  const stat = win
+    ? `你的成績：${g.finished.clicks} 步 · ${fmtTime(g.finished.elapsed)}`
+    : `走了 ${g.finished.clicks} 步，還沒抵達`;
+  $('#result-sub').textContent = `🎯 單人訓練　《${tw(g.settings.start)}》→《${tw(g.settings.target)}》　·　${stat}`;
+  // 只留自己的路線，藏掉排行榜、對手欄、觀戰
+  $('#ranking').hidden = true;
+  $('#score-card').hidden = true;
+  $('#btn-watch').hidden = true;
+  $('#route-grid').hidden = false;
+  const meCard = $('#res-me-path').closest('.card');
+  meCard.querySelector('.card-title').textContent = '你走過的路線';
+  fillPath($('#res-me-path'), g.finished.path, g.settings.target);
+  // 最短解答（訓練最有用的部分）
+  renderSolution(g);
+  // 按鈕：再練一題 / 回首頁，藏掉分享
+  $('#btn-share').hidden = true;
+  $('#btn-solo-home').hidden = false;
+  $('#btn-rematch').disabled = false;
+  $('#btn-rematch').textContent = '🎯 再練一題';
+  if (state.view !== 'result') show('result');
+  if (win) { sfx.win(); confetti(); haptic('success'); }
+  else { sfx.lose(); shake($('#result-hero').querySelector('.medal')); haptic('error'); }
+  setTimeout(() => { if (state.view === 'result') music.play('lobby'); }, 3500);
+}
+
 function renderDuelResult(g, res) {
   const me = g.finished;
+  $('#res-me-path').closest('.card').querySelector('.card-title').textContent = '你的路線';
   const o = [...g.others.values()][0] || { name: '對手', clicks: 0, path: [], finished: null, left: true };
   const opp = o.finished;
   $('#res-me-name').textContent = `${state.myName}（你）`;
@@ -2293,7 +2415,7 @@ function offerHint() {
   g.hint.offered = true;
   $('#hint-bar').hidden = false;
   renderHintBar();
-  toast('已經 5 分鐘了！大家都同意就能看提示', 3000);
+  toast(state.solo ? '已經 5 分鐘了！卡住的話可以看提示' : '已經 5 分鐘了！大家都同意就能看提示', 3000);
   sfx.near();
 }
 
@@ -2301,6 +2423,12 @@ function renderHintBar() {
   const g = state.game;
   const h = g.hint;
   const btn = $('#btn-hint-vote');
+  if (state.solo) {
+    btn.disabled = false;
+    btn.textContent = '💡 看提示';
+    $('#hint-ask-text').textContent = '卡住了嗎？看一下終點的提示';
+    return;
+  }
   btn.disabled = h.myVote;
   btn.textContent = h.myVote ? '✓ 已同意' : '💡 我要提示';
   $('#hint-ask-text').textContent = h.need
@@ -2311,6 +2439,7 @@ function renderHintBar() {
 function voteHint() {
   const g = state.game;
   if (!g || g.finished || g.hint.myVote || g.hint.shown) return;
+  if (state.solo) { g.hint.myVote = true; showHint(); return; }  // 單人訓練：不用投票，直接看提示
   g.hint.myVote = true;
   renderHintBar();
   if (net.isHost) hostHintVote(state.myId);
@@ -2884,11 +3013,13 @@ async function openShare() {
 
 function initResult() {
   $('#btn-rematch').onclick = () => {
+    if (state.solo) { openSolo(); return; }  // 單人訓練：再出一題
     // 派對還沒全部比完就先回房間：用目前的名次記進最近對戰
     const g = state.game;
     if (g?.finished && !loadHistory().some((h) => h.id === g.id)) saveHistory(g, resultInfo(g));
     enterRoom(net.code);
   };
+  $('#btn-solo-home').onclick = exitSolo;
   $('#btn-share').onclick = openShare;
   $('#pick-close').onclick = () => closePick(null);
   $('#pick-modal').addEventListener('click', (e) => { if (e.target.id === 'pick-modal') closePick(null); });
@@ -3531,6 +3662,7 @@ initEmotes();
 initTutorial();
 initItems();
 initMusicSettings();
+initSolo();
 $('#btn-hint-vote').onclick = voteHint;
 initAnnounce();
 show('home');
