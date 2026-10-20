@@ -112,13 +112,24 @@ def write(name, x, br='96k'):
     os.remove(wav)
 
 # ---------- 按鍵點擊聲：清脆短促，存成 wav（mp3 開頭會多一小段靜音，點擊會感覺慢半拍） ----------
+def biquad_bp(x, f0, q):
+    # 帶通濾波（RBJ），讓雜訊變成有木頭感的「嗒」
+    w = 2 * np.pi * f0 / SR; al = np.sin(w) / (2 * q)
+    b0, b2, a0, a1, a2 = al, -al, 1 + al, -2 * np.cos(w), 1 - al
+    y = np.zeros_like(x); x1 = x2 = y1 = y2 = 0.0
+    for i, v in enumerate(x):
+        o = (b0 * v + b2 * x2 - a1 * y1 - a2 * y2) / a0
+        x2, x1, y2, y1 = x1, v, y1, o
+        y[i] = o
+    return y
+
 def click():
-    n = int(0.045 * SR); t = np.arange(n) / SR
-    snap = np.diff(rng.standard_normal(n + 1)) * np.exp(-t / 0.0015)  # 高頻的「喀」
-    f = 1700 + 900 * np.exp(-t / 0.006)  # 由高往下滑的「嗒」
-    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.008)
-    pop = np.sin(2 * np.pi * 620 * t) * np.exp(-t / 0.006) * 0.6  # 一點點厚度
-    return fade(0.35 * snap + body + pop, 0.0005, 0.01)
+    # 像手機鍵盤／輸入密碼的「嗒」：很短、偏中音、帶一點木頭共鳴，不刺耳
+    n = int(0.03 * SR); t = np.arange(n) / SR
+    burst = rng.standard_normal(n) * np.exp(-t / 0.0012)
+    tock = biquad_bp(burst, 1700, 9) + 0.3 * biquad_bp(burst, 2900, 10)
+    body = np.sin(2 * np.pi * 1150 * t) * np.exp(-t / 0.004) * 0.35
+    return fade(tock / (np.max(np.abs(tock)) or 1) + body, 0.0003, 0.008)
 
 def write_wav(name, x):
     x = np.clip(x, -1, 1)
