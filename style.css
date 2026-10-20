@@ -363,6 +363,8 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .banner { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 8px 12px; border-radius: 14px; font-size: 15px; font-weight: 900; }
 .banner.danger { background: var(--red); color: #fff; box-shadow: 0 4px 0 var(--red-d); animation: throb .6s ease-in-out infinite alternate; }
 .banner.danger::before { content: "⚠"; }
+.banner.lastcall { background: #fff; color: var(--red-d); box-shadow: 0 4px 0 rgba(0, 0, 0, .12); animation: throb .5s ease-in-out infinite alternate; }
+.banner.lastcall::before { content: "⏱"; }
 .banner.notice { background: #fff; color: #a06a00; box-shadow: 0 4px 0 rgba(0, 0, 0, .12); }
 .banner.notice::before { content: "★"; color: var(--yellow-d); }
 

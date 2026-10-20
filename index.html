@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=31">
+  <link rel="stylesheet" href="style.css?v=32">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -208,6 +208,16 @@
             <label><input type="radio" name="timeLimit" value="600"><span>10分</span></label>
           </div>
         </div>
+        <div class="row stack" id="row-lastcall">
+          <span class="row-label">最後衝刺<small>第一個人抵達後，其他人剩多少時間</small></span>
+          <div class="segmented" role="radiogroup" aria-label="最後衝刺">
+            <label><input type="radio" name="lastCall" value="0" checked><span>不限</span></label>
+            <label><input type="radio" name="lastCall" value="30"><span>30秒</span></label>
+            <label><input type="radio" name="lastCall" value="60"><span>1分</span></label>
+            <label><input type="radio" name="lastCall" value="120"><span>2分</span></label>
+            <label><input type="radio" name="lastCall" value="180"><span>3分</span></label>
+          </div>
+        </div>
         <label class="row" for="set-showopp"><span class="row-label">顯示對手所在條目</span><input id="set-showopp" class="switch" type="checkbox" name="showOpponentPage" checked></label>
         <label class="row" for="set-back"><span class="row-label">允許上一頁<small>算一步</small></span><input id="set-back" class="switch" type="checkbox" name="allowBack" checked></label>
         <label class="row" for="set-random"><span class="row-label">地獄模式<small>隨機改抽冷門條目</small></span><input id="set-random" class="switch" type="checkbox" name="trueRandom"></label>
@@ -250,6 +260,7 @@
       </div>
       <div id="hud-opp-page" class="opp-where"></div>
       <ul id="hud-strip" class="hud-strip" hidden></ul>
+      <div id="hud-lastcall" class="banner lastcall" hidden></div>
       <div id="hud-alert-opp" class="banner danger" hidden></div>
       <div id="hud-alert-me" class="banner notice" hidden></div>
     </div>
@@ -470,6 +481,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=31"></script>
+  <script type="module" src="app.js?v=32"></script>
 </body>
 </html>
