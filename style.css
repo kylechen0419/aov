@@ -211,9 +211,10 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .btn.small { padding: 8px 14px; font-size: 14px; border-radius: 99px; box-shadow: 0 4px 0 var(--bd); }
 .btn.is-ready { --bg: var(--green); --bd: var(--green-d); --fg: #fff; }
 .btn.ghost { --bg: #f1eeff; --bd: #ddd6f5; --fg: var(--ink); }
+.btn.purple { --bg: var(--purple); --bd: #6232cf; --fg: #fff; }
 /* 單人訓練按鈕：主標題＋小字副標 */
 .solo-btn { flex-direction: column; gap: 2px; letter-spacing: .04em; }
-.solo-btn small { font-size: 12px; font-weight: 700; opacity: .7; letter-spacing: 0; }
+.solo-btn small { font-size: 12px; font-weight: 700; opacity: .85; letter-spacing: 0; }
 /* 單人訓練設定視窗 */
 .solo-card { max-width: 440px; }
 .solo-intro { margin: 0 0 2px; font-size: 13px; line-height: 1.6; color: var(--muted); }

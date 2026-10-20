@@ -298,11 +298,14 @@ def seq(notes, gap, **kw):
     return out[:nz[-1] + int(0.05 * SR)] if len(nz) else out
 
 bell = ((1, 1.0), (2, 0.3), (3, 0.08))
+beep = ((1, 1.0), (3, 0.35), (5, 0.18), (7, 0.09))
 sfx = {
     'tap': tone(1320, 0.07, ((1, 1),), a=0.002, tau=0.025),
     'flip': seq([(84, 0.1), (91, 0.18)], 0.05, partials=bell, a=0.003, tau=0.06),
-    'count': tone(midi(72), 0.35, bell, a=0.004, tau=0.15),
-    'go': seq([(79, 0.15), (84, 0.6)], 0.11, partials=bell, a=0.004, tau=0.25),
+    # 倒數 3、2、1：像賽車起跑燈那種清楚的「嗶」，方波感的泛音在手機喇叭上比較聽得到
+    'count': tone(880, 0.24, beep, a=0.003, tau=0.6),
+    # GO：高八度、拉長，再疊一層低八度更有力
+    'go': tone(1760, 0.75, beep, a=0.003, tau=0.5) + 0.55 * tone(880, 0.75, beep, a=0.003, tau=0.5),
     'opp': seq([(64, 0.12), (59, 0.2)], 0.08, partials=((1, 1), (2, .2)), a=0.004, tau=0.08),
     'tick': tone(midi(96), 0.06, ((1, 1),), a=0.001, tau=0.015),
     'heart': None,
@@ -317,7 +320,7 @@ for i, f in enumerate([62, 55]):
     n = int(0.22 * SR); t = np.arange(n) / SR
     place(hb, fade(np.sin(2 * np.pi * f * t) * np.exp(-t / 0.06), 0.004, 0.02) * (1 if i == 0 else 0.8), i * 0.18)
 sfx['heart'] = hb
-levels = {'tap': -14, 'flip': -10, 'tick': -10, 'heart': -3, 'opp': -8}
+levels = {'tap': -14, 'flip': -10, 'tick': -10, 'heart': -3, 'opp': -8, 'count': -2, 'go': -2}
 for name, s in sfx.items():
     write('sfx-' + name, normalize(reverb(s, 0.1) if name in ('win', 'go', 'near', 'ready') else s, levels.get(name, -5)), '64k')
 print('done')

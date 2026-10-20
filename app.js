@@ -1,11 +1,11 @@
-import { Net } from './net.js?v=60';
-import { initPresence } from './presence.js?v=60';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=60';
-import * as wiki from './wiki.js?v=60';
-import { tw, twTree, zhReady } from './zh.js?v=60';
-import { makeShareImage } from './share.js?v=60';
-import { solve } from './solver.js?v=60';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=60';
+import { Net } from './net.js?v=61';
+import { initPresence } from './presence.js?v=61';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=61';
+import * as wiki from './wiki.js?v=61';
+import { tw, twTree, zhReady } from './zh.js?v=61';
+import { makeShareImage } from './share.js?v=61';
+import { solve } from './solver.js?v=61';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=61';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
