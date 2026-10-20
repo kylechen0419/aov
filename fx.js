@@ -83,7 +83,82 @@ function playSfx(name) {
   } catch { /* 忽略 */ }
 }
 
-const tracks = { lobby: makeAudio('audio/lobby.mp3', true), race: makeAudio('audio/race.mp3', true) };
+// ---------- 可以自選的背景音樂 ----------
+// 大廳和比賽各自選一首：內建曲目，或玩家自己上傳的音樂檔（存在這支手機的瀏覽器裡）
+export const MUSIC_CHOICES = {
+  piano: { name: '輕快鋼琴', src: 'audio/lobby.mp3' },
+  chip: { name: '8-bit 冒險', src: 'audio/chip.mp3' },
+  lofi: { name: 'Lo-fi 放鬆', src: 'audio/lofi.mp3' },
+  tense: { name: '緊張節奏', src: 'audio/race.mp3' },
+  custom: { name: '我的音樂', src: null },
+};
+const DEFAULT_CHOICE = { lobby: 'piano', race: 'tense' };
+const choice = {};
+for (const slot of ['lobby', 'race']) {
+  let c = null;
+  try { c = localStorage.getItem(`wikirace-music-${slot}`); } catch { /* 忽略 */ }
+  choice[slot] = MUSIC_CHOICES[c] ? c : DEFAULT_CHOICE[slot];
+}
+
+const tracks = { lobby: makeAudio(MUSIC_CHOICES[choice.lobby].src || '', true), race: makeAudio(MUSIC_CHOICES[choice.race].src || '', true) };
+
+// 自己的音樂檔存在 IndexedDB
+function idb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('wikirace-music', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('files');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbDo(mode, fn) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('files', mode);
+    const req = fn(tx.objectStore('files'));
+    tx.oncomplete = () => resolve(req?.result);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+const customUrl = {};
+export async function getCustomMusic(slot) {
+  try { return await idbDo('readonly', (st) => st.get(slot)); } catch { return null; }
+}
+
+async function loadSlot(slot) {
+  const a = tracks[slot];
+  const c = choice[slot];
+  let src = MUSIC_CHOICES[c].src;
+  if (c === 'custom') {
+    const rec = await getCustomMusic(slot);
+    if (rec?.blob) {
+      if (customUrl[slot]) URL.revokeObjectURL(customUrl[slot]);
+      customUrl[slot] = URL.createObjectURL(rec.blob);
+      src = customUrl[slot];
+    } else {
+      src = MUSIC_CHOICES[DEFAULT_CHOICE[slot]].src;
+    }
+  }
+  if (a.getAttribute('src') !== src) {
+    a.src = src;
+    a.load();
+  }
+  if (music.mode === slot) music.apply();
+}
+if (choice.lobby === 'custom') loadSlot('lobby');
+if (choice.race === 'custom') loadSlot('race');
+
+export const getMusicChoice = (slot) => choice[slot];
+export async function setMusicChoice(slot, c) {
+  if (!MUSIC_CHOICES[c]) return;
+  choice[slot] = c;
+  try { localStorage.setItem(`wikirace-music-${slot}`, c); } catch { /* 忽略 */ }
+  await loadSlot(slot);
+}
+export async function saveCustomMusic(slot, file) {
+  await idbDo('readwrite', (st) => st.put({ blob: file, name: file.name }, slot));
+  await setMusicChoice(slot, 'custom');
+}
 
 // iPhone 規定每個播放器都要在使用者點擊時先播過一次，之後才能自動播放
 let unlocked = false;
@@ -118,6 +193,7 @@ export const music = {
   intensity: 0,
 
   play(mode) {
+    clearTimeout(this.previewTimer);
     if (mode === this.mode) { this.apply(); return; }
     this.mode = mode;
     for (const [name, a] of Object.entries(tracks)) {
@@ -127,6 +203,14 @@ export const music = {
   },
 
   stop() { this.play(null); },
+
+  // 試聽：在大廳也能先聽聽比賽音樂，幾秒後回到原本的音樂
+  preview(slot, ms = 8000) {
+    const back = this.mode;
+    if (slot === back) { this.apply(); return; }
+    this.play(slot);
+    this.previewTimer = setTimeout(() => { if (this.mode === slot) this.play(back); }, ms);
+  },
 
   setIntensity(n) {
     this.intensity = n;

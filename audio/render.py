@@ -149,6 +149,80 @@ def write_wav(name, x):
 write_wav('sfx-click', normalize(click(), -3))
 if '--click-only' in sys.argv: sys.exit()
 
+# ---------- 可選的背景音樂：8-bit 冒險、Lo-fi 放鬆 ----------
+def square(freq, dur, vol, duty_harm=9):
+    # 只疊奇次泛音的方波（有上限，聽起來像紅白機但不刺耳）
+    n = int(dur * SR); t = np.arange(n) / SR
+    x = np.zeros(n)
+    for k in range(1, duty_harm + 1, 2):
+        if freq * k > SR / 2.5: break
+        x += np.sin(2 * np.pi * freq * k * t) / k
+    return fade(x * np.exp(-t / (dur * 1.2)) * vol, 0.002, 0.01)
+
+def triangle(freq, dur, vol):
+    n = int(dur * SR); t = np.arange(n) / SR
+    x = sum(((-1) ** (i // 2)) * np.sin(2 * np.pi * freq * k * t) / (k * k) for i, k in enumerate(range(1, 10, 2)))
+    return fade(x * vol, 0.003, 0.02)
+
+def rhodes(freqs, dur, vol):
+    # 電鋼琴：正弦加一點泛音，再加慢慢的顫音
+    n = int(dur * SR); t = np.arange(n) / SR
+    x = sum(np.sin(2 * np.pi * f * t) + 0.25 * np.sin(2 * np.pi * f * 2 * t) * np.exp(-t / 0.3) for f in freqs)
+    trem = 1 - 0.18 * (0.5 + 0.5 * np.sin(2 * np.pi * 4.5 * t))
+    return fade(x * trem * np.exp(-t / 1.6) * np.minimum(1, t / 0.01) * vol, 0.005, 0.08)
+
+def lowpass1(x, fc):
+    a = np.exp(-2 * np.pi * fc / SR)
+    y = np.empty_like(x); v = 0.0
+    for i in range(len(x)):
+        v = (1 - a) * x[i] + a * v; y[i] = v
+    return y
+
+def render_extra_tracks():
+    # 8-bit 冒險（C 大調，140 BPM）
+    bpm = 140; beat = 60 / bpm; bar = beat * 4; e8 = beat / 2
+    prog = [(48, [60, 64, 67]), (45, [57, 60, 64]), (41, [57, 60, 65]), (43, [59, 62, 67])]
+    lead = [[72, 76, 79, 76, 74, 72, 74, 76], [76, 74, 72, 69, 72, 74, 76, 72], [77, 76, 74, 72, 74, 76, 77, 79], [79, 77, 76, 74, 72, 74, 71, 74]]
+    bars = 16; L = bars * bar
+    x = np.zeros(int((L + 3) * SR))
+    for b in range(bars):
+        root, tones = prog[b % 4]; t0 = b * bar
+        for s in range(8):
+            t = t0 + s * e8
+            place(x, triangle(midi(root + (12 if s % 2 else 0)), e8 * 0.9, 0.22), t)
+            if s % 4 == 0: place(x, kick(0.35), t)
+            if s % 2 == 1: place(x, tick(0.05, 7000), t)
+            place(x, square(midi(tones[s % 3] + 12), e8 * 0.5, 0.03), t + e8 * 0.5)
+            if b >= 4 and not (b % 8 == 7 and s >= 6):
+                place(x, square(midi(lead[b % 4][s] + (0 if b < 12 else 12)), e8 * 0.9, 0.08), t)
+    write('chip', normalize(loopify(x, L), -10), '96k')
+
+    # Lo-fi 放鬆（F 大調，76 BPM，有點搖擺）
+    bpm = 76; beat = 60 / bpm; bar = beat * 4
+    prog = [(41, [64, 69, 72, 76]), (40, [62, 67, 71, 74]), (38, [60, 65, 69, 72]), (36, [59, 64, 67, 71])]
+    bars = 16; L = bars * bar
+    x = np.zeros(int((L + 4) * SR))
+    swing = beat * 0.16
+    for b in range(bars):
+        root, tones = prog[b % 4]; t0 = b * bar
+        place(x, rhodes([midi(n) for n in tones], bar * 0.98, 0.05), t0)
+        place(x, rhodes([midi(n) for n in tones[1:]], beat * 1.4, 0.03), t0 + beat * 2.5 + swing)
+        place(x, bass(midi(root), beat * 1.8, 0.30), t0)
+        place(x, bass(midi(root + 7), beat * 0.9, 0.18), t0 + beat * 2 + swing)
+        for s in range(4):
+            if s in (0, 2): place(x, kick(0.32), t0 + s * beat + (swing if s == 2 and b % 2 else 0))
+            if s in (1, 3): place(x, tick(0.05, 3200), t0 + s * beat)
+            place(x, tick(0.025, 8000), t0 + s * beat + beat / 2 + swing)
+        if b % 4 == 3:
+            for i, n in enumerate([tones[3] + 12, tones[2] + 12, tones[1] + 12]):
+                place(x, piano(midi(n), 1.2, 0.08), t0 + beat * (1 + i * 0.75))
+    x = reverb(lowpass1(x, 3800), 0.2)
+    write('lofi', normalize(loopify(x, L), -11), '80k')
+
+if '--tracks-only' in sys.argv:
+    render_extra_tracks()
+    sys.exit()
+
 # ---------- 大廳：輕快的鋼琴（D 大調，84 BPM） ----------
 bpm = 84; beat = 60 / bpm; bar = beat * 4
 prog = [(50, [62, 66, 69, 73]), (47, [59, 62, 66, 69]), (43, [59, 62, 67, 71]), (45, [61, 64, 69, 73])]

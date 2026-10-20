@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=36';
-import * as wiki from './wiki.js?v=36';
-import { tw, twTree, zhReady } from './zh.js?v=36';
-import { makeShareImage } from './share.js?v=36';
-import { solve } from './solver.js?v=36';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=36';
+import { Net } from './net.js?v=37';
+import * as wiki from './wiki.js?v=37';
+import { tw, twTree, zhReady } from './zh.js?v=37';
+import { makeShareImage } from './share.js?v=37';
+import { solve } from './solver.js?v=37';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic } from './fx.js?v=37';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -188,7 +188,8 @@ function initSound() {
   paint();
   $('#btn-sound').onclick = () => { setSfxOn(!isSfxOn()); paint(); };
   const toggleMusic = () => { setMusicOn(!isMusicOn()); paint(); toast(isMusicOn() ? '背景音樂：開' : '背景音樂：關', 1200); };
-  $('#btn-music').onclick = toggleMusic;
+  // 比賽中只切換開關；其他畫面打開音樂設定
+  $('#btn-music').onclick = () => openMusicSettings(paint);
   $('#btn-music-game').onclick = toggleMusic;
   // 瀏覽器要求使用者先操作過才能出聲
   for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
@@ -254,6 +255,80 @@ const DYK = [
   '派對模式可以設定「最後衝刺」：第一個人抵達後，其他人只剩一點時間？',
   '比賽中不小心斷線也別慌，60 秒內連回來就能接著原本的進度？',
 ];
+
+// ---------- 音樂設定 ----------
+let musicPaint = () => {};
+async function renderMusicOpts() {
+  for (const box of $$('.music-opts')) {
+    const slot = box.dataset.slot;
+    const rec = await getCustomMusic(slot);
+    const cur = getMusicChoice(slot);
+    box.replaceChildren(...Object.entries(MUSIC_CHOICES).map(([id, c]) => {
+      const b = Object.assign(document.createElement('button'), { type: 'button', className: `music-opt${id === 'custom' ? ' custom' : ''}` });
+      b.classList.toggle('on', cur === id);
+      if (id === 'custom') {
+        const info = document.createElement('span');
+        info.append(Object.assign(document.createElement('b'), { textContent: '🎧 我的音樂' }), Object.assign(document.createElement('small'), { textContent: rec?.name || '還沒選檔案，點一下選擇' }));
+        b.append(info);
+        if (rec) {
+          const swap = Object.assign(document.createElement('span'), { className: 'swap', textContent: '換檔案' });
+          swap.onclick = (e) => { e.stopPropagation(); pickMusicFile(slot); };
+          b.append(swap);
+        }
+        b.onclick = () => (rec ? chooseMusic(slot, id) : pickMusicFile(slot));
+      } else {
+        const isDefault = id === (slot === 'lobby' ? 'piano' : 'tense');
+        b.append(Object.assign(document.createElement('b'), { textContent: c.name }), Object.assign(document.createElement('small'), { textContent: isDefault ? '預設' : '內建' }));
+        b.onclick = () => chooseMusic(slot, id);
+      }
+      return b;
+    }));
+  }
+}
+
+async function chooseMusic(slot, id) {
+  await setMusicChoice(slot, id);
+  if (!isMusicOn()) { setMusicOn(true); $('#mus-on').checked = true; musicPaint(); }
+  music.preview(slot);
+  renderMusicOpts();
+}
+
+let musicFileSlot = 'lobby';
+function pickMusicFile(slot) {
+  musicFileSlot = slot;
+  $('#music-file').value = '';
+  $('#music-file').click();
+}
+
+function openMusicSettings(paint) {
+  musicPaint = paint;
+  $('#mus-on').checked = isMusicOn();
+  $('#sfx-on').checked = isSfxOn();
+  renderMusicOpts();
+  $('#music-modal').hidden = false;
+}
+
+function initMusicSettings() {
+  $('#music-close').onclick = () => { $('#music-modal').hidden = true; };
+  $('#music-modal').addEventListener('click', (e) => { if (e.target.id === 'music-modal') $('#music-modal').hidden = true; });
+  $('#mus-on').onchange = () => { setMusicOn($('#mus-on').checked); musicPaint(); };
+  $('#sfx-on').onchange = () => { setSfxOn($('#sfx-on').checked); musicPaint(); };
+  $('#music-file').onchange = async () => {
+    const f = $('#music-file').files[0];
+    if (!f) return;
+    if (!f.type.startsWith('audio/') && !/\.(mp3|m4a|aac|wav|ogg|flac)$/i.test(f.name)) { toast('請選擇音樂檔'); return; }
+    if (f.size > 40 * 1024 * 1024) { toast('檔案太大了（最多 40MB）'); return; }
+    try {
+      await saveCustomMusic(musicFileSlot, f);
+      toast(`已設定「${f.name}」為${musicFileSlot === 'lobby' ? '大廳' : '比賽'}音樂`, 2500);
+      if (!isMusicOn()) { setMusicOn(true); $('#mus-on').checked = true; musicPaint(); }
+      music.preview(musicFileSlot);
+    } catch (e) {
+      toast(`沒辦法儲存音樂檔（${e.message || e}）`);
+    }
+    renderMusicOpts();
+  };
+}
 
 // ---------- 戰績（存在這支手機上，比速度和比步數各自分開記） ----------
 const statsKey = (goal) => (goal === 'steps' || goal === 'items' ? `wikirace-stats-${goal}` : 'wikirace-stats');
@@ -2828,6 +2903,7 @@ initChat();
 initEmotes();
 initTutorial();
 initItems();
+initMusicSettings();
 show('home');
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 if (!store.get('wikirace-tutorial-done') && !session.load()) openTutorial();

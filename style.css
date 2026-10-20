@@ -1096,3 +1096,20 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .items-list i { font-style: normal; font-size: 28px; text-align: center; }
 .items-list b { display: block; font-size: 15px; }
 .items-list small { font-size: 12px; color: var(--muted); font-weight: 700; }
+
+/* ---------- 音樂設定 ---------- */
+.music-card { gap: 12px; }
+.music-card .row { padding: 4px 6px; }
+.music-slot { display: grid; gap: 8px; }
+.music-slot > b { font-size: 14px; color: var(--muted); padding-left: 6px; }
+.music-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.music-opt {
+  display: grid; gap: 1px; text-align: left; border: 3px solid transparent; cursor: pointer; font: inherit;
+  padding: 8px 10px; border-radius: 14px; background: var(--card-2); color: var(--ink);
+}
+.music-opt b { font-size: 14px; }
+.music-opt small { font-size: 11px; font-weight: 700; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-opt.on { background: var(--blue-t); border-color: var(--blue); }
+.music-opt.custom { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.music-opt.custom > span:first-child { display: grid; flex: 1; min-width: 0; }
+.music-opt .swap { flex: none; font-size: 12px; font-weight: 900; color: var(--blue-d); background: #fff; padding: 4px 10px; border-radius: 999px; }
