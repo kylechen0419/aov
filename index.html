@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=49">
+  <link rel="stylesheet" href="style.css?v=50">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -229,7 +229,7 @@
             <label><input type="radio" name="lastCall" value="180"><span>3分</span></label>
           </div>
         </div>
-        <label class="row" for="set-showopp"><span class="row-label">顯示對手所在條目</span><input id="set-showopp" class="switch" type="checkbox" name="showOpponentPage" checked></label>
+        <label class="row" for="set-showopp"><span class="row-label">顯示對手所在條目<small>開了容易被照抄路線；關掉時只顯示離終點多遠</small></span><input id="set-showopp" class="switch" type="checkbox" name="showOpponentPage"></label>
         <label class="row" for="set-back"><span class="row-label">允許上一頁<small>算一步</small></span><input id="set-back" class="switch" type="checkbox" name="allowBack" checked></label>
         <label class="row" for="set-random"><span class="row-label">地獄模式<small>隨機改抽冷門條目</small></span><input id="set-random" class="switch" type="checkbox" name="trueRandom"></label>
       </div>
@@ -543,6 +543,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=49"></script>
+  <script type="module" src="app.js?v=50"></script>
 </body>
 </html>

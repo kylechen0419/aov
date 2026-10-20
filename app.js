@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=49';
-import * as wiki from './wiki.js?v=49';
-import { tw, twTree, zhReady } from './zh.js?v=49';
-import { makeShareImage } from './share.js?v=49';
-import { solve } from './solver.js?v=49';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=49';
+import { Net } from './net.js?v=50';
+import * as wiki from './wiki.js?v=50';
+import { tw, twTree, zhReady } from './zh.js?v=50';
+import { makeShareImage } from './share.js?v=50';
+import { solve } from './solver.js?v=50';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=50';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -11,7 +11,8 @@ const net = new Net();
 
 const DEFAULT_SETTINGS = {
   lang: 'zh', goal: 'speed', timeLimit: 0, lastCall: 0, start: '', target: '',
-  showOpponentPage: true, allowBack: true, trueRandom: false,
+  // 預設不顯示對手在哪個條目：看得到就能一步一步照抄領先者的路線
+  showOpponentPage: false, allowBack: true, trueRandom: false,
 };
 const MAX_PLAYERS = { duel: 2, party: 8 };
 // 斷線後保留位置的時間：比賽中久一點，房間裡短一點
@@ -1294,6 +1295,7 @@ function renderOppHud() {
     else if (o?.left) where = `${o.name} 已離線`;
     else if (o?.offline) where = `${o.name} 斷線中，等待重新連線…${waitLeft(o)}`;
     else if (o && g.settings.showOpponentPage) where = `${o.name} 在《${tw(o.current)}》`;
+    else if (o && distLabel(o.dist)) where = `${o.name} ${distLabel(o.dist)}`;
     $('#hud-opp-page').textContent = where;
     $('#hud-opp').classList.toggle('offline', !!o?.offline);
     return;
@@ -1319,6 +1321,9 @@ function renderOppHud() {
     info.className = 'strip-info';
     const label = o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : o.offline ? `斷線${waitLeft(o, true)}` : `${o.clicks} 步`;
     info.append(Object.assign(document.createElement('b'), { textContent: o.name }), Object.assign(document.createElement('span'), { textContent: label }));
+    if (!g.settings.showOpponentPage && distLabel(o.dist) && !o.finished && !o.left && !o.offline) {
+      info.append(Object.assign(document.createElement('small'), { textContent: distLabel(o.dist) }));
+    }
     if (g.settings.showOpponentPage && !o.finished && !o.left && !o.offline) {
       info.append(Object.assign(document.createElement('small'), { textContent: tw(o.current) }));
     }
@@ -1327,6 +1332,9 @@ function renderOppHud() {
   });
   $('#hud-strip').replaceChildren(...chips);
 }
+
+// 離終點多遠（只說大概，不說在哪個條目，免得被照抄路線）
+const distLabel = (d) => ({ 1: '差 1 步！', 2: '約差 2 步', 3: '還很遠' }[d] || '');
 
 function elapsed() {
   const g = state.game;
@@ -1409,7 +1417,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
     $('#hud-alert-me').hidden = !near;
     $('#hud-alert-me').textContent = '終點連結就在這一頁！快找！';
 
-    if (isItems(g)) g.dist = distanceHere(g);
+    g.dist = distanceHere(g);
     sendProgress({ t: 'progress', title: art.title, clicks: g.clicks, near, path: g.path, d: g.dist ?? undefined });
     if (reached) finishGame('win');
     else {
@@ -2294,7 +2302,8 @@ function resetItems() {
   g.nextItemAt = 0;
   $('#item-dock').hidden = !isItems(g);
   // 先在背景查好「哪些條目會連到終點」，用來判斷大家離終點多遠
-  if (isItems(g)) {
+  // 每一種玩法都先查好「哪些條目會連到終點」，用來顯示大家離終點多遠（道具賽也用來決定道具強弱）
+  {
     loadBackSet(g).then(() => {
       if (state.game !== g || g.finished || !g.current) return;
       g.dist = distanceHere(g);
@@ -2329,7 +2338,8 @@ function renderItemTimer() {
 function distanceHere(g) {
   if ($('#article a.is-target')) return 1;
   const bs = g.backReady;
-  if (bs && [...$('#article').querySelectorAll('a.wl')].some((a) => bs.set.has(bs.key(a.dataset.title)))) return 2;
+  if (!bs) return null;
+  if ([...$('#article').querySelectorAll('a.wl')].some((a) => bs.set.has(bs.key(a.dataset.title)))) return 2;
   return 3;
 }
 
