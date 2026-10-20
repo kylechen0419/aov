@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -78,6 +78,7 @@
             <input id="nickname" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname">
           </label>
         </div>
+        <p id="stats-label" class="stats-label">⚡ 比速度戰績</p>
         <div class="stats" aria-label="你的戰績">
           <div class="stat win"><b id="stat-w">0</b><span>勝場</span></div>
           <div class="stat lose"><b id="stat-l">0</b><span>敗場</span></div>
@@ -437,6 +438,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=27"></script>
+  <script type="module" src="app.js?v=28"></script>
 </body>
 </html>

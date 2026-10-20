@@ -956,3 +956,5 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .hud-goal.hot { background: var(--red); color: #fff; animation: throb .6s ease-in-out infinite alternate; }
 .brief-goal { justify-self: center; font-size: 15px; font-weight: 900; padding: 4px 14px; border-radius: 999px; background: var(--blue-t); color: var(--blue-d); }
 .brief-goal.steps { background: #fff4cc; color: #a06a00; }
+.stats-label { margin: 0 0 -6px; font-size: 12px; font-weight: 900; color: #0b7fa8; letter-spacing: .04em; }
+.stats-label.steps { color: #a06a00; }

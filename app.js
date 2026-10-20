@@ -1,8 +1,8 @@
-import { Net } from './net.js?v=27';
-import * as wiki from './wiki.js?v=27';
-import { tw, twTree, zhReady } from './zh.js?v=27';
-import { makeShareImage } from './share.js?v=27';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=27';
+import { Net } from './net.js?v=28';
+import * as wiki from './wiki.js?v=28';
+import { tw, twTree, zhReady } from './zh.js?v=28';
+import { makeShareImage } from './share.js?v=28';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=28';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -241,26 +241,32 @@ const DYK = [
   '比賽中不小心斷線也別慌，60 秒內連回來就能接著原本的進度？',
 ];
 
-// ---------- 戰績（存在這支手機上） ----------
-function loadStats() {
-  try { return { w: 0, l: 0, d: 0, streak: 0, ...JSON.parse(store.get('wikirace-stats') || '{}') }; } catch { return { w: 0, l: 0, d: 0, streak: 0 }; }
+// ---------- 戰績（存在這支手機上，比速度和比步數各自分開記） ----------
+const statsKey = (goal) => (goal === 'steps' ? 'wikirace-stats-steps' : 'wikirace-stats');
+
+function loadStats(goal) {
+  try { return { w: 0, l: 0, d: 0, streak: 0, ...JSON.parse(store.get(statsKey(goal)) || '{}') }; } catch { return { w: 0, l: 0, d: 0, streak: 0 }; }
 }
 
-function recordResult(res) {
-  const st = loadStats();
+function recordResult(goal, res) {
+  const st = loadStats(goal);
   if (res === 'win') { st.w++; st.streak++; } else if (res === 'lose') { st.l++; st.streak = 0; } else { st.d++; }
-  store.set('wikirace-stats', JSON.stringify(st));
+  store.set(statsKey(goal), JSON.stringify(st));
 }
 
-function unrecordResult(res) {
-  const st = loadStats();
+function unrecordResult(goal, res) {
+  const st = loadStats(goal);
   if (res === 'win') { st.w = Math.max(0, st.w - 1); st.streak = Math.max(0, st.streak - 1); } else if (res === 'lose') st.l = Math.max(0, st.l - 1); else st.d = Math.max(0, st.d - 1);
-  store.set('wikirace-stats', JSON.stringify(st));
+  store.set(statsKey(goal), JSON.stringify(st));
 }
 
+// 首頁顯示目前選到的模式的戰績
 function renderStats() {
-  const st = loadStats();
+  const goal = selectedGoal();
+  const st = loadStats(goal);
   const total = st.w + st.l + st.d;
+  $('#stats-label').textContent = goal === 'steps' ? '👣 比步數戰績' : '⚡ 比速度戰績';
+  $('#stats-label').classList.toggle('steps', goal === 'steps');
   $('#stat-w').textContent = st.w;
   $('#stat-l').textContent = st.l;
   $('#stat-rate').textContent = total ? `${Math.round((st.w / total) * 100)}%` : '–';
@@ -353,6 +359,7 @@ function initHome() {
   const savedMode = store.get('wikirace-mode');
   if (savedMode === 'party') document.querySelector('input[name="mode"][value="party"]').checked = true;
   if (store.get('wikirace-goal') === 'steps') document.querySelector('input[name="goalHome"][value="steps"]').checked = true;
+  renderStats();
   const paintMode = () => {
     const goal = selectedGoal() === 'steps' ? '比步數' : '比速度';
     $('#btn-create').textContent = `建立${goal}${selectedMode() === 'party' ? '派對' : '對決'}房間`;
@@ -362,6 +369,7 @@ function initHome() {
     store.set('wikirace-mode', selectedMode());
     store.set('wikirace-goal', selectedGoal());
     paintMode();
+    renderStats();
   }));
 
   const params = new URLSearchParams(location.search);
@@ -1455,8 +1463,8 @@ function showResult(update = false) {
 
   // 結果可能因為幾乎同時抵達而更正，戰績也跟著更正
   if (res === 'pending') { /* 勝負未定，先不記戰績 */ }
-  else if (!g.recorded) { recordResult(res); g.recorded = res; }
-  else if (g.recorded !== res) { unrecordResult(g.recorded); recordResult(res); g.recorded = res; }
+  else if (!g.recorded) { recordResult(g.settings.goal, res); g.recorded = res; }
+  else if (g.recorded !== res) { unrecordResult(g.settings.goal, g.recorded); recordResult(g.settings.goal, res); g.recorded = res; }
 
   const hero = $('#result-hero');
   const changed = !update || res !== lastOutcome;
