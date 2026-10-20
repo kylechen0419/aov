@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=39';
-import * as wiki from './wiki.js?v=39';
-import { tw, twTree, zhReady } from './zh.js?v=39';
-import { makeShareImage } from './share.js?v=39';
-import { solve } from './solver.js?v=39';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic } from './fx.js?v=39';
+import { Net } from './net.js?v=40';
+import * as wiki from './wiki.js?v=40';
+import { tw, twTree, zhReady } from './zh.js?v=40';
+import { makeShareImage } from './share.js?v=40';
+import { solve } from './solver.js?v=40';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=40';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -207,7 +207,7 @@ function initSound() {
   document.addEventListener('music-playing', closeSplash);
   // 每次點擊按鈕、選項都給一下觸覺與聲音回饋
   const soundTarget = (t) => {
-    if (t.closest('.article, [data-haptic]')) return null;
+    if (t.closest('.article, [data-haptic], [data-nosfx]')) return null;
     const el = t.closest('button, a, label, input, select, summary, [role=button], .splash, .coach');
     if (!el || el.disabled || (el.matches('input') && el.type !== 'checkbox' && el.type !== 'radio')) return null;
     return el;
@@ -300,11 +300,27 @@ function pickMusicFile(slot) {
   $('#music-file').click();
 }
 
+// 點擊音效：選了就馬上聽一次
+function renderClickOpts() {
+  $('#click-opts').replaceChildren(...Object.entries(CLICK_SOUNDS).map(([id, c]) => {
+    const label = document.createElement('label');
+    const input = Object.assign(document.createElement('input'), { type: 'radio', name: 'clickSound', value: id, checked: getClickSound() === id });
+    input.onchange = () => {
+      setClickSound(id);
+      if (!isSfxOn()) { setSfxOn(true); $('#sfx-on').checked = true; musicPaint(); }
+      sfx.tap();
+    };
+    label.append(input, Object.assign(document.createElement('span'), { textContent: c.name }));
+    return label;
+  }));
+}
+
 function openMusicSettings(paint) {
   musicPaint = paint;
   $('#mus-on').checked = isMusicOn();
   $('#sfx-on').checked = isSfxOn();
   renderMusicOpts();
+  renderClickOpts();
   $('#music-modal').hidden = false;
 }
 

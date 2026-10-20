@@ -23,12 +23,28 @@ function makeAudio(src, loop = false) {
 }
 
 // 每個音效準備幾個播放器，讓連續觸發時可以重疊
-const SFX_NAMES = ['click', 'flip', 'count', 'go', 'opp', 'tick', 'heart', 'alarm', 'near', 'ready', 'win', 'lose'];
+// 點擊音效可以自己選：蘋果風（預設）、鍵盤、泡泡
+export const CLICK_SOUNDS = {
+  tock: { name: '🍎 蘋果風', file: 'sfx-click-tock' },
+  key: { name: '⌨️ 鍵盤', file: 'sfx-click' },
+  pop: { name: '🫧 泡泡', file: 'sfx-click-pop' },
+};
+let clickChoice = 'tock';
+try { const c = localStorage.getItem('wikirace-click'); if (CLICK_SOUNDS[c]) clickChoice = c; } catch { /* 忽略 */ }
+export const getClickSound = () => clickChoice;
+export function setClickSound(c) {
+  if (!CLICK_SOUNDS[c]) return;
+  clickChoice = c;
+  try { localStorage.setItem('wikirace-click', c); } catch { /* 忽略 */ }
+}
+
+const SFX_NAMES = ['click-tock', 'click-key', 'click-pop', 'flip', 'count', 'go', 'opp', 'tick', 'heart', 'alarm', 'near', 'ready', 'win', 'lose'];
 const pools = {};
 for (const name of SFX_NAMES) {
   // 按鍵聲用 wav：mp3 開頭有一小段靜音，點下去會慢半拍
-  const src = name === 'click' ? 'audio/sfx-click.wav?v=3' : `audio/sfx-${name}.mp3`;
-  const n = name === 'click' ? 4 : name === 'tick' || name === 'flip' ? 3 : 2;
+  const isClick = name.startsWith('click-');
+  const src = isClick ? `audio/${CLICK_SOUNDS[name.slice(6)].file}.wav?v=4` : `audio/sfx-${name}.mp3`;
+  const n = isClick ? 4 : name === 'tick' || name === 'flip' ? 3 : 2;
   pools[name] = { els: Array.from({ length: n }, () => makeAudio(src)), i: 0 };
 }
 
@@ -59,7 +75,7 @@ for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev,
 
 const fastReady = (name) => !!(ctx && ctx.state === 'running' && buffers[name]);
 // 現在播放按鍵聲會不會馬上有聲音（手指一按下就播的前提）
-export const canClickNow = () => prefs.sfx && (fastReady('click') || unlocked);
+export const canClickNow = () => prefs.sfx && (fastReady(`click-${clickChoice}`) || unlocked);
 
 function playSfx(name) {
   if (!prefs.sfx) return;
@@ -246,7 +262,7 @@ export const sfx = {
   count: () => playSfx('count'),
   go: () => playSfx('go'),
   click: () => playSfx('flip'),
-  tap: () => playSfx('click'),
+  tap: () => playSfx(`click-${clickChoice}`),
   oppMove: () => playSfx('opp'),
   tick: () => playSfx('tick'),
   heartbeat: () => playSfx('heart'),

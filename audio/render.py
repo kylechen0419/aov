@@ -146,7 +146,26 @@ def write_wav(name, x):
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
         w.writeframes((x * 32767).astype('<i2').tobytes())
 
+def tock():
+    # 像手機密碼鍵盤的「嗒」：很短的木頭敲擊。幾個不成倍數的共振一下就消失，所以聽起來是「敲」不是「嗶」
+    n = int(0.035 * SR); t = np.arange(n) / SR
+    x = np.zeros(n)
+    for f, amp, tau in [(1650, 1.0, 0.0055), (3700, 0.45, 0.0028), (5600, 0.18, 0.0015), (420, 0.35, 0.004)]:
+        x += amp * np.sin(2 * np.pi * f * t) * np.exp(-t / tau)
+    snap = biquad_bp(rng.standard_normal(n), 3000, 1.2) * np.exp(-t / 0.0007)
+    x += 0.25 * snap / (np.max(np.abs(snap)) or 1)
+    return fade(x * np.minimum(1, t / 0.0004), 0.0002, 0.006)
+
+def bubble():
+    # 泡泡「啵」：音高快速往上滑的短音
+    n = int(0.05 * SR); t = np.arange(n) / SR
+    f = 500 + 1100 * (1 - np.exp(-t / 0.012))
+    x = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.012)
+    return fade(x * np.minimum(1, t / 0.001), 0.0005, 0.01)
+
 write_wav('sfx-click', normalize(click(), -3))
+write_wav('sfx-click-tock', normalize(tock(), -2))
+write_wav('sfx-click-pop', normalize(bubble(), -4))
 if '--click-only' in sys.argv: sys.exit()
 
 # ---------- 可選的背景音樂：8-bit 冒險、Lo-fi 放鬆 ----------

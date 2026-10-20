@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=39">
+  <link rel="stylesheet" href="style.css?v=40">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -417,6 +417,7 @@
       <div class="modal-head"><b id="music-title">🎵 音樂設定</b><button id="music-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
       <label class="row" for="mus-on"><span class="row-label">背景音樂</span><input id="mus-on" class="switch" type="checkbox"></label>
       <label class="row" for="sfx-on"><span class="row-label">音效</span><input id="sfx-on" class="switch" type="checkbox"></label>
+      <div class="music-slot"><b>點擊音效</b><div class="segmented" id="click-opts" role="radiogroup" aria-label="點擊音效" data-nosfx></div></div>
       <div class="music-slot"><b>大廳音樂</b><div class="music-opts" data-slot="lobby"></div></div>
       <div class="music-slot"><b>比賽音樂</b><div class="music-opts" data-slot="race"></div></div>
       <p class="pick-sub">選「我的音樂」可以用手機裡的音樂檔（mp3、m4a 等），只會存在這支手機上。</p>
@@ -522,6 +523,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=39"></script>
+  <script type="module" src="app.js?v=40"></script>
 </body>
 </html>
