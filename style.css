@@ -1023,12 +1023,15 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .article.watching a.peek::after { content: "👆"; position: absolute; left: 50%; top: 70%; font-size: 26px; transform: translateX(-30%); pointer-events: none; animation: tutTap .5s ease-in-out 3 alternate; }
 @keyframes peekPulse { to { box-shadow: 0 0 0 7px rgba(47, 123, 255, .35); } }
 .follow-btn {
-  position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: calc(22px + env(safe-area-inset-bottom, 0px));
-  display: flex; align-items: center; gap: 8px; white-space: nowrap; padding: 12px 20px;
+  position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 6px 13px; font-size: 13px; border-radius: 999px; box-shadow: 0 3px 0 var(--bd), 0 6px 14px rgba(30, 20, 90, .25);
+  top: auto; height: auto;
 }
+.follow-btn .live-dot { width: 7px; height: 7px; }
 .follow-btn[hidden] { display: none; }
 .follow-btn .live-dot { background: #fff; box-shadow: none; }
-.follow-btn:active { transform: translateX(-50%) translateY(3px); }
+.follow-btn:active { transform: translateX(-50%) translateY(2px); }
 
 /* ---------- 選玩家、轉移房主 ---------- */
 .crown-btn { font-size: 20px; }
@@ -1113,3 +1116,13 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .music-opt.custom { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
 .music-opt.custom > span:first-child { display: grid; flex: 1; min-width: 0; }
 .music-opt .swap { flex: none; font-size: 12px; font-weight: 900; color: var(--blue-d); background: #fff; padding: 4px 10px; border-radius: 999px; }
+.emote-mute { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding: 8px 6px 2px; border-top: 2px solid var(--line); font-size: 13px; font-weight: 800; color: var(--muted); cursor: pointer; }
+
+/* ---------- 投票提示 ---------- */
+.hint-bar { display: flex; align-items: center; gap: 8px; justify-content: space-between; background: #fff; color: var(--ink); border-radius: 14px; padding: 6px 6px 6px 12px; font-size: 13px; font-weight: 800; box-shadow: 0 3px 0 rgba(0, 0, 0, .12); }
+.hint-bar[hidden] { display: none; }
+.hint-bar .btn { flex: none; padding: 7px 12px; font-size: 13px; border-radius: 12px; box-shadow: 0 3px 0 var(--bd); }
+.hint-bar .btn:disabled { opacity: .7; }
+.hint-card { margin: 0 0 12px; background: #fff8db; border: 2px solid var(--yellow); border-radius: 16px; padding: 8px 12px; }
+.hint-card summary { cursor: pointer; font-weight: 900; color: var(--yellow-ink); font-size: 15px; }
+.hint-card p { margin: 6px 0 2px; font-size: 15px; line-height: 1.7; color: var(--paper-text); }

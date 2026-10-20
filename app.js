@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=37';
-import * as wiki from './wiki.js?v=37';
-import { tw, twTree, zhReady } from './zh.js?v=37';
-import { makeShareImage } from './share.js?v=37';
-import { solve } from './solver.js?v=37';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic } from './fx.js?v=37';
+import { Net } from './net.js?v=38';
+import * as wiki from './wiki.js?v=38';
+import { tw, twTree, zhReady } from './zh.js?v=38';
+import { makeShareImage } from './share.js?v=38';
+import { solve } from './solver.js?v=38';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic } from './fx.js?v=38';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -90,7 +90,7 @@ function show(view) {
   for (const v of ['home', 'room', 'game', 'result', 'watch']) $(`#view-${v}`).hidden = v !== view;
   $('.masthead').hidden = view === 'game' || view === 'watch';
   $('#emote-fab').hidden = !(view === 'room' || view === 'result' || view === 'watch');
-  if (view !== 'watch') stopWatchTimer();
+  if (view !== 'watch') { stopWatchTimer(); $('#btn-follow').hidden = true; }
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
@@ -944,6 +944,7 @@ function createGame(settings, id) {
     lastSecond: null,
     lastCallEnd: 0,
     lastCallSent: false,
+    hint: { offered: false, shown: false, myVote: false, yes: [], need: 0, votes: new Set() },
     timer: null,
     heart: null,
   };
@@ -957,6 +958,8 @@ function createGame(settings, id) {
   $('#hud-me-avatar').style.setProperty('--side', party && me ? me.color : '');
   $('#hud-strip').hidden = !party;
   $('#hud-lastcall').hidden = true;
+  $('#hint-bar').hidden = true;
+  $('#hint-card').hidden = true;
   renderOppHud();
   $('#hud-alert-opp').hidden = true;
   $('#hud-alert-me').hidden = true;
@@ -1048,6 +1051,7 @@ function gameSnapshot() {
     id: g.id, settings: g.settings, mode: g.mode, players: [...state.players.values()],
     elapsed: g.startAt ? performance.now() - g.startAt : 0,
     lastCall: g.lastCallEnd ? Math.max(0, g.lastCallEnd - performance.now()) : 0,
+    hint: g.hint.shown,
     progress,
   };
 }
@@ -1076,6 +1080,7 @@ function resumeGame(snap) {
   g.path = Array.isArray(mine.path) ? mine.path.slice() : [];
   g.stack = g.path.slice(0, -1);
   if (snap.lastCall > 0) g.lastCallEnd = performance.now() + snap.lastCall;
+  if (snap.hint) setTimeout(showHint, 800);
   renderOppHud();
   show('game');
   $('#countdown').hidden = true;
@@ -1172,6 +1177,7 @@ function tick() {
   }
   updateIntensity(left);
   if (g.fx) applyFx();
+  if (ms >= HINT_AFTER && !g.hint.offered && !g.hint.shown) offerHint();
   if (left <= 0) finishGame('timeout');
 }
 
@@ -1535,7 +1541,8 @@ function finishGame(reason) {
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
   sendProgress({ t: 'finish', ...g.finished });
-  if (net.isHost) onAnyFinish(state.myId, g.finished);
+  if (net.isHost) { onAnyFinish(state.myId, g.finished); checkHintVotes(); }
+  $('#hint-bar').hidden = true;
   $('#countdown').hidden = true;
   $('#path-drawer').hidden = true;
   $('#coach').hidden = true;
@@ -1581,6 +1588,7 @@ function onOtherFinish(id, msg) {
   const g = state.game;
   const o = g?.others.get(id);
   if (!o) return;
+  if (net.isHost && !o.finished) setTimeout(checkHintVotes, 0);
   if (state.view === 'watch' && !o.finished) setTimeout(() => watchedLeft(id, msg.reason), 0);
   // 重新連線時可能收到重複的結束訊息
   if (o.finished) { if (Array.isArray(msg.path)) o.path = msg.path; return; }
@@ -1629,6 +1637,7 @@ function onOtherLeft(id) {
   const g = state.game;
   const o = g?.others.get(id);
   if (!o || o.left) return;
+  if (net.isHost) setTimeout(checkHintVotes, 0);
   if (state.view === 'watch') setTimeout(() => watchedLeft(id, 'left'), 0);
   o.left = true;
   o.near = false;
@@ -1895,6 +1904,108 @@ async function findSolution(g) {
     g.solution = { path: null, error: e.message };
   }
   if (state.game === g && state.view === 'result') renderSolution(g);
+}
+
+// ---------- 全體投票拿提示 ----------
+// 比賽超過 5 分鐘，還在比的人都同意，就給大家看終點條目的簡介（把終點的名字遮起來）
+const HINT_AFTER = 5 * 60 * 1000;
+
+function offerHint() {
+  const g = state.game;
+  if (!g || g.finished || g.hint.offered || g.hint.shown) return;
+  g.hint.offered = true;
+  $('#hint-bar').hidden = false;
+  renderHintBar();
+  toast('已經 5 分鐘了！大家都同意就能看提示', 3000);
+  sfx.near();
+}
+
+function renderHintBar() {
+  const g = state.game;
+  const h = g.hint;
+  const btn = $('#btn-hint-vote');
+  btn.disabled = h.myVote;
+  btn.textContent = h.myVote ? '✓ 已同意' : '💡 我要提示';
+  $('#hint-ask-text').textContent = h.need
+    ? `提示投票：${h.yes.length} / ${h.need} 人同意${h.myVote && h.yes.length < h.need ? '，等其他人…' : ''}`
+    : '比了 5 分鐘還沒到？大家都同意就能看提示';
+}
+
+function voteHint() {
+  const g = state.game;
+  if (!g || g.finished || g.hint.myVote || g.hint.shown) return;
+  g.hint.myVote = true;
+  renderHintBar();
+  if (net.isHost) hostHintVote(state.myId);
+  else net.send({ t: 'hintvote' });
+}
+
+// 房主：統計還在比、還連著線的人有沒有都同意
+function hostHintVote(pid) {
+  const g = state.game;
+  if (!g || g.hint.shown) return;
+  g.hint.votes.add(pid);
+  checkHintVotes();
+}
+
+function checkHintVotes() {
+  const g = state.game;
+  if (!g || g.hint.shown || !g.hint.votes.size) return;
+  const racers = [...g.others.values()].filter((o) => !o.finished && !o.left && !o.offline).map((o) => o.id);
+  if (!g.finished) racers.push(state.myId);
+  const yes = racers.filter((id) => g.hint.votes.has(id));
+  const tally = { t: 'hinttally', yes, need: racers.length };
+  net.send(tally);
+  applyHintTally(tally);
+  if (racers.length && yes.length >= racers.length) {
+    net.send({ t: 'hint' });
+    showHint();
+  }
+}
+
+function applyHintTally(msg) {
+  const g = state.game;
+  if (!g || g.hint.shown) return;
+  g.hint.yes = Array.isArray(msg.yes) ? msg.yes : [];
+  g.hint.need = Number(msg.need) || 0;
+  if (!g.hint.offered && !g.finished) offerHint();
+  if (!g.finished) renderHintBar();
+}
+
+async function showHint() {
+  const g = state.game;
+  if (!g || g.hint.shown) return;
+  g.hint.shown = true;
+  $('#hint-bar').hidden = true;
+  if (g.finished) return;
+  toast('💡 全體同意！提示來了', 2500);
+  sfx.ready();
+  haptic('success');
+  $('#hint-text').textContent = '讀取提示中…';
+  $('#hint-card').hidden = false;
+  $('#hint-card').open = true;
+  try {
+    const d = await wiki.api(g.settings.lang, { action: 'query', prop: 'extracts', exintro: '1', explaintext: '1', exsentences: '4', redirects: '1', titles: g.settings.target });
+    await zhReady;
+    let text = d.query?.pages?.[0]?.extract || '';
+    if (g.settings.lang === 'zh') text = tw(text);
+    text = maskTitle(text.replace(/\s+/g, ' ').trim(), g.settings.target, g.settings.lang);
+    $('#hint-text').textContent = text || '找不到這個條目的簡介，只能靠你自己了！';
+  } catch (e) {
+    $('#hint-text').textContent = `提示讀取失敗（${e.message}）`;
+  }
+}
+
+// 把終點的名字（含去掉括號的版本）換成底線，免得提示直接說出答案
+function maskTitle(text, title, lang) {
+  const names = new Set([title, title.replace(/\s*[（(].*?[）)]\s*$/, '')]);
+  if (lang === 'zh') for (const n of [...names]) names.add(tw(n));
+  let out = text;
+  for (const n of [...names].filter((x) => x.length >= 1).sort((a, b) => b.length - a.length)) {
+    const re = new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), lang === 'en' ? 'gi' : 'g');
+    out = out.replace(re, '＿＿＿');
+  }
+  return out;
 }
 
 // ---------- 道具賽 ----------
@@ -2447,7 +2558,11 @@ function sendEmote(e) {
   else net.send({ t: 'emote', e });
 }
 
+// 屏蔽表情：別人的表情和快捷語都不顯示（自己的照常）
+let emotesMuted = store.get('wikirace-emote-mute') === '1';
+
 function showEmote(id, e) {
+  if (emotesMuted && id !== state.myId) return;
   const p = personOf(id);
   const el = document.createElement('div');
   el.className = 'emote-pop';
@@ -2474,6 +2589,13 @@ function initEmotes() {
   };
   $('#emote-grid').replaceChildren(...EMOJIS.map((e) => make(e, 'emote-btn')));
   $('#phrase-grid').replaceChildren(...PHRASES.map((e) => make(e, 'phrase-btn')));
+  $('#emote-mute').checked = emotesMuted;
+  $('#emote-mute').onchange = () => {
+    emotesMuted = $('#emote-mute').checked;
+    store.set('wikirace-emote-mute', emotesMuted ? '1' : '0');
+    if (emotesMuted) $$('.emote-pop:not(.mine)').forEach((el) => el.remove());
+    toast(emotesMuted ? '已屏蔽別人的表情' : '已顯示別人的表情', 1500);
+  };
   for (const b of $$('[data-emote-open]')) {
     b.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -2694,6 +2816,9 @@ function handleGuestMessage(msg, from, cid) {
       net.send({ t: 'emote', id: from, e: msg.e }, null, from);
       showEmote(from, msg.e);
       break;
+    case 'hintvote':
+      if (state.game?.others.get(from) && !state.game.others.get(from).finished) hostHintVote(from);
+      break;
     case 'item':
     case 'itemblock': {
       const g = state.game;
@@ -2740,6 +2865,7 @@ function handleHostMessage(msg) {
           if (pending) onOtherFinish(id, pending);
         }
         if (snap.lastCall > 0 && !g.lastCallEnd) applyLastCall(snap.lastCall / 1000, null);
+        if (snap.hint && !g.hint.shown) showHint();
         renderOppHud();
         if (g.finished) net.send({ t: 'finish', ...g.finished });
         else if (g.current) net.send({ t: 'progress', title: g.current, clicks: g.clicks, near: g.near, path: g.path });
@@ -2831,6 +2957,12 @@ function handleHostMessage(msg) {
     case 'item':
       if (msg.from) onItem(msg.from, msg.item, msg.to);
       break;
+    case 'hinttally':
+      applyHintTally(msg);
+      break;
+    case 'hint':
+      showHint();
+      break;
     case 'itemblock':
       if (msg.by) onItemBlocked(msg.by, msg.item, msg.from);
       break;
@@ -2904,6 +3036,7 @@ initEmotes();
 initTutorial();
 initItems();
 initMusicSettings();
+$('#btn-hint-vote').onclick = voteHint;
 show('home');
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 if (!store.get('wikirace-tutorial-done') && !session.load()) openTutorial();

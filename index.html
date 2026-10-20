@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=37">
+  <link rel="stylesheet" href="style.css?v=38">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -262,6 +262,7 @@
       </div>
       <div id="hud-opp-page" class="opp-where"></div>
       <div id="fx-bar" class="fx-bar" hidden></div>
+      <div id="hint-bar" class="hint-bar" hidden><span id="hint-ask-text"></span><button id="btn-hint-vote" class="btn small primary" type="button">💡 我要提示</button></div>
       <ul id="hud-strip" class="hud-strip" hidden></ul>
       <div id="hud-lastcall" class="banner lastcall" hidden></div>
       <div id="hud-alert-opp" class="banner danger" hidden></div>
@@ -272,6 +273,7 @@
 
     <article class="paper">
       <p id="breadcrumb" class="breadcrumb"></p>
+      <details id="hint-card" class="hint-card" hidden open><summary>💡 終點提示</summary><p id="hint-text"></p></details>
       <h1 id="article-title" class="article-title"></h1>
       <div id="article" class="article"></div>
       <div id="article-loading" class="loading" hidden><div class="spinner"></div></div>
@@ -314,7 +316,6 @@
       <div id="watch-article" class="article watching"></div>
       <div id="watch-loading" class="loading" hidden><div class="spinner"></div></div>
     </article>
-    <button id="btn-follow" class="btn blue follow-btn" type="button" hidden><span class="live-dot"></span>跟隨他的畫面</button>
   </main>
 
   <main id="view-result" class="view" hidden>
@@ -382,6 +383,7 @@
     <div class="emote-grid" id="emote-grid"></div>
     <p class="emote-label">快捷語</p>
     <div class="phrase-grid" id="phrase-grid"></div>
+    <label class="emote-mute" for="emote-mute"><span>🔕 屏蔽別人的表情</span><input id="emote-mute" class="switch" type="checkbox"></label>
   </div>
   <div id="emote-layer" class="emote-layer" aria-live="polite"></div>
   <div id="net-banner" class="net-banner" hidden></div>
@@ -395,6 +397,7 @@
     <p class="splash-note"><svg class="ic"><use href="#i-music"/></svg>開啟音樂與音效</p>
   </div>
 
+  <button id="btn-follow" class="btn blue follow-btn" type="button" hidden><span class="live-dot"></span>跟隨他的畫面</button>
   <div id="item-dock" class="item-dock" hidden>
     <button class="item-slot" type="button" data-slot="0" aria-label="道具欄 1"></button>
     <button class="item-slot" type="button" data-slot="1" aria-label="道具欄 2"></button>
@@ -520,6 +523,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=37"></script>
+  <script type="module" src="app.js?v=38"></script>
 </body>
 </html>
