@@ -1026,7 +1026,8 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
   position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   display: flex; align-items: center; gap: 6px; white-space: nowrap;
   padding: 6px 13px; font-size: 13px; border-radius: 999px; box-shadow: 0 3px 0 var(--bd), 0 6px 14px rgba(30, 20, 90, .25);
-  top: auto; height: auto;
+  /* .btn 帶有 top: 0，固定在底部的按鈕要改回 auto，不然會被上下拉長成一整條 */
+  top: auto;
 }
 .follow-btn .live-dot { width: 7px; height: 7px; }
 .follow-btn[hidden] { display: none; }
