@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=26">
+  <link rel="stylesheet" href="style.css?v=27">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -92,6 +92,10 @@
           <label class="mode duel"><input type="radio" name="mode" value="duel" checked><span><b>1 對 1</b><small>對決模式</small></span></label>
           <label class="mode party"><input type="radio" name="mode" value="party"><span><b>2–8 人</b><small>派對模式</small></span></label>
         </div>
+        <div class="goal-home" role="radiogroup" aria-label="比賽方式">
+          <label class="goal-card speed"><input type="radio" name="goalHome" value="speed" checked><span><i>⚡</i><b>比速度</b><small>先抵達終點的贏</small></span></label>
+          <label class="goal-card steps"><input type="radio" name="goalHome" value="steps"><span><i>👣</i><b>比步數</b><small>用最少步抵達的贏</small></span></label>
+        </div>
         <button id="btn-create" class="btn primary wide">建立對決房間</button>
         <div class="divider"><span>或加入朋友的房間</span></div>
         <div class="join-row">
@@ -123,6 +127,7 @@
         <div>
           <div class="eyebrow">房間代碼</div>
           <div class="room-code" id="room-code">-----</div>
+          <div id="room-goal" class="room-goal"></div>
         </div>
         <div class="head-actions">
           <button id="btn-copy-link" class="btn pink small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
@@ -185,13 +190,6 @@
 
       <h2 class="section-title">規則</h2>
       <div class="card group">
-        <div class="row stack">
-          <span class="row-label">勝負方式</span>
-          <div class="segmented goal-pick" role="radiogroup" aria-label="勝負方式">
-            <label><input type="radio" name="goal" value="speed" checked><span>⚡ 比速度<small>先抵達的贏</small></span></label>
-            <label><input type="radio" name="goal" value="steps"><span>👣 比步數<small>步數最少的贏</small></span></label>
-          </div>
-        </div>
         <div class="row">
           <span class="row-label">語言</span>
           <div class="segmented" role="radiogroup" aria-label="語言">
@@ -439,6 +437,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=26"></script>
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>

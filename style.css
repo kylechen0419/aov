@@ -927,8 +927,28 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 @keyframes splashPulse { 50% { transform: scale(1.07); } }
 
 /* ---------- 比步數模式 ---------- */
-.goal-pick span { display: grid; gap: 1px; line-height: 1.25; }
-.goal-pick small { font-size: 11px; font-weight: 700; opacity: .75; }
+.goal-home { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.goal-card { position: relative; cursor: pointer; }
+.goal-card input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.goal-card span {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center;
+  padding: 10px 12px; border-radius: 16px; background: var(--card-2); color: var(--muted); border: 3px solid transparent;
+  transition: transform .1s, background .15s, border-color .15s, color .15s;
+}
+.goal-card i { grid-row: 1 / 3; font-style: normal; font-size: 26px; line-height: 1; filter: grayscale(1); opacity: .6; transition: filter .15s, opacity .15s; }
+.goal-card b { font-size: 17px; line-height: 1.2; }
+.goal-card small { font-size: 11px; font-weight: 700; line-height: 1.3; }
+.goal-card input:checked + span i { filter: none; opacity: 1; }
+.goal-card.speed input:checked + span { background: #e6f9ff; color: #0b7fa8; border-color: var(--sky-3); }
+.goal-card.steps input:checked + span { background: #fff4cc; color: #a06a00; border-color: var(--yellow-d); }
+.goal-card:active span { transform: scale(.96); }
+.goal-card input:focus-visible + span { outline: 3px solid var(--yellow); outline-offset: 2px; }
+.room-goal {
+  display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 900; padding: 3px 12px; border-radius: 999px;
+  background: #e6f9ff; color: #0b7fa8;
+}
+.room-goal.steps { background: #fff4cc; color: #a06a00; }
+.room-goal:empty { display: none; }
 .hud-goal {
   margin-left: auto; flex: none; font-size: 12px; font-weight: 900; white-space: nowrap;
   background: #fff; color: var(--yellow-ink); padding: 3px 9px; border-radius: 999px;

@@ -1,8 +1,8 @@
-import { Net } from './net.js?v=26';
-import * as wiki from './wiki.js?v=26';
-import { tw, twTree, zhReady } from './zh.js?v=26';
-import { makeShareImage } from './share.js?v=26';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=26';
+import { Net } from './net.js?v=27';
+import * as wiki from './wiki.js?v=27';
+import { tw, twTree, zhReady } from './zh.js?v=27';
+import { makeShareImage } from './share.js?v=27';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=27';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -268,6 +268,10 @@ function renderStats() {
 }
 
 // ---------- 首頁 ----------
+function selectedGoal() {
+  return document.querySelector('input[name="goalHome"]:checked')?.value === 'steps' ? 'steps' : 'speed';
+}
+
 function selectedMode() {
   return document.querySelector('input[name="mode"]:checked')?.value || 'duel';
 }
@@ -348,12 +352,15 @@ function initHome() {
 
   const savedMode = store.get('wikirace-mode');
   if (savedMode === 'party') document.querySelector('input[name="mode"][value="party"]').checked = true;
+  if (store.get('wikirace-goal') === 'steps') document.querySelector('input[name="goalHome"][value="steps"]').checked = true;
   const paintMode = () => {
-    $('#btn-create').textContent = selectedMode() === 'party' ? '建立派對房間' : '建立對決房間';
+    const goal = selectedGoal() === 'steps' ? '比步數' : '比速度';
+    $('#btn-create').textContent = `建立${goal}${selectedMode() === 'party' ? '派對' : '對決'}房間`;
   };
   paintMode();
-  document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener('change', () => {
+  document.querySelectorAll('input[name="mode"], input[name="goalHome"]').forEach((r) => r.addEventListener('change', () => {
     store.set('wikirace-mode', selectedMode());
+    store.set('wikirace-goal', selectedGoal());
     paintMode();
   }));
 
@@ -370,6 +377,7 @@ function initHome() {
     showError('#home-error');
     state.myName = name;
     state.mode = selectedMode();
+    state.settings = { ...state.settings, goal: selectedGoal() };
     $('#btn-create').disabled = true;
     setConn('建立中…');
     try {
@@ -418,7 +426,7 @@ function readForm() {
   const f = form().elements;
   return {
     lang: f.lang.value,
-    goal: f.goal.value === 'steps' ? 'steps' : 'speed',
+    goal: state.settings.goal === 'steps' ? 'steps' : 'speed',
     timeLimit: Number(f.timeLimit.value),
     start: f.start.value.trim(),
     target: f.target.value.trim(),
@@ -431,13 +439,13 @@ function readForm() {
 function writeForm(s) {
   const f = form().elements;
   f.lang.value = s.lang;
-  f.goal.value = s.goal === 'steps' ? 'steps' : 'speed';
   f.timeLimit.value = String(s.timeLimit);
   if (document.activeElement !== f.start) f.start.value = tw(s.start);
   if (document.activeElement !== f.target) f.target.value = tw(s.target);
   f.showOpponentPage.checked = s.showOpponentPage;
   f.allowBack.checked = s.allowBack;
   f.trueRandom.checked = s.trueRandom;
+  paintRoomGoal();
 }
 
 function playerTag(p) {
@@ -495,9 +503,16 @@ function renderPartyBoard() {
   $('#party-grid').replaceChildren(...items);
 }
 
+function paintRoomGoal() {
+  const steps = state.settings.goal === 'steps';
+  $('#room-goal').textContent = `${steps ? '👣 比步數' : '⚡ 比速度'} · ${isParty() ? '派對' : '1 對 1'}`;
+  $('#room-goal').classList.toggle('steps', steps);
+}
+
 function renderRoom() {
   const host = net.isHost;
   const party = isParty();
+  paintRoomGoal();
   $('.versus').hidden = party;
   $('#party-board').hidden = !party;
   if (party) renderPartyBoard(); else renderDuelSlots();
