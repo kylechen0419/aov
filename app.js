@@ -14,10 +14,17 @@ const DEFAULT_SETTINGS = {
 const MAX_PLAYERS = { duel: 2, party: 8 };
 // 派對模式：第一個人抵達後，其他人剩這麼多秒
 const LAST_CALL = 60;
+// 玩家可以選的頭像（avatars/ 資料夾裡的 SVG）
+const AVATARS = [
+  ['owl', '貓頭鷹博士'], ['cat', '橘貓'], ['panda', '熊貓'], ['fox', '狐狸'], ['penguin', '企鵝'], ['frog', '青蛙王子'],
+  ['rabbit', '兔兔'], ['dino', '小恐龍'], ['robot', '機器人'], ['shiba', '柴犬'], ['lion', '獅子'], ['chick', '小雞'],
+];
+const AVATAR_IDS = new Set(AVATARS.map(([id]) => id));
 const COLORS = ['#2f7bff', '#ff4d6d', '#22c55e', '#ff8a3d', '#8b5cf6', '#ff5ca8', '#14b8a6', '#eab308'];
 
 const state = {
   myName: '',
+  myAvatar: null,
   myId: null,
   mode: 'duel',
   players: new Map(), // id → { id, name, ready, host, color }
@@ -75,13 +82,32 @@ function initial(name) {
   return ch ? ch.toUpperCase() : '?';
 }
 
-function avatarEl(name, color, cls = '') {
+// 有選頭像就顯示圖，沒有就顯示名字的第一個字
+function paintAvatar(el, p) {
+  el.replaceChildren();
+  const id = p?.avatar;
+  if (id && AVATAR_IDS.has(id)) {
+    const img = new Image();
+    img.src = `avatars/${id}.svg`;
+    img.alt = '';
+    img.decoding = 'async';
+    el.append(img);
+    el.classList.add('has-img');
+  } else {
+    el.textContent = initial(p?.name);
+    el.classList.remove('has-img');
+  }
+}
+
+function avatarEl(p, cls = '') {
   const a = document.createElement('span');
   a.className = `avatar ${cls}`;
-  a.textContent = initial(name);
-  if (color) a.style.setProperty('--side', color);
+  paintAvatar(a, p);
+  if (p?.color) a.style.setProperty('--side', p.color);
   return a;
 }
+
+const cleanAvatar = (id) => (AVATAR_IDS.has(id) ? id : null);
 
 function fillPath(ol, path, target) {
   ol.replaceChildren(...path.map((t) => {
@@ -171,9 +197,40 @@ function initHome() {
     import('./topics.js').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
-  const paintAvatar = () => { $('#home-avatar').textContent = initial($('#nickname').value); };
-  paintAvatar();
-  $('#nickname').addEventListener('input', paintAvatar);
+  // 第一次來隨機給一個頭像，之後記住玩家的選擇
+  state.myAvatar = cleanAvatar(store.get('wikirace-avatar')) || AVATARS[Math.floor(Math.random() * AVATARS.length)][0];
+  store.set('wikirace-avatar', state.myAvatar);
+  const paintHomeAvatar = () => paintAvatar($('#home-avatar'), { name: $('#nickname').value, avatar: state.myAvatar });
+  const grid = $('#avatar-grid');
+  grid.replaceChildren(...AVATARS.map(([id, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'avatar-opt';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-label', label);
+    b.title = label;
+    b.dataset.id = id;
+    b.append(Object.assign(new Image(), { src: `avatars/${id}.svg`, alt: '' }));
+    b.onclick = () => {
+      state.myAvatar = id;
+      store.set('wikirace-avatar', id);
+      paintPicker();
+      paintHomeAvatar();
+      const home = $('#home-avatar');
+      home.classList.remove('pop');
+      void home.offsetWidth;
+      home.classList.add('pop');
+    };
+    return b;
+  }));
+  const paintPicker = () => grid.querySelectorAll('.avatar-opt').forEach((b) => {
+    const on = b.dataset.id === state.myAvatar;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  paintPicker();
+  paintHomeAvatar();
+  $('#nickname').addEventListener('input', paintHomeAvatar);
 
   const savedMode = store.get('wikirace-mode');
   if (savedMode === 'party') document.querySelector('input[name="mode"][value="party"]').checked = true;
@@ -211,7 +268,7 @@ function initHome() {
     try {
       const code = await net.createRoom(MAX_PLAYERS[state.mode] - 1);
       state.myId = 'host';
-      state.players = new Map([['host', { id: 'host', name, ready: true, host: true, color: COLORS[0] }]]);
+      state.players = new Map([['host', { id: 'host', name, avatar: state.myAvatar, ready: true, host: true, color: COLORS[0] }]]);
       setConn(isParty() ? '等待玩家' : '等待對手');
       enterRoom(code);
     } catch (e) {
@@ -233,7 +290,7 @@ function initHome() {
     setConn('連線中…');
     try {
       await net.joinRoom(code);
-      net.send({ t: 'join', name });
+      net.send({ t: 'join', name, avatar: state.myAvatar });
       setConn('已連線', true);
       state.players = new Map();
       enterRoom(code);
@@ -279,8 +336,9 @@ function renderDuelSlots() {
   const host = state.players.get('host');
   const guest = [...state.players.values()].find((p) => !p.host);
   const iAmHost = net.isHost;
-  $('#slot-host .avatar').textContent = initial(host?.name);
-  $('#slot-guest .avatar').textContent = guest ? initial(guest.name) : '?';
+  paintAvatar($('#slot-host .avatar'), host);
+  if (guest) paintAvatar($('#slot-guest .avatar'), guest);
+  else { $('#slot-guest .avatar').replaceChildren('?'); $('#slot-guest .avatar').classList.remove('has-img'); }
   $('#slot-host .pname').textContent = host?.name || '—';
   $('#slot-host .pstate').textContent = '';
   $('#slot-guest .pname').textContent = guest ? guest.name : '等待對手加入…';
@@ -305,7 +363,7 @@ function renderPartyBoard() {
     li.className = 'party-player';
     li.classList.toggle('ready', p.ready || p.host);
     li.classList.toggle('is-me', p.id === state.myId);
-    li.append(avatarEl(p.name, p.color));
+    li.append(avatarEl(p));
     const name = Object.assign(document.createElement('b'), { textContent: p.name });
     const tag = Object.assign(document.createElement('span'), {
       className: 'party-tag',
@@ -495,7 +553,7 @@ function startGame(settings) {
   state.settings = settings;
   if (net.isHost) net.locked = true;
   const others = new Map(opponents().map((p) => [p.id, {
-    id: p.id, name: p.name, color: p.color,
+    id: p.id, name: p.name, avatar: p.avatar, color: p.color,
     clicks: 0, current: settings.start, path: [], near: false, finished: null, left: false,
   }]));
   state.game = {
@@ -522,7 +580,7 @@ function startGame(settings) {
   $('#hud-clicks').textContent = '0';
   $('#hud-timer').textContent = settings.timeLimit ? fmtTime(settings.timeLimit * 1000) : '00:00';
   $('#hud-timer').className = 'hud-timer';
-  $('#hud-me-avatar').textContent = initial(state.myName);
+  paintAvatar($('#hud-me-avatar'), { name: state.myName, avatar: state.myAvatar });
   $('#hud-me-avatar').style.setProperty('--side', party && me ? me.color : '');
   $('#hud-strip').hidden = !party;
   $('#hud-lastcall').hidden = true;
@@ -596,7 +654,7 @@ function renderOppHud() {
   if (g.mode !== 'party') {
     const o = list[0];
     $('#hud-opp-name').textContent = o?.name || '對手';
-    $('#hud-opp-avatar').textContent = initial(o?.name);
+    paintAvatar($('#hud-opp-avatar'), o);
     $('#hud-opp-avatar').style.removeProperty('--side');
     $('#hud-opp-clicks').textContent = o ? o.clicks : 0;
     $('#hud-opp-clicks').parentElement.lastChild.textContent = ' 步';
@@ -608,7 +666,8 @@ function renderOppHud() {
   }
   const arrived = list.filter((o) => o.finished?.reason === 'win').length + (g.finished?.reason === 'win' ? 1 : 0);
   $('#hud-opp-name').textContent = `${list.length} 位對手`;
-  $('#hud-opp-avatar').textContent = String(list.length);
+  $('#hud-opp-avatar').replaceChildren(String(list.length));
+  $('#hud-opp-avatar').classList.remove('has-img');
   $('#hud-opp-avatar').style.setProperty('--side', '#ffb020');
   $('#hud-opp-clicks').textContent = `${arrived}/${list.length + 1}`;
   $('#hud-opp-clicks').parentElement.lastChild.textContent = ' 抵達';
@@ -620,7 +679,7 @@ function renderOppHud() {
     if (o.left || (o.finished && o.finished.reason !== 'win')) li.classList.add('out');
     if (o.near && !o.finished) li.classList.add('near');
     li.dataset.id = o.id;
-    li.append(avatarEl(o.name, o.color, 'sm'));
+    li.append(avatarEl(o, 'sm'));
     const info = document.createElement('span');
     info.className = 'strip-info';
     const label = o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : `${o.clicks} 步`;
@@ -983,8 +1042,8 @@ function outcomeDuel(g) {
 function ranking(g) {
   const meP = state.players.get(state.myId);
   const entries = [
-    { id: state.myId, name: state.myName, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false },
-    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left })),
+    { id: state.myId, name: state.myName, avatar: state.myAvatar, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false },
+    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left })),
   ];
   const group = (e) => {
     if (e.finished?.reason === 'win') return 0;
@@ -1034,7 +1093,7 @@ function renderRanking(g, entries) {
     const sum = document.createElement('summary');
     const name = Object.assign(document.createElement('b'), { textContent: e.me ? `${e.name}（你）` : e.name });
     const stat = Object.assign(document.createElement('span'), { className: 'rank-stat', textContent: rankStatus(e) });
-    sum.append(avatarEl(e.name, e.color, 'sm'), name, stat);
+    sum.append(avatarEl(e, 'sm'), name, stat);
     const ol = document.createElement('ol');
     ol.className = 'metro';
     ol.style.setProperty('--side', e.color);
@@ -1105,8 +1164,8 @@ function renderDuelResult(g, res) {
   const o = [...g.others.values()][0] || { name: '對手', clicks: 0, path: [], finished: null, left: true };
   const opp = o.finished;
   $('#res-me-name').textContent = `${state.myName}（你）`;
-  $('#res-me-avatar').textContent = initial(state.myName);
-  $('#res-opp-avatar').textContent = initial(o.name);
+  paintAvatar($('#res-me-avatar'), { name: state.myName, avatar: state.myAvatar });
+  paintAvatar($('#res-opp-avatar'), o);
   $('#res-opp-name').textContent = o.name;
   $('#res-opp-path-head').textContent = `${o.name} 的路線`;
   $('#res-me-result').textContent = resultLabel(me);
@@ -1164,7 +1223,7 @@ function handleGuestMessage(msg, from) {
       const used = new Set([...state.players.values()].map((p) => p.color));
       const color = COLORS.find((c) => !used.has(c)) || COLORS[state.players.size % COLORS.length];
       const name = String(msg.name || '玩家').slice(0, 16);
-      state.players.set(from, { id: from, name, ready: false, host: false, color });
+      state.players.set(from, { id: from, name, avatar: cleanAvatar(msg.avatar), ready: false, host: false, color });
       net.send({ t: 'welcome', you: from }, from);
       broadcastLobby();
       toast(`${name} 加入了房間`);
@@ -1199,7 +1258,7 @@ function handleHostMessage(msg) {
       break;
     case 'lobby':
       state.mode = msg.mode === 'party' ? 'party' : 'duel';
-      state.players = new Map((msg.players || []).map((p) => [p.id, p]));
+      state.players = new Map((msg.players || []).map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
       if (state.myId && state.players.get(state.myId)) state.myReady = !!state.players.get(state.myId).ready;
       if (state.view !== 'game' && state.view !== 'result') {
         state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
@@ -1220,7 +1279,7 @@ function handleHostMessage(msg) {
       break;
     case 'start':
       state.mode = msg.mode === 'party' ? 'party' : 'duel';
-      if (msg.players) state.players = new Map(msg.players.map((p) => [p.id, p]));
+      if (msg.players) state.players = new Map(msg.players.map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
       startGame({ ...DEFAULT_SETTINGS, ...msg.settings });
       break;
     case 'progress':

@@ -663,3 +663,32 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .result-hero.place .medal { background: radial-gradient(circle at 35% 30%, #ffffff, #cfd8e8 50%, #8f9bb5); box-shadow: 0 0 0 7px #fff, 0 10px 0 7px rgba(20, 10, 80, .2); }
 .result-hero.place .medal span { color: #3e4a63; }
 .result-hero.place .medal::before, .result-hero.place .medal::after { content: none; }
+
+/* ---------- 頭像 ---------- */
+.avatar { overflow: hidden; }
+.avatar.has-img { background: #fff; box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--side, var(--blue)); }
+.avatar img { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.avatar.big.has-img { box-shadow: 0 0 0 5px #fff, 0 8px 0 rgba(0, 0, 0, .15); }
+.player .avatar.has-img { background: #fff; }
+.racer .avatar.has-img { box-shadow: 0 0 0 3px #fff; }
+.strip-chip .avatar.sm.has-img, .rank-item .avatar.sm.has-img { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--side, var(--blue)); }
+#home-avatar { width: 56px; height: 56px; }
+#home-avatar.pop { animation: avatarPop .45s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes avatarPop { from { transform: scale(.6) rotate(-12deg); } }
+
+.avatar-pick { display: grid; gap: 8px; }
+.avatar-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.avatar-opt {
+  position: relative; aspect-ratio: 1; max-width: 100%; padding: 0; border: 0; border-radius: 50%;
+  background: none; cursor: pointer; transition: transform .12s;
+  box-shadow: 0 3px 0 rgba(43, 33, 96, .12);
+}
+.avatar-opt img { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.avatar-opt:active { transform: scale(.9); }
+.avatar-opt.on { transform: scale(1.06); box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--blue), 0 4px 10px rgba(47, 123, 255, .35); }
+.avatar-opt.on::after {
+  content: "✓"; position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px; font-weight: 900;
+  background: var(--green); color: #fff; box-shadow: 0 0 0 2px #fff;
+}
+.avatar-opt:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
