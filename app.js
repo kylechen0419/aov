@@ -1,11 +1,11 @@
-import { Net } from './net.js?v=57';
-import { initPresence } from './presence.js?v=57';
-import { publishRoom, clearRoom } from './rooms.js?v=57';
-import * as wiki from './wiki.js?v=57';
-import { tw, twTree, zhReady } from './zh.js?v=57';
-import { makeShareImage } from './share.js?v=57';
-import { solve } from './solver.js?v=57';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=57';
+import { Net } from './net.js?v=59';
+import { initPresence } from './presence.js?v=59';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=59';
+import * as wiki from './wiki.js?v=59';
+import { tw, twTree, zhReady } from './zh.js?v=59';
+import { makeShareImage } from './share.js?v=59';
+import { solve } from './solver.js?v=59';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=59';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -360,6 +360,19 @@ function initMusicSettings() {
     }
     renderMusicOpts();
   };
+}
+
+// ---------- 全站公告（製作者從後台發） ----------
+let announceId = '';
+function initAnnounce() {
+  $('#announce-close').onclick = () => { store.set('wikirace-bcast', announceId); $('#announce').hidden = true; };
+  watchBroadcast((b) => {
+    if (!b || !b.text) { $('#announce').hidden = true; return; }
+    announceId = String(b.id || b.at || b.text);
+    if (announceId === store.get('wikirace-bcast')) { $('#announce').hidden = true; return; }
+    $('#announce-text').textContent = String(b.text).slice(0, 200);
+    $('#announce').hidden = false;
+  });
 }
 
 // ---------- 戰績（存在這支手機上，比速度和比步數各自分開記） ----------
@@ -749,8 +762,42 @@ function renderRoom() {
 
 // 後台：房主把房間概況寫到 Firebase（只有房間層級資訊，沒有誰在哪個條目）。節流，不會太頻繁。
 let roomSyncAt = 0;
-function syncRoom(force = false) {
+let controlUnsub = null;
+let controlCode = null;
+let leavingRoom = false;  // 正在離開／關閉房間時，別讓晚到的訊息又把房間重新發布上去
+// 房主：監聽後台對這個房間下的指令（關閉／踢人）
+function ensureControlWatch() {
   if (!net.isHost || !net.code) return;
+  if (controlCode === net.code) return;
+  if (controlUnsub) controlUnsub();
+  controlCode = net.code;
+  watchControl(net.code, onControlCmd).then((off) => { controlUnsub = off; });
+}
+function stopControlWatch() {
+  if (controlUnsub) { controlUnsub(); controlUnsub = null; }
+  controlCode = null;
+}
+function onControlCmd(cmd) {
+  if (!net.isHost) return;
+  if (cmd.type === 'close') {
+    toast('房間已被管理員關閉', 3000);
+    leaveRoom();
+  } else if (cmd.type === 'kick' && cmd.name) {
+    const pl = [...state.players.values()].find((x) => !x.host && x.name === cmd.name);
+    if (pl) {
+      state.banned.add(pl.id);
+      if (state.devices.get(pl.id)) state.banned.add(state.devices.get(pl.id));
+      net.kick(pl.id, { t: 'kicked' });
+      pl.leaving = true;
+      removePlayer(pl.id, { kicked: true });
+    }
+  }
+}
+
+function syncRoom(force = false) {
+  if (leavingRoom) return;
+  if (!net.isHost || !net.code) { stopControlWatch(); return; }
+  ensureControlWatch();
   const now = performance.now();
   if (!force && now - roomSyncAt < 2500) return;
   roomSyncAt = now;
@@ -800,6 +847,18 @@ function scoreGame(g, info) {
   sc.games += 1;
   for (const id of winners) sc.wins[id] = (sc.wins[id] || 0) + 1;
   broadcastLobby();
+}
+
+// 記一筆對局統計（給後台算趨勢）。只存聚合用的小資料，不含路線、不含是誰。
+function recordGameStats(g, info) {
+  const all = [{ finished: g.finished, clicks: g.finished?.clicks ?? g.clicks }, ...[...g.others.values()].map((o) => ({ finished: o.finished, clicks: o.clicks }))];
+  const winner = all.find((p) => p.finished?.reason === 'win');
+  const elapsed = Math.max(0, ...all.map((p) => p.finished?.elapsed || 0));
+  recordGame({
+    mode: g.mode, goal: cleanGoal(g.settings.goal), players: all.length, round: state.roomScore.games,
+    start: tw(g.settings.start), target: tw(g.settings.target),
+    win: !!winner, durationMs: winner?.finished?.elapsed || elapsed, steps: winner ? winner.clicks : null,
+  });
 }
 
 function renderRoomScore() {
@@ -982,6 +1041,7 @@ function migrateHost(toId, { leaving = false } = {}) {
       return { ...p };
     });
   clearRoom(code);
+  stopControlWatch();
   sysChat(leaving ? `${state.myName} 離開了，房主交給 ${to.name}` : `${state.myName} 把房主交給 ${to.name}`);
   const wins = { ...state.roomScore.wins };
   if (wins[state.myId] !== undefined) { wins[myNewKey] = wins[state.myId]; delete wins[state.myId]; }
@@ -1086,8 +1146,9 @@ function closePick(id = null) {
 
 // 主動離開：先告訴大家，房主則直接解散房間
 function leaveRoom() {
+  leavingRoom = true;
   session.clear();
-  if (net.isHost) clearRoom(net.code);
+  if (net.isHost) { clearRoom(net.code); stopControlWatch(); }
   net.send(net.isHost ? { t: 'closed' } : { t: 'bye' });
   setTimeout(() => {
     net.destroy();
@@ -2133,7 +2194,7 @@ function showResult(update = false) {
   // 最近對戰：派對要等名次確定才記
   if (res !== 'pending' && (!party || allDone(g))) saveHistory(g, info);
   // 房主：這一局大家都比完了，記到本房戰績
-  if (net.isHost && allDone(g) && !g.scored) scoreGame(g, info);
+  if (net.isHost && allDone(g) && !g.scored) { scoreGame(g, info); recordGameStats(g, info); }
   refreshWaitTicker();
 
   const hero = $('#result-hero');
@@ -3471,6 +3532,7 @@ initTutorial();
 initItems();
 initMusicSettings();
 $('#btn-hint-vote').onclick = voteHint;
+initAnnounce();
 show('home');
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 // 第一次來的人先看教學；從邀請連結來的人只顯示提示，不擋住加入（重新整理回房間時都不打擾）

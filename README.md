@@ -60,9 +60,17 @@ python3 -m http.server 8000
 設定步驟：
 1. 用 Google 帳號登入 <https://console.firebase.google.com/>，點「建立專案」，名稱隨意，不用開 Google Analytics。
 2. 左側選 **Build → Realtime Database → 建立資料庫**，位置選「新加坡（asia-southeast1）」之類離台灣近的，規則先選 **測試模式（test mode）**。
-3. 建好後，到 Realtime Database 的 **規則（Rules）** 分頁，貼上這段後按發布：
+3. 建好後，到 Realtime Database 的 **規則（Rules）** 分頁，貼上這段後按發布（這幾個路徑分別給線上人數、房間概況、歷史統計、全站公告、後台指令用）：
    ```json
-   { "rules": { "online": { ".read": true, ".write": true } } }
+   {
+     "rules": {
+       "online": { ".read": true, ".write": true },
+       "rooms": { ".read": true, ".write": true },
+       "stats": { ".read": true, ".write": true },
+       "broadcast": { ".read": true, ".write": true },
+       "control": { ".read": true, ".write": true }
+     }
+   }
    ```
 4. 回到專案首頁，點 **</> 網頁**，註冊一個 App，Firebase 會給你一段 `const firebaseConfig = { ... }`。
 5. 打開本專案的 `firebase-config.js`，把那段貼進去，改成：
@@ -76,3 +84,14 @@ python3 -m http.server 8000
 6. 推送到 `main` 重新部署即可。
 
 這個計數只記「現在有幾個人打開網站」的總數，不會記下是誰、也看不到任何人的畫面。免費額度對朋友間的使用綽綽有餘。
+
+## 製作者後台（選用）
+
+設定好上面的 Firebase 後，`admin.html` 是一個給製作者看的營運儀表板，打開 `https://<你的網址>/admin.html` 並輸入密碼即可（密碼寫在 `admin.html` 最上面的 `ADMIN_PASS`，想改就改那一行）。後台可以看到：
+
+- **即時概況**：現在有幾間房間、幾個人在玩、幾個人在線上、史上同時在線尖峰。
+- **歷史統計**：今日／本週／全部的對局數、玩家人次、完成率、再玩率、平均一局時間、平均步數、各模式分布、最常「沒人抵達」的題目。
+- **正在遊玩的房間**：每間房的代碼、房主、模式、題目與每位玩家的步數進度（可依最新／人多／開最久排序、只看比賽中）。必要時可以**關閉房間**或**踢出某位玩家**。
+- **全站公告**：打一句話推到所有正在玩的人畫面上（玩家可以自己關掉）。
+
+後台只看得到房間層級的概況，**看不到任何人的實際畫面、也不會鏡像誰在看哪個條目**。遊戲首頁也有一行說明，讓玩家知道會收集哪些匿名的房間資訊。

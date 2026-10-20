@@ -6,20 +6,44 @@
 <meta name="robots" content="noindex, nofollow">
 <title>維基競速・後台</title>
 <style>
-  :root { color-scheme: dark; --bg: #16122e; --card: #241c46; --line: #352a63; --muted: #9c93c9; --ink: #fff; --blue: #4f8cff; --green: #35d07f; --yellow: #ffd23f; --red: #ff5c7a; }
+  :root { color-scheme: dark; --bg: #16122e; --card: #241c46; --card2: #2d2457; --line: #352a63; --muted: #9c93c9; --ink: #fff; --blue: #4f8cff; --green: #35d07f; --yellow: #ffd23f; --red: #ff5c7a; --pink: #ff6fb3; }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  body { margin: 0; font-family: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", sans-serif; background: var(--bg); color: var(--ink); padding: max(16px, env(safe-area-inset-top)) 16px 40px; }
+  body { margin: 0; font-family: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", sans-serif; background: var(--bg); color: var(--ink); padding: max(16px, env(safe-area-inset-top)) 16px 48px; }
   h1 { font-size: 20px; margin: 8px 0 2px; }
-  .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  h2 { font-size: 15px; margin: 22px 0 10px; color: var(--muted); }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
   .gate { max-width: 360px; margin: 18vh auto 0; display: grid; gap: 12px; text-align: center; }
   .gate input { font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink); }
   .gate button { font: inherit; font-weight: 800; font-size: 16px; padding: 12px; border: 0; border-radius: 12px; background: var(--blue); color: #fff; cursor: pointer; }
   .gate .err { color: var(--red); font-size: 13px; min-height: 18px; }
-  .stat { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-  .stat .box { background: var(--card); border-radius: 14px; padding: 10px 16px; }
-  .stat b { font-size: 24px; display: block; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .stat { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat .box { background: var(--card); border-radius: 14px; padding: 10px 16px; flex: 1; min-width: 70px; }
+  .stat b { font-size: 24px; display: block; font-variant-numeric: tabular-nums; }
   .stat span { font-size: 12px; color: var(--muted); }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .ann { display: flex; gap: 8px; margin-top: 6px; }
+  .ann input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--line); background: var(--card2); color: var(--ink); }
+  .ann button { border: 0; font: inherit; font-weight: 800; padding: 0 14px; border-radius: 10px; cursor: pointer; }
+  .ann .send { background: var(--blue); color: #fff; }
+  .ann .clear { background: var(--line); color: var(--ink); }
+  .ann-cur { font-size: 12px; color: var(--yellow); margin: 8px 2px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .kv { background: var(--card2); border-radius: 10px; padding: 8px 10px; }
+  .kv b { font-size: 20px; display: block; font-variant-numeric: tabular-nums; }
+  .kv span { font-size: 11px; color: var(--muted); }
+  .seg { display: inline-flex; gap: 4px; background: var(--card2); border-radius: 10px; padding: 3px; }
+  .seg button { border: 0; background: none; color: var(--muted); font: inherit; font-weight: 800; font-size: 13px; padding: 5px 11px; border-radius: 8px; cursor: pointer; }
+  .seg button.on { background: var(--blue); color: #fff; }
+  .bar { display: grid; grid-template-columns: 72px 1fr 40px; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+  .bar .track { height: 10px; background: var(--card2); border-radius: 6px; overflow: hidden; }
+  .bar .fill { height: 100%; background: var(--blue); }
+  .bar .n { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hard { font-size: 13px; padding: 5px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+  .hard:first-child { border-top: 0; }
+  .hard .r { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hard .c { color: var(--red); flex: none; }
   .rooms { display: grid; gap: 12px; }
   .room { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
   .room-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -35,7 +59,12 @@
   .pl .pg { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .pl.done .pg { color: var(--green); font-weight: 800; }
   .pl.left { opacity: .5; }
-  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  .ctl { display: flex; gap: 8px; margin-top: 10px; }
+  .ctl button { border: 0; font: inherit; font-weight: 800; font-size: 12px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+  .ctl .kick { background: var(--card2); color: var(--pink); }
+  .ctl .close { background: #4a1530; color: var(--red); }
+  .empty { color: var(--muted); text-align: center; padding: 30px 0; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -47,29 +76,61 @@
     <p id="err" class="err"></p>
   </div>
 
-  <main id="main" hidden>
-    <h1>🎮 正在遊玩的房間</h1>
+  <main id="main" class="wrap" hidden>
+    <h1>維基競速・後台</h1>
     <p class="sub" id="status">連線中…</p>
+
     <div class="stat">
       <div class="box"><b id="s-rooms">0</b><span>房間</span></div>
       <div class="box"><b id="s-players">0</b><span>遊玩中</span></div>
       <div class="box"><b id="s-online">–</b><span>在線上</span></div>
+      <div class="box"><b id="s-peak">–</b><span>史上尖峰</span></div>
+    </div>
+
+    <h2>📢 全站公告</h2>
+    <div class="panel">
+      <div class="ann">
+        <input id="ann-text" maxlength="200" placeholder="打一句話，推到所有正在玩的人畫面上…">
+        <button class="send" id="ann-send">送出</button>
+        <button class="clear" id="ann-clear">清除</button>
+      </div>
+      <p class="ann-cur" id="ann-cur"></p>
+    </div>
+
+    <h2>📊 歷史統計 <span class="seg" style="float:right"><button data-period="today" class="on">今日</button><button data-period="week">本週</button><button data-period="all">全部</button></span></h2>
+    <div class="panel" id="stats">
+      <div class="grid2">
+        <div class="kv"><b id="k-games">0</b><span>對局數</span></div>
+        <div class="kv"><b id="k-players">0</b><span>玩家人次</span></div>
+        <div class="kv"><b id="k-complete">–</b><span>完成率（有人抵達）</span></div>
+        <div class="kv"><b id="k-rematch">–</b><span>再玩率（玩第二局以上）</span></div>
+        <div class="kv"><b id="k-dur">–</b><span>平均一局</span></div>
+        <div class="kv"><b id="k-steps">–</b><span>平均步數</span></div>
+      </div>
+      <div id="modes"></div>
+      <h2 style="margin:14px 0 6px">😵 最難的題目（最常沒人抵達）</h2>
+      <div id="hard"><p class="empty">還沒有資料</p></div>
+    </div>
+
+    <h2>🎮 正在遊玩的房間</h2>
+    <div class="toolbar">
+      <span class="seg" id="sort"><button data-sort="new" class="on">最新</button><button data-sort="players">人多</button><button data-sort="age">開最久</button></span>
+      <span class="seg" id="filter"><button data-filter="all" class="on">全部</button><button data-filter="game">比賽中</button></span>
     </div>
     <div id="rooms" class="rooms"></div>
   </main>
 
-  <script src="firebase-config.js?v=58"></script>
+  <script src="firebase-config.js?v=59"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
   const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function openGate() {
     const tryPw = () => {
-      if ($('#pw').value === ADMIN_PASS) {
-        try { sessionStorage.setItem('wikirace-admin', '1'); } catch {}
-        start();
-      } else { $('#err').textContent = '密碼不對'; }
+      if ($('#pw').value === ADMIN_PASS) { try { sessionStorage.setItem('wikirace-admin', '1'); } catch (e) {} start(); }
+      else $('#err').textContent = '密碼不對';
     };
     $('#go').onclick = tryPw;
     $('#pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryPw(); });
@@ -80,54 +141,103 @@
   const STATE = { room: ['room', '房間中'], game: ['game', '比賽中'], result: ['result', '結算中'] };
   const dist = (d) => ({ 1: '差 1 步', 2: '約差 2 步', 3: '還很遠' }[d] || '');
   const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };
+  const dur = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
-  function render(rooms) {
-    const list = Object.values(rooms || {}).filter((r) => r && Date.now() - (r.updatedAt || 0) < 90000)
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  let db = null, lastRooms = null, games = [], sortBy = 'new', filterBy = 'all', period = 'today';
+
+  function start() {
+    $('#gate').hidden = true;
+    $('#main').hidden = false;
+    const CFG = window.WIKIRACE_FIREBASE;
+    if (!CFG || !CFG.databaseURL) { $('#status').textContent = '尚未設定 Firebase（firebase-config.js）'; return; }
+    const load = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+    (async () => {
+      try {
+        if (!window.firebase) {
+          await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+          await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
+        }
+        const app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
+        db = firebase.database(app);
+        db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); });
+        db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
+        db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
+        db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); });
+        db.ref('broadcast').on('value', (snap) => { const b = snap.val(); $('#ann-cur').textContent = b && b.text ? `目前公告：「${b.text}」（點清除可移除）` : '目前沒有公告'; });
+        setInterval(() => renderRooms(), 5000);
+        wireControls();
+      } catch (e) { $('#status').textContent = '連不上 Firebase'; }
+    })();
+  }
+
+  function wireControls() {
+    $('#ann-send').onclick = () => {
+      const text = $('#ann-text').value.trim();
+      if (!text || !db) return;
+      db.ref('broadcast').set({ text, id: Date.now(), at: Date.now() });
+      $('#ann-text').value = '';
+    };
+    $('#ann-clear').onclick = () => db && db.ref('broadcast').remove();
+    $('#sort').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; sortBy = b.dataset.sort; sel('#sort', b); renderRooms(); };
+    $('#filter').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filterBy = b.dataset.filter; sel('#filter', b); renderRooms(); };
+    document.querySelector('.seg').parentElement.querySelector('.seg').addEventListener('click', () => {});
+    document.querySelectorAll('[data-period]').forEach((b) => { b.onclick = () => { period = b.dataset.period; document.querySelectorAll('[data-period]').forEach((x) => x.classList.toggle('on', x === b)); renderStats(); }; });
+  }
+  function sel(group, btn) { $(group).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn)); }
+
+  function renderRooms() {
+    let list = Object.values(lastRooms || {}).filter((r) => r && Date.now() - (r.updatedAt || 0) < 90000);
     $('#s-rooms').textContent = list.length;
     $('#s-players').textContent = list.reduce((n, r) => n + (r.count || 0), 0);
     $('#status').textContent = `更新於 ${new Date().toLocaleTimeString('zh-TW')}`;
+    if (filterBy === 'game') list = list.filter((r) => r.state === 'game');
+    list.sort((a, b) => sortBy === 'players' ? (b.count || 0) - (a.count || 0) : sortBy === 'age' ? (a.startedAt || a.updatedAt) - (b.startedAt || b.updatedAt) : (b.updatedAt || 0) - (a.updatedAt || 0));
     if (!list.length) { $('#rooms').innerHTML = '<p class="empty">目前沒有人在玩</p>'; return; }
     $('#rooms').innerHTML = '';
     for (const r of list) {
       const el = document.createElement('div');
       el.className = 'room';
       const [cls, label] = STATE[r.state] || STATE.room;
-      const head = `<div class="room-top"><span class="code">${esc(r.code || '')}</span><span class="tag ${cls}">${label}</span><span class="tag">${r.mode === 'party' ? '派對' : '1 對 1'}</span><span class="tag">${GOAL[r.goal] || ''}</span></div>`;
       const route = r.start ? `《${esc(r.start)}》→《${esc(r.target)}》 · ` : '';
-      const meta = `<p class="meta">房主 ${esc(r.host || '')} · ${r.count || 0} 人 · ${route}已比 ${r.games || 0} 局${r.startedAt ? ' · 本局 ' + ago(r.startedAt) : ''} · ${ago(r.updatedAt)}前更新</p>`;
       const players = (r.players || []).map((p) => {
-        const prog = r.state === 'game' || r.state === 'result'
+        const prog = (r.state === 'game' || r.state === 'result')
           ? `${p.steps || 0} 步${dist(p.dist) ? ' · ' + dist(p.dist) : ''}${p.done ? ' · ✅' : ''}`
           : (p.ready ? '✓ 準備' : '…');
-        return `<div class="pl ${p.done ? 'done' : ''} ${p.left ? 'left' : ''}"><span class="nm">${esc(p.name || '')}</span><span class="pg">${prog}</span></div>`;
+        return `<div class="pl ${p.done ? 'done' : ''} ${p.left ? 'left' : ''}"><span class="nm">${esc(p.name)}</span><span class="pg">${prog}</span></div>`;
       }).join('');
-      el.innerHTML = head + meta + `<div class="players">${players}</div>`;
+      el.innerHTML = `<div class="room-top"><span class="code">${esc(r.code)}</span><span class="tag ${cls}">${label}</span><span class="tag">${r.mode === 'party' ? '派對' : '1 對 1'}</span><span class="tag">${GOAL[r.goal] || ''}</span></div>`
+        + `<p class="meta">房主 ${esc(r.host)} · ${r.count || 0} 人 · ${route}已比 ${r.games || 0} 局${r.startedAt ? ' · 本局 ' + ago(r.startedAt) : ''} · ${ago(r.updatedAt)}前更新</p>`
+        + `<div class="players">${players}</div>`
+        + `<div class="ctl"><button class="kick" data-code="${esc(r.code)}">踢人</button><button class="close" data-code="${esc(r.code)}">關閉房間</button></div>`;
       $('#rooms').appendChild(el);
     }
+    $('#rooms').querySelectorAll('.close').forEach((b) => b.onclick = () => { if (confirm(`確定關閉房間 ${b.dataset.code}？`)) db.ref('control/' + b.dataset.code).set({ type: 'close', at: Date.now() }); });
+    $('#rooms').querySelectorAll('.kick').forEach((b) => b.onclick = () => { const name = prompt('要踢出哪位玩家？（輸入暱稱）'); if (name) db.ref('control/' + b.dataset.code).set({ type: 'kick', name: name.trim(), at: Date.now() }); });
   }
-  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
-  async function start() {
-    $('#gate').hidden = true;
-    $('#main').hidden = false;
-    const CFG = window.WIKIRACE_FIREBASE;
-    if (!CFG || !CFG.databaseURL) { $('#status').textContent = '尚未設定 Firebase（firebase-config.js）'; return; }
-    const load = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
-    try {
-      if (!window.firebase) {
-        await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-        await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
-      }
-      const app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
-      const db = firebase.database(app);
-      db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); render(lastRooms); });
-      db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
-      // 每 5 秒重畫一次，讓「幾秒前更新」「本局時間」的數字跟著跑
-      setInterval(() => render(lastRooms), 5000);
-    } catch { $('#status').textContent = '連不上 Firebase'; }
+  function renderStats() {
+    const now = Date.now();
+    const from = period === 'today' ? new Date().setHours(0, 0, 0, 0) : period === 'week' ? now - 7 * 864e5 : 0;
+    const g = games.filter((x) => x && (x.at || 0) >= from);
+    $('#k-games').textContent = g.length;
+    $('#k-players').textContent = g.reduce((n, x) => n + (x.players || 0), 0);
+    const wins = g.filter((x) => x.win);
+    $('#k-complete').textContent = g.length ? Math.round(wins.length / g.length * 100) + '%' : '–';
+    const rematch = g.filter((x) => (x.round || 1) >= 2);
+    $('#k-rematch').textContent = g.length ? Math.round(rematch.length / g.length * 100) + '%' : '–';
+    $('#k-dur').textContent = wins.length ? dur(wins.reduce((n, x) => n + (x.durationMs || 0), 0) / wins.length) : '–';
+    const steppy = wins.filter((x) => x.steps != null);
+    $('#k-steps').textContent = steppy.length ? (steppy.reduce((n, x) => n + x.steps, 0) / steppy.length).toFixed(1) + ' 步' : '–';
+    // 模式分布
+    const modes = {}; for (const x of g) { const k = GOAL[x.goal] || x.goal; modes[k] = (modes[k] || 0) + 1; }
+    const max = Math.max(1, ...Object.values(modes));
+    $('#modes').innerHTML = Object.entries(modes).sort((a, b) => b[1] - a[1]).map(([k, n]) =>
+      `<div class="bar"><span>${esc(k)}</span><div class="track"><div class="fill" style="width:${Math.round(n / max * 100)}%"></div></div><span class="n">${n}</span></div>`).join('') || '<p class="empty">還沒有資料</p>';
+    // 最難題目
+    const hard = {}; for (const x of g) { if (x.win) continue; const k = `${x.start} → ${x.target}`; hard[k] = (hard[k] || 0) + 1; }
+    const top = Object.entries(hard).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    $('#hard').innerHTML = top.length ? top.map(([k, n]) => `<div class="hard"><span class="r">${esc(k)}</span><span class="c">${n} 次沒人到</span></div>`).join('') : '<p class="empty">沒有「沒人抵達」的對局</p>';
   }
-  let lastRooms = null;
 
   if (sessionStorage.getItem('wikirace-admin') === '1') start(); else openGate();
   </script>

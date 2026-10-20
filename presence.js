@@ -1,6 +1,7 @@
 // 線上人數：統計現在有多少人打開這個網站（只是一個總數，不會記下是誰、也看不到任何人的畫面）。
 // 沒有在 firebase-config.js 填設定的話，整個功能會安靜地關閉，不影響遊戲其他部分。
-import { getDb } from './fb.js?v=57';
+import { getDb } from './fb.js?v=59';
+import { bumpPeak } from './rooms.js?v=59';
 
 let started = false;
 
@@ -20,7 +21,7 @@ export async function initPresence(onCount) {
         me.set(Date.now());
       }
     });
-    online.on('value', (snap) => { onCount(snap.numChildren()); });
+    online.on('value', (snap) => { const n = snap.numChildren(); onCount(n); bumpPeak(n); });
     window.addEventListener('pagehide', (e) => { if (!e.persisted) { try { me.remove(); } catch { /* 忽略 */ } } });
   } catch { /* 連不上就安靜放棄 */ }
 }
