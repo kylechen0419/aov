@@ -93,6 +93,8 @@ function initSound() {
   for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
   // 每次點擊按鈕、選項都給一下觸覺與聲音回饋
   document.addEventListener('click', (e) => {
+    // 只回應真人的點擊；程式觸發的點擊（例如 iPhone 震動用的隱藏開關）一律略過，否則會無限循環
+    if (!e.isTrusted || e.target.closest('[data-haptic]')) return;
     const el = e.target.closest('button, input[type=checkbox], input[type=radio], .article a');
     if (!el || el.disabled) return;
     if (el.matches('.article a')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }

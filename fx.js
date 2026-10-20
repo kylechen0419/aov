@@ -129,7 +129,13 @@ export const sfx = {
 // ---------- 觸覺回饋 ----------
 // Android 用 navigator.vibrate；iPhone（iOS 18 以上的 Safari）用切換開關元件觸發系統觸覺
 let iosSwitch = null;
+let ticking = false;
 function iosTick() {
+  if (ticking) return;
+  ticking = true;
+  try { iosTickInner(); } finally { ticking = false; }
+}
+function iosTickInner() {
   if (!iosSwitch) {
     const id = 'haptic-switch';
     const input = Object.assign(document.createElement('input'), { type: 'checkbox', id });
@@ -137,6 +143,7 @@ function iosTick() {
     const label = Object.assign(document.createElement('label'), { htmlFor: id });
     const wrap = document.createElement('div');
     wrap.setAttribute('aria-hidden', 'true');
+    wrap.dataset.haptic = '';
     wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
     wrap.append(input, label);
     document.body.append(wrap);
