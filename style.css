@@ -470,7 +470,7 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .metro li.hit::before { background: var(--yellow); border-color: var(--yellow-d); box-shadow: 0 0 0 4px #fff4cc; }
 
 /* 結果 */
-.result-hero { position: relative; display: grid; justify-items: center; text-align: center; gap: 6px; padding-top: 24px; padding-bottom: 20px; }
+.result-hero { position: relative; overflow: hidden; display: grid; justify-items: center; text-align: center; gap: 6px; padding-top: 24px; padding-bottom: 20px; }
 .medal {
   width: 136px; height: 136px; border-radius: 50%; display: grid; place-items: center; position: relative;
   background: radial-gradient(circle at 35% 30%, #fff6c2, var(--yellow) 45%, var(--yellow-d));
@@ -748,7 +748,7 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
   width: min(92vw, 340px); background: #fff; border-radius: 22px; padding: 12px;
   box-shadow: 0 16px 40px rgba(30, 20, 90, .35); animation: feedIn .25s cubic-bezier(.2, 1.6, .4, 1);
 }
-.emote-tray.in-game { left: 50%; right: auto; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+.emote-tray.in-game { left: 0; right: 0; margin: 0 auto; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
 .emote-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .emote-btn {
   border: 0; border-radius: 14px; background: var(--card-2); cursor: pointer; font-size: 28px; line-height: 1;

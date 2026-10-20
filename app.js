@@ -1331,7 +1331,7 @@ function showResult(update = false) {
   if (!changed) return;
   if (res === 'win') { sfx.win(); confetti(); haptic('success'); }
   else if (party && g.finished.reason === 'win') { sfx.ready(); haptic('success'); }
-  else { sfx.lose(); shake(hero); haptic('error'); }
+  else { sfx.lose(); shake(hero.querySelector('.medal')); haptic('error'); }
   // 結算音效播完後回到大廳音樂
   setTimeout(() => { if (state.view === 'result') music.play('lobby'); }, 3500);
 }
