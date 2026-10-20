@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=51';
-import * as wiki from './wiki.js?v=51';
-import { tw, twTree, zhReady } from './zh.js?v=51';
-import { makeShareImage } from './share.js?v=51';
-import { solve } from './solver.js?v=51';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=51';
+import { Net } from './net.js?v=52';
+import * as wiki from './wiki.js?v=52';
+import { tw, twTree, zhReady } from './zh.js?v=52';
+import { makeShareImage } from './share.js?v=52';
+import { solve } from './solver.js?v=52';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=52';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -31,7 +31,7 @@ const AVATARS = [
 ];
 const AVATAR_IDS = new Set(AVATARS.map(([id]) => id));
 const EMOJIS = ['👍', '😂', '😱', '🔥', '😭', '🤯', '😎', '👋', '🥀'];
-const PHRASES = ['我快到了！', '迷路了…', '等等我啦！', '懂你意思', '有感覺嗎', '何意味', '完全憤怒誘餌', '陳奕先好帥', 'GG FXXING EZ'];
+const PHRASES = ['快點開始啦！', '準備好了沒？', '我快到了！', '迷路了…', '等等我啦！', '懂你意思', '有感覺嗎', '何意味', '完全憤怒誘餌', '陳奕先好帥', 'GG FXXING EZ'];
 const EMOTES = [...EMOJIS, ...PHRASES];
 const CHAT_MAX = 50;
 
