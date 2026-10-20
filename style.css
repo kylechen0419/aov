@@ -1217,3 +1217,5 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .room-score-list li.top span { color: #a06a00; }
 /* 斷線等待：房主可以不等了 */
 .wait-btn { flex: none; align-self: center; border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; background: var(--red); color: #fff; padding: 6px 10px; border-radius: 999px; box-shadow: 0 3px 0 var(--red-d); }
+/* 快捷語是單數時，最後一顆（GG）佔滿整排 */
+.phrase-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
