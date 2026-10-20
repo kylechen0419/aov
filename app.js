@@ -1622,6 +1622,8 @@ function initEmotes() {
     });
   }
   document.addEventListener('click', (ev) => {
+    // iPhone 震動用的隱藏開關也會觸發點擊，不能把它當成點了外面
+    if (!ev.isTrusted || ev.target.closest('[data-haptic]')) return;
     if (!$('#emote-tray').hidden && !ev.target.closest('#emote-tray')) closeEmotes();
   });
 }
