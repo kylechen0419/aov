@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=35">
+  <link rel="stylesheet" href="style.css?v=36">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -95,7 +95,8 @@
         </div>
         <div class="goal-home" role="radiogroup" aria-label="比賽方式">
           <label class="goal-card speed"><input type="radio" name="goalHome" value="speed" checked><span><i>⚡</i><b>比速度</b><small>先抵達終點的贏</small></span></label>
-          <label class="goal-card steps"><input type="radio" name="goalHome" value="steps"><span><i>👣</i><b>比步數</b><small>用最少步抵達的贏</small></span></label>
+          <label class="goal-card steps"><input type="radio" name="goalHome" value="steps"><span><i>👣</i><b>比步數</b><small>最少步抵達的贏</small></span></label>
+          <label class="goal-card items"><input type="radio" name="goalHome" value="items"><span><i>🎁</i><b>道具賽</b><small>撿道具整對手</small></span></label>
         </div>
         <button id="btn-create" class="btn primary wide">建立對決房間</button>
         <div class="divider"><span>或加入朋友的房間</span></div>
@@ -260,6 +261,7 @@
         <span id="hud-goal" class="hud-goal" hidden></span>
       </div>
       <div id="hud-opp-page" class="opp-where"></div>
+      <div id="fx-bar" class="fx-bar" hidden></div>
       <ul id="hud-strip" class="hud-strip" hidden></ul>
       <div id="hud-lastcall" class="banner lastcall" hidden></div>
       <div id="hud-alert-opp" class="banner danger" hidden></div>
@@ -393,6 +395,21 @@
     <p class="splash-note"><svg class="ic"><use href="#i-music"/></svg>開啟音樂與音效</p>
   </div>
 
+  <div id="item-dock" class="item-dock" hidden>
+    <button class="item-slot" type="button" data-slot="0" aria-label="道具欄 1"></button>
+    <button class="item-slot" type="button" data-slot="1" aria-label="道具欄 2"></button>
+    <button id="btn-item-help" class="item-help" type="button" aria-label="道具說明">?</button>
+  </div>
+  <div id="item-hit" class="item-hit" hidden><span id="item-hit-icon"></span><b id="item-hit-text"></b></div>
+
+  <div id="items-modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="items-title">
+      <div class="modal-head"><b id="items-title">🎁 道具說明</b><button id="items-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <p class="pick-sub">點條目裡有 🎁 的連結就能撿到道具，最多帶 2 個。落後的人比較容易拿到強力道具！</p>
+      <ul id="items-list" class="items-list"></ul>
+    </div>
+  </div>
+
   <div id="pick-modal" class="modal" hidden>
     <div class="modal-card pick-card" role="dialog" aria-modal="true" aria-labelledby="pick-title">
       <div class="modal-head"><b id="pick-title"></b><button id="pick-close" class="icon-btn" type="button" aria-label="取消"><svg class="ic"><use href="#i-close"/></svg></button></div>
@@ -491,6 +508,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=35"></script>
+  <script type="module" src="app.js?v=36"></script>
 </body>
 </html>
