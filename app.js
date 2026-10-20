@@ -11,12 +11,18 @@ const DEFAULT_SETTINGS = {
   lang: 'zh', timeLimit: 0, start: '', target: '',
   showOpponentPage: true, allowBack: true, trueRandom: false,
 };
+const MAX_PLAYERS = { duel: 2, party: 8 };
+// 派對模式：第一個人抵達後，其他人剩這麼多秒
+const LAST_CALL = 60;
+const COLORS = ['#2f7bff', '#ff4d6d', '#22c55e', '#ff8a3d', '#8b5cf6', '#ff5ca8', '#14b8a6', '#eab308'];
 
 const state = {
   myName: '',
-  oppName: '',
+  myId: null,
+  mode: 'duel',
+  players: new Map(), // id → { id, name, ready, host, color }
+  myReady: false,
   settings: { ...DEFAULT_SETTINGS },
-  guestReady: false,
   view: 'home',
   game: null,
 };
@@ -69,6 +75,14 @@ function initial(name) {
   return ch ? ch.toUpperCase() : '?';
 }
 
+function avatarEl(name, color, cls = '') {
+  const a = document.createElement('span');
+  a.className = `avatar ${cls}`;
+  a.textContent = initial(name);
+  if (color) a.style.setProperty('--side', color);
+  return a;
+}
+
 function fillPath(ol, path, target) {
   ol.replaceChildren(...path.map((t) => {
     const li = document.createElement('li');
@@ -77,6 +91,10 @@ function fillPath(ol, path, target) {
     return li;
   }));
 }
+
+const isParty = () => state.mode === 'party';
+const opponents = () => [...state.players.values()].filter((p) => p.id !== state.myId);
+const nameOf = (id) => state.players.get(id)?.name || state.game?.others.get(id)?.name || '玩家';
 
 // ---------- 音效、音樂、觸覺 ----------
 function initSound() {
@@ -112,6 +130,7 @@ const DYK = [
   '條目最上方的資訊框（Infobox）常常藏著通往國家、首都和人物的捷徑？',
   '條目最下方的導航框（Navbox）收錄同類主題，是跳到相關條目的好地方？',
   '「上一頁」也算一步，走錯路時要想清楚是回頭還是繼續往前？',
+  '派對模式最多可以 8 個人一起比，第一個人抵達後其他人只剩 60 秒？',
 ];
 
 // ---------- 戰績（存在這支手機上） ----------
@@ -125,6 +144,12 @@ function recordResult(res) {
   store.set('wikirace-stats', JSON.stringify(st));
 }
 
+function unrecordResult(res) {
+  const st = loadStats();
+  if (res === 'win') { st.w = Math.max(0, st.w - 1); st.streak = Math.max(0, st.streak - 1); } else if (res === 'lose') st.l = Math.max(0, st.l - 1); else st.d = Math.max(0, st.d - 1);
+  store.set('wikirace-stats', JSON.stringify(st));
+}
+
 function renderStats() {
   const st = loadStats();
   const total = st.w + st.l + st.d;
@@ -135,6 +160,10 @@ function renderStats() {
 }
 
 // ---------- 首頁 ----------
+function selectedMode() {
+  return document.querySelector('input[name="mode"]:checked')?.value || 'duel';
+}
+
 function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
@@ -145,6 +174,18 @@ function initHome() {
   const paintAvatar = () => { $('#home-avatar').textContent = initial($('#nickname').value); };
   paintAvatar();
   $('#nickname').addEventListener('input', paintAvatar);
+
+  const savedMode = store.get('wikirace-mode');
+  if (savedMode === 'party') document.querySelector('input[name="mode"][value="party"]').checked = true;
+  const paintMode = () => {
+    $('#btn-create').textContent = selectedMode() === 'party' ? '建立派對房間' : '建立對決房間';
+  };
+  paintMode();
+  document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener('change', () => {
+    store.set('wikirace-mode', selectedMode());
+    paintMode();
+  }));
+
   const params = new URLSearchParams(location.search);
   const room = params.get('room');
   if (room) {
@@ -164,11 +205,14 @@ function initHome() {
     if (!name) return;
     showError('#home-error');
     state.myName = name;
+    state.mode = selectedMode();
     $('#btn-create').disabled = true;
     setConn('建立中…');
     try {
-      const code = await net.createRoom();
-      setConn('等待對手');
+      const code = await net.createRoom(MAX_PLAYERS[state.mode] - 1);
+      state.myId = 'host';
+      state.players = new Map([['host', { id: 'host', name, ready: true, host: true, color: COLORS[0] }]]);
+      setConn(isParty() ? '等待玩家' : '等待對手');
       enterRoom(code);
     } catch (e) {
       showError('#home-error', e.message);
@@ -191,6 +235,7 @@ function initHome() {
       await net.joinRoom(code);
       net.send({ t: 'join', name });
       setConn('已連線', true);
+      state.players = new Map();
       enterRoom(code);
     } catch (e) {
       showError('#home-error', e.message);
@@ -230,54 +275,100 @@ function writeForm(s) {
   f.trueRandom.checked = s.trueRandom;
 }
 
+function renderDuelSlots() {
+  const host = state.players.get('host');
+  const guest = [...state.players.values()].find((p) => !p.host);
+  const iAmHost = net.isHost;
+  $('#slot-host .avatar').textContent = initial(host?.name);
+  $('#slot-guest .avatar').textContent = guest ? initial(guest.name) : '?';
+  $('#slot-host .pname').textContent = host?.name || '—';
+  $('#slot-host .pstate').textContent = '';
+  $('#slot-guest .pname').textContent = guest ? guest.name : '等待對手加入…';
+  $('#slot-guest .pstate').textContent = guest ? (guest.ready ? '✓ 已準備' : '尚未準備') : '';
+  $('#slot-guest').classList.toggle('ready', !!guest?.ready);
+  $('#slot-guest').classList.toggle('empty', !guest);
+  $('#slot-host').classList.toggle('is-me', iAmHost);
+  $('#slot-guest').classList.toggle('is-me', !iAmHost);
+  // 自己永遠是藍隊、對手永遠是紅隊
+  $('#slot-host').classList.toggle('me-side', iAmHost);
+  $('#slot-host').classList.toggle('opp-side', !iAmHost);
+  $('#slot-guest').classList.toggle('me-side', !iAmHost);
+  $('#slot-guest').classList.toggle('opp-side', iAmHost);
+}
+
+function renderPartyBoard() {
+  const list = [...state.players.values()];
+  const max = MAX_PLAYERS.party;
+  $('#party-count').textContent = `${list.length} / ${max} 人`;
+  const items = list.map((p) => {
+    const li = document.createElement('li');
+    li.className = 'party-player';
+    li.classList.toggle('ready', p.ready || p.host);
+    li.classList.toggle('is-me', p.id === state.myId);
+    li.append(avatarEl(p.name, p.color));
+    const name = Object.assign(document.createElement('b'), { textContent: p.name });
+    const tag = Object.assign(document.createElement('span'), {
+      className: 'party-tag',
+      textContent: p.host ? '房主' : (p.ready ? '✓ 準備好了' : '準備中…'),
+    });
+    li.append(name, tag);
+    return li;
+  });
+  for (let i = list.length; i < max; i++) {
+    const li = document.createElement('li');
+    li.className = 'party-player empty';
+    li.append(Object.assign(document.createElement('span'), { className: 'avatar', textContent: '+' }), Object.assign(document.createElement('b'), { textContent: '等待加入' }));
+    items.push(li);
+  }
+  $('#party-grid').replaceChildren(...items);
+}
+
 function renderRoom() {
   const host = net.isHost;
-  const hostName = host ? state.myName : state.oppName;
-  const guestName = host ? state.oppName : state.myName;
-  const hasGuest = net.connected;
-
-  $('#slot-host .avatar').textContent = initial(hostName);
-  $('#slot-guest .avatar').textContent = hasGuest ? initial(guestName) : '?';
-  $('#slot-host .pname').textContent = hostName || '—';
-  $('#slot-host .pstate').textContent = '';
-  $('#slot-guest .pname').textContent = hasGuest && guestName ? guestName : '等待對手加入…';
-  $('#slot-guest .pstate').textContent = hasGuest ? (state.guestReady ? '✓ 已準備' : '尚未準備') : '';
-  $('#slot-guest').classList.toggle('ready', hasGuest && state.guestReady);
-  $('#slot-guest').classList.toggle('empty', !hasGuest);
-  $('#slot-host').classList.toggle('is-me', host);
-  $('#slot-guest').classList.toggle('is-me', !host);
-  // 自己永遠是青色、對手永遠是洋紅
-  $('#slot-host').classList.toggle('me-side', host);
-  $('#slot-host').classList.toggle('opp-side', !host);
-  $('#slot-guest').classList.toggle('me-side', !host);
-  $('#slot-guest').classList.toggle('opp-side', host);
+  const party = isParty();
+  $('.versus').hidden = party;
+  $('#party-board').hidden = !party;
+  if (party) renderPartyBoard(); else renderDuelSlots();
 
   for (const el of form().elements) if (!el.matches('#btn-ready, #btn-start')) el.disabled = !host;
   $('#host-only-hint').hidden = host;
 
+  const guests = opponents().filter((p) => !p.host);
+  const allReady = guests.length > 0 && guests.every((p) => p.ready);
   const ready = $('#btn-ready');
   ready.hidden = host;
-  ready.textContent = state.guestReady ? '已準備 ✓（再按一次取消）' : '準備';
-  ready.classList.toggle('is-ready', state.guestReady);
+  ready.textContent = state.myReady ? '已準備 ✓（再按一次取消）' : '準備';
+  ready.classList.toggle('is-ready', state.myReady);
   $('#btn-start').hidden = !host;
-  $('#btn-start').disabled = !(hasGuest && state.guestReady);
+  $('#btn-start').disabled = !allReady;
 
+  const waiting = guests.filter((p) => !p.ready).length;
   let hint = '';
-  if (host && !hasGuest) hint = '把房間代碼或邀請連結傳給朋友吧！';
-  else if (host && !state.guestReady) hint = '等待對手按下「準備」…';
-  else if (host) hint = '對手準備好了，按下開始！起點或終點留空會從題庫隨機抽。';
-  else if (!state.guestReady) hint = '確認路線後按「準備」';
+  if (host && !guests.length) hint = party ? '派對最多 8 人，把房間代碼或邀請連結傳給朋友吧！' : '把房間代碼或邀請連結傳給朋友吧！';
+  else if (host && waiting) hint = party ? `還有 ${waiting} 人還沒準備…` : '等待對手按下「準備」…';
+  else if (host) hint = party ? `${guests.length + 1} 人都準備好了，開始派對！` : '對手準備好了，按下開始！起點或終點留空會從題庫隨機抽。';
+  else if (!state.myReady) hint = '確認路線後按「準備」';
   else hint = '等待房主開始比賽…';
   $('#room-hint').textContent = hint;
 }
 
 function enterRoom(code) {
   $('#room-code').textContent = code;
-  state.guestReady = false;
+  if (net.isHost) net.locked = false;
   writeForm(state.settings);
   showError('#room-error');
   show('room');
   renderRoom();
+}
+
+// 房主：把玩家名單和設定同步給所有人
+function lobbyMsg() {
+  return { t: 'lobby', mode: state.mode, players: [...state.players.values()], settings: state.settings };
+}
+
+function broadcastLobby() {
+  net.send(lobbyMsg());
+  if (state.view === 'room') renderRoom();
 }
 
 let settingsTimer;
@@ -334,9 +425,10 @@ function initRoom() {
 
   $('#btn-copy-link').onclick = async () => {
     const url = `${location.origin}${location.pathname}?room=${net.code}`;
+    const text = isParty() ? `來參加維基競速派對！房間代碼 ${net.code}` : `來跟我比維基競速！房間代碼 ${net.code}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: '維基競速', text: `來跟我比維基競速！房間代碼 ${net.code}`, url });
+        await navigator.share({ title: '維基競速', text, url });
         return;
       } catch (e) {
         if (e.name === 'AbortError') return;
@@ -357,9 +449,9 @@ function initRoom() {
   };
 
   $('#btn-ready').onclick = () => {
-    state.guestReady = !state.guestReady;
-    net.send({ t: 'ready', ready: state.guestReady });
-    if (state.guestReady) { sfx.ready(); haptic('success'); }
+    state.myReady = !state.myReady;
+    net.send({ t: 'ready', ready: state.myReady });
+    if (state.myReady) { sfx.ready(); haptic('success'); }
     renderRoom();
   };
 
@@ -381,11 +473,13 @@ async function hostStart() {
       s.target = await wiki.resolveTitle(s.lang, await wiki.randomTitle(s.lang, s.trueRandom));
     }
     if (s.start === s.target) throw new Error('起點和終點不能是同一個條目');
-    if (!net.connected) throw new Error('對手已離線');
+    if (!net.connected) throw new Error(isParty() ? '其他玩家都離線了' : '對手已離線');
     state.settings = s;
     writeForm(s);
+    // 開局時大家的準備狀態歸零，下一局重新準備
+    for (const p of state.players.values()) if (!p.host) p.ready = false;
     net.send({ t: 'settings', settings: s });
-    net.send({ t: 'start', settings: s });
+    net.send({ t: 'start', settings: s, mode: state.mode, players: [...state.players.values()] });
     startGame(s);
   } catch (e) {
     showError('#room-error', e.message);
@@ -397,10 +491,17 @@ async function hostStart() {
 
 // ---------- 比賽 ----------
 function startGame(settings) {
-  state.guestReady = false;
+  state.myReady = false;
   state.settings = settings;
+  if (net.isHost) net.locked = true;
+  const others = new Map(opponents().map((p) => [p.id, {
+    id: p.id, name: p.name, color: p.color,
+    clicks: 0, current: settings.start, path: [], near: false, finished: null, left: false,
+  }]));
   state.game = {
     settings,
+    mode: state.mode,
+    others,
     startAt: 0,
     clicks: 0,
     path: [],
@@ -410,19 +511,22 @@ function startGame(settings) {
     near: false,
     finished: null,
     lastSecond: null,
-    opp: { clicks: 0, current: settings.start, path: [], finished: null, left: false, near: false },
+    lastCallEnd: 0,
+    lastCallSent: false,
     timer: null,
     heart: null,
   };
+  const party = isParty();
+  const me = state.players.get(state.myId);
   $('#hud-target').textContent = tw(settings.target);
   $('#hud-clicks').textContent = '0';
   $('#hud-timer').textContent = settings.timeLimit ? fmtTime(settings.timeLimit * 1000) : '00:00';
   $('#hud-timer').className = 'hud-timer';
-  $('#hud-opp-name').textContent = state.oppName || '對手';
   $('#hud-me-avatar').textContent = initial(state.myName);
-  $('#hud-opp-avatar').textContent = initial(state.oppName);
-  $('#hud-opp-clicks').textContent = '0';
-  $('#hud-opp-page').textContent = settings.showOpponentPage ? `${state.oppName || '對手'} 在《${tw(settings.start)}》` : '';
+  $('#hud-me-avatar').style.setProperty('--side', party && me ? me.color : '');
+  $('#hud-strip').hidden = !party;
+  $('#hud-lastcall').hidden = true;
+  renderOppHud();
   $('#hud-alert-opp').hidden = true;
   $('#hud-alert-me').hidden = true;
   $('#hud').classList.remove('danger');
@@ -484,6 +588,52 @@ function startGame(settings) {
   }, 1000);
 }
 
+// 右上角：對決模式顯示對手；派對模式顯示抵達人數，並在下方列出每個人
+function renderOppHud() {
+  const g = state.game;
+  if (!g) return;
+  const list = [...g.others.values()];
+  if (g.mode !== 'party') {
+    const o = list[0];
+    $('#hud-opp-name').textContent = o?.name || '對手';
+    $('#hud-opp-avatar').textContent = initial(o?.name);
+    $('#hud-opp-avatar').style.removeProperty('--side');
+    $('#hud-opp-clicks').textContent = o ? o.clicks : 0;
+    $('#hud-opp-clicks').parentElement.lastChild.textContent = ' 步';
+    let where = '';
+    if (o?.left) where = `${o.name} 已離線`;
+    else if (o && g.settings.showOpponentPage) where = `${o.name} 在《${tw(o.current)}》`;
+    $('#hud-opp-page').textContent = where;
+    return;
+  }
+  const arrived = list.filter((o) => o.finished?.reason === 'win').length + (g.finished?.reason === 'win' ? 1 : 0);
+  $('#hud-opp-name').textContent = `${list.length} 位對手`;
+  $('#hud-opp-avatar').textContent = String(list.length);
+  $('#hud-opp-avatar').style.setProperty('--side', '#ffb020');
+  $('#hud-opp-clicks').textContent = `${arrived}/${list.length + 1}`;
+  $('#hud-opp-clicks').parentElement.lastChild.textContent = ' 抵達';
+  $('#hud-opp-page').textContent = '';
+  const chips = list.map((o) => {
+    const li = document.createElement('li');
+    li.className = 'strip-chip';
+    if (o.finished?.reason === 'win') li.classList.add('done');
+    if (o.left || (o.finished && o.finished.reason !== 'win')) li.classList.add('out');
+    if (o.near && !o.finished) li.classList.add('near');
+    li.dataset.id = o.id;
+    li.append(avatarEl(o.name, o.color, 'sm'));
+    const info = document.createElement('span');
+    info.className = 'strip-info';
+    const label = o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : `${o.clicks} 步`;
+    info.append(Object.assign(document.createElement('b'), { textContent: o.name }), Object.assign(document.createElement('span'), { textContent: label }));
+    if (g.settings.showOpponentPage && !o.finished && !o.left) {
+      info.append(Object.assign(document.createElement('small'), { textContent: tw(o.current) }));
+    }
+    li.append(info);
+    return li;
+  });
+  $('#hud-strip').replaceChildren(...chips);
+}
+
 function elapsed() {
   const g = state.game;
   return g && g.startAt ? performance.now() - g.startAt : 0;
@@ -495,24 +645,34 @@ function tick() {
   const ms = elapsed();
   const limit = g.settings.timeLimit * 1000;
   const timer = $('#hud-timer');
-  if (!limit) { timer.textContent = fmtTime(ms); updateIntensity(); return; }
-  const left = limit - ms;
-  timer.textContent = fmtTime(left);
-  timer.classList.toggle('warn', left < 60000 && left >= 10000);
-  timer.classList.toggle('crit', left < 10000);
-  // 最後 10 秒每秒滴答
-  const sec = Math.ceil(left / 1000);
-  if (left < 10000 && sec !== g.lastSecond) { g.lastSecond = sec; sfx.tick(); haptic('light'); }
+  let left = limit ? limit - ms : Infinity;
+  timer.textContent = limit ? fmtTime(left) : fmtTime(ms);
+
+  // 派對模式的最後衝刺倒數
+  if (g.lastCallEnd) {
+    const lc = g.lastCallEnd - performance.now();
+    left = Math.min(left, lc);
+    $('#hud-lastcall').hidden = false;
+    $('#hud-lastcall').textContent = `最後衝刺！剩 ${Math.max(0, Math.ceil(lc / 1000))} 秒`;
+  }
+  if (left !== Infinity) {
+    timer.classList.toggle('warn', left < 60000 && left >= 10000);
+    timer.classList.toggle('crit', left < 10000);
+    // 最後 10 秒每秒滴答
+    const sec = Math.ceil(left / 1000);
+    if (left < 10000 && sec !== g.lastSecond) { g.lastSecond = sec; sfx.tick(); haptic('light'); }
+  }
   updateIntensity(left);
   if (left <= 0) finishGame('timeout');
 }
 
-// 音樂隨局勢加快：對手接近終點或剩不到一分鐘時加速，最後 15 秒再加速
+// 音樂隨局勢加快：有對手接近終點或剩不到一分鐘時加速，最後 15 秒再加速
 function updateIntensity(left = Infinity) {
   const g = state.game;
+  const oppNear = [...g.others.values()].some((o) => o.near && !o.finished);
   let lvl = 0;
-  if (g.opp.near || g.near || left < 60000) lvl = 1;
-  if (left < 15000 || (g.opp.near && g.near)) lvl = 2;
+  if (oppNear || g.near || left < 60000) lvl = 1;
+  if (left < 15000 || (oppNear && g.near)) lvl = 2;
   music.setIntensity(lvl);
 }
 
@@ -544,7 +704,7 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
     $('#hud-alert-me').hidden = !near;
     $('#hud-alert-me').textContent = '終點連結就在這一頁！快找！';
 
-    net.send({ t: 'progress', title: art.title, clicks: g.clicks, near });
+    sendProgress({ t: 'progress', title: art.title, clicks: g.clicks, near });
     if (reached) finishGame('win');
   } catch (e) {
     toast(`載入失敗：${e.message}`);
@@ -552,6 +712,12 @@ async function goTo(title, { first = false, back = false, preload = null } = {})
     g.loading = false;
     $('#article-loading').hidden = true;
   }
+}
+
+// 房主自己的進度要標上 id 廣播；玩家則交給房主轉發
+function sendProgress(msg) {
+  if (net.isHost) net.send({ ...msg, id: state.myId });
+  else net.send(msg);
 }
 
 function renderBreadcrumb(g) {
@@ -622,20 +788,27 @@ function initGame() {
   };
 
   $('#btn-giveup').onclick = () => {
-    if (confirm('確定要投降嗎？對手會直接獲勝。')) finishGame('giveup');
+    const msg = isParty() ? '確定要投降嗎？這一局你就不會有名次了。' : '確定要投降嗎？對手會直接獲勝。';
+    if (confirm(msg)) finishGame('giveup');
   };
 
   $('#btn-path').onclick = () => { $('#path-drawer').hidden = !$('#path-drawer').hidden; };
   $('#btn-path-close').onclick = () => { $('#path-drawer').hidden = true; };
 }
 
-function feed(parts, step) {
+function feed(parts, tag, color) {
   const el = document.createElement('div');
   el.className = 'feed-item';
-  el.append(Object.assign(document.createElement('span'), { className: 'feed-time', textContent: `第${step}步` }));
+  const t = Object.assign(document.createElement('span'), { className: 'feed-time', textContent: tag });
+  if (color) t.style.background = color;
+  el.append(t);
   for (const p of parts) {
     if (typeof p === 'string') el.append(p);
-    else el.append(Object.assign(document.createElement('b'), { textContent: p.b }));
+    else {
+      const b = Object.assign(document.createElement('b'), { textContent: p.b });
+      if (color) b.style.color = color;
+      el.append(b);
+    }
   }
   const box = $('#feed');
   // 放在 HUD 正下方，避免蓋住警告
@@ -645,39 +818,50 @@ function feed(parts, step) {
   setTimeout(() => el.remove(), 2700);
 }
 
-function setOppDanger(on) {
+// 有任何對手的頁面上出現終點連結就拉警報
+function refreshDanger() {
   const g = state.game;
+  if (!g) return;
+  const near = [...g.others.values()].filter((o) => o.near && !o.finished && !o.left);
+  const on = near.length > 0 && !g.finished;
+  const was = !!g.heart;
   $('#hud').classList.toggle('danger', on);
   $('#hud-alert-opp').hidden = !on;
-  $('#hud-alert-opp').textContent = `${state.oppName || '對手'} 只差一步就到終點！`;
-  clearInterval(g.heart);
-  g.heart = null;
   if (on) {
+    const names = near.map((o) => o.name).slice(0, 2).join('、') + (near.length > 2 ? ` 等 ${near.length} 人` : '');
+    $('#hud-alert-opp').textContent = `${names} 只差一步就到終點！`;
+  }
+  if (on && !was) {
     sfx.alarm();
     haptic('warning');
     g.heart = setInterval(() => sfx.heartbeat(), 900);
+  } else if (!on && was) {
+    clearInterval(g.heart);
+    g.heart = null;
   }
+  updateIntensity();
 }
 
-function onOppProgress(msg) {
+function onOtherProgress(id, msg) {
   const g = state.game;
-  if (!g || g.opp.finished || g.finished) return;
-  const moved = msg.clicks !== g.opp.clicks || msg.title !== g.opp.current;
-  g.opp.clicks = msg.clicks;
-  g.opp.current = msg.title;
-  g.opp.path.push(msg.title);
-  $('#hud-opp-clicks').textContent = msg.clicks;
-  $('#hud-opp-page').textContent = g.settings.showOpponentPage ? `${state.oppName || '對手'} 在《${tw(msg.title)}》` : '';
-  const near = !!msg.near;
-  if (near !== g.opp.near) { g.opp.near = near; setOppDanger(near); updateIntensity(); }
+  const o = g?.others.get(id);
+  if (!o || o.finished || o.left) return;
+  const moved = msg.clicks !== o.clicks || msg.title !== o.current;
+  o.clicks = msg.clicks;
+  o.current = msg.title;
+  o.path.push(msg.title);
+  o.near = !!msg.near;
+  renderOppHud();
+  if (g.finished) { if (state.view === 'result') showResult(true); return; }
+  refreshDanger();
   if (moved && g.startAt) {
     const racer = $('#hud-opp');
     racer.classList.remove('bump');
     void racer.offsetWidth;
     racer.classList.add('bump');
     sfx.oppMove();
-    const name = state.oppName || '對手';
-    feed(g.settings.showOpponentPage ? [{ b: name }, ` 前往《${tw(msg.title)}》`] : [{ b: name }, ' 又前進了一步'], msg.clicks);
+    const color = g.mode === 'party' ? o.color : null;
+    feed(g.settings.showOpponentPage ? [{ b: o.name }, ` 前往《${tw(msg.title)}》`] : [{ b: o.name }, ' 又前進了一步'], `第${msg.clicks}步`, color);
     haptic('light');
   }
 }
@@ -694,9 +878,11 @@ function finishGame(reason) {
   stopGameLoops(g);
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
-  net.send({ t: 'finish', ...g.finished });
+  sendProgress({ t: 'finish', ...g.finished });
+  if (net.isHost) onAnyFinish(state.myId, g.finished);
   $('#countdown').hidden = true;
   $('#path-drawer').hidden = true;
+  $('#hud').classList.remove('danger');
   if (reason === 'win') {
     flash('#ffc53d');
     setTimeout(showResult, 350);
@@ -708,25 +894,81 @@ function finishGame(reason) {
   }
 }
 
-// 對手的結束訊息會決定我方的結果
-function onOppFinish(msg) {
+// 房主：派對模式中第一個人抵達時，宣布最後衝刺
+function onAnyFinish(id, info) {
   const g = state.game;
-  if (!g) return;
-  g.opp.finished = msg;
-  g.opp.clicks = msg.clicks;
-  g.opp.path = msg.path || [];
+  if (!g || g.mode !== 'party' || info.reason !== 'win' || g.lastCallSent) return;
+  g.lastCallSent = true;
+  net.send({ t: 'lastcall', seconds: LAST_CALL, by: id });
+  applyLastCall(LAST_CALL, id);
+}
+
+function applyLastCall(seconds, by) {
+  const g = state.game;
+  if (!g || g.lastCallEnd) return;
+  g.lastCallEnd = performance.now() + seconds * 1000;
+  if (g.finished) return;
+  const who = by === state.myId ? '你' : nameOf(by);
+  toast(`${who} 第一個抵達！剩下的人只剩 ${seconds} 秒`, 3500);
+  sfx.alarm();
+  haptic('warning');
+  tick();
+}
+
+function onOtherFinish(id, msg) {
+  const g = state.game;
+  const o = g?.others.get(id);
+  if (!o) return;
+  o.finished = msg;
+  o.clicks = msg.clicks;
+  o.path = msg.path || o.path;
+  o.near = false;
+  renderOppHud();
+  if (g.mode !== 'party') {
+    if (!g.finished) {
+      if (msg.reason === 'win') finishGame('lose');
+      else if (msg.reason === 'giveup') finishGame('oppGaveUp');
+      else if (msg.reason === 'timeout') finishGame('timeout');
+    } else if (state.view === 'result') {
+      showResult(true);
+    }
+    return;
+  }
+  if (net.isHost) onAnyFinish(id, msg);
   if (!g.finished) {
-    if (msg.reason === 'win') finishGame('lose');
-    else if (msg.reason === 'giveup') finishGame('oppGaveUp');
-    else if (msg.reason === 'timeout') finishGame('timeout');
+    refreshDanger();
+    if (msg.reason === 'win') {
+      const place = ranking(g).find((e) => e.id === id)?.place;
+      feed([{ b: o.name }, ` 抵達終點！第 ${place || '?'} 名`], '抵達', o.color);
+      sfx.oppMove();
+    } else {
+      feed([{ b: o.name }, msg.reason === 'giveup' ? ' 投降了' : ' 時間到出局'], '出局', o.color);
+    }
   } else if (state.view === 'result') {
     showResult(true);
   }
 }
 
-function outcome(g) {
+function onOtherLeft(id) {
+  const g = state.game;
+  const o = g?.others.get(id);
+  if (!o || o.left) return;
+  o.left = true;
+  o.near = false;
+  renderOppHud();
+  if (g.mode !== 'party') {
+    if (!g.finished) finishGame('oppLeft');
+    else if (state.view === 'result') showResult(true);
+    return;
+  }
+  if (!g.finished) refreshDanger();
+  else if (state.view === 'result') showResult(true);
+}
+
+// ---------- 結果 ----------
+function outcomeDuel(g) {
   const me = g.finished;
-  const opp = g.opp.finished;
+  const opp = [...g.others.values()][0]?.finished;
   if (me.reason === 'win' && opp && opp.reason === 'win') {
     if (me.elapsed !== opp.elapsed) return me.elapsed < opp.elapsed ? 'win' : 'lose';
     return me.clicks === opp.clicks ? 'draw' : (me.clicks < opp.clicks ? 'win' : 'lose');
@@ -737,69 +979,146 @@ function outcome(g) {
   return 'draw';
 }
 
+// 派對排名：抵達者依用時排序，接著是還在跑的人，最後是出局與離線
+function ranking(g) {
+  const meP = state.players.get(state.myId);
+  const entries = [
+    { id: state.myId, name: state.myName, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false },
+    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left })),
+  ];
+  const group = (e) => {
+    if (e.finished?.reason === 'win') return 0;
+    if (!e.finished && !e.left) return 1;
+    if (e.finished?.reason === 'timeout') return 2;
+    if (e.finished?.reason === 'giveup') return 3;
+    return 4;
+  };
+  entries.sort((a, b) => group(a) - group(b)
+    || (group(a) === 0 ? (a.finished.elapsed - b.finished.elapsed) || (a.clicks - b.clicks) : b.clicks - a.clicks));
+  let place = 0;
+  for (const e of entries) e.place = group(e) === 0 ? ++place : null;
+  return entries;
+}
+
+function allDone(g) {
+  return !!g.finished && [...g.others.values()].every((o) => o.finished || o.left);
+}
+
 function resultLabel(f) {
   if (!f) return '—';
   return {
-    win: '抵達終點', lose: '未抵達', giveup: '投降', timeout: '時間到', oppGaveUp: '對手投降', oppLeft: '對手離線',
+    win: '抵達終點', lose: '未抵達', giveup: '投降', timeout: '時間到', oppGaveUp: '對手投降', oppLeft: '對手離線', hostLeft: '房主離線',
   }[f.reason] || '—';
+}
+
+function rankStatus(e) {
+  if (e.finished?.reason === 'win') return `${e.clicks} 步 · ${fmtTime(e.finished.elapsed)}`;
+  if (e.left && !e.finished) return '離線';
+  if (!e.finished) return `比賽中… ${e.clicks} 步`;
+  if (e.finished.reason === 'timeout') return `時間到 · ${e.clicks} 步`;
+  if (e.finished.reason === 'giveup') return `投降 · ${e.clicks} 步`;
+  return resultLabel(e.finished);
+}
+
+function renderRanking(g, entries) {
+  const done = allDone(g);
+  $('#ranking-status').textContent = done ? '最終排名' : '比賽進行中…';
+  const target = g.settings.target;
+  const items = entries.map((e) => {
+    const li = document.createElement('li');
+    li.className = 'rank-item';
+    li.classList.toggle('is-me', e.me);
+    if (e.place && e.place <= 3) li.classList.add(`p${e.place}`);
+    const badge = Object.assign(document.createElement('span'), { className: 'rank-badge', textContent: e.place ? String(e.place) : '–' });
+    const body = document.createElement('details');
+    const sum = document.createElement('summary');
+    const name = Object.assign(document.createElement('b'), { textContent: e.me ? `${e.name}（你）` : e.name });
+    const stat = Object.assign(document.createElement('span'), { className: 'rank-stat', textContent: rankStatus(e) });
+    sum.append(avatarEl(e.name, e.color, 'sm'), name, stat);
+    const ol = document.createElement('ol');
+    ol.className = 'metro';
+    ol.style.setProperty('--side', e.color);
+    fillPath(ol, e.path || [], target);
+    body.append(sum, ol);
+    li.append(badge, body);
+    return li;
+  });
+  $('#rank-list').replaceChildren(...items);
 }
 
 let lastOutcome = null;
 function showResult(update = false) {
   const g = state.game;
-  const res = outcome(g);
-  const map = {
-    win: ['勝', '你贏了！'],
-    lose: ['敗', '對手搶先一步…'],
-    draw: ['和', '平手！'],
-  };
-  const hero = $('#result-hero');
-  hero.className = `cover result-hero ${res}`;
-  $('#result-kicker').textContent = map[res][0];
-  $('#result-title').textContent = map[res][1];
+  const party = g.mode === 'party';
+  let res;
+  let kicker;
+  let title;
+  if (party) {
+    const entries = ranking(g);
+    const mine = entries.find((e) => e.me);
+    res = mine.place === 1 ? 'win' : 'lose';
+    kicker = mine.place ? String(mine.place) : '–';
+    if (mine.place === 1) title = '第 1 名！你最快！';
+    else if (mine.place) title = `第 ${mine.place} 名！`;
+    else title = g.finished.reason === 'giveup' ? '你投降了' : g.finished.reason === 'hostLeft' ? '房主離線了' : '沒能在時限內抵達…';
+    renderRanking(g, entries);
+    $('#result-hero').className = `cover result-hero ${mine.place === 1 ? 'win' : mine.place ? 'place' : 'lose'}`;
+  } else {
+    res = outcomeDuel(g);
+    const map = { win: ['勝', '你贏了！'], lose: ['敗', '對手搶先一步…'], draw: ['和', '平手！'] };
+    [kicker, title] = map[res];
+    $('#result-hero').className = `cover result-hero ${res}`;
+    renderDuelResult(g, res);
+  }
+  $('#ranking').hidden = !party;
+  $('#score-card').hidden = party;
+  $('#route-grid').hidden = party;
+  $('#result-kicker').textContent = kicker;
+  $('#result-title').textContent = title;
   let sub = `《${tw(g.settings.start)}》→《${tw(g.settings.target)}》`;
   if (g.finished.reason === 'oppGaveUp') sub += '（對手投降）';
   if (g.finished.reason === 'oppLeft') sub += '（對手離線）';
   if (g.finished.reason === 'timeout') sub += '（時間到）';
+  if (party && !allDone(g)) sub += '　等待其他玩家…';
   $('#result-sub').textContent = sub;
-
-  const me = g.finished;
-  const opp = g.opp.finished;
-  $('#res-me-name').textContent = `${state.myName}（你）`;
-  $('#res-me-avatar').textContent = initial(state.myName);
-  $('#res-opp-avatar').textContent = initial(state.oppName);
-  $('#res-opp-name').textContent = state.oppName || '對手';
-  $('#res-opp-path-head').textContent = `${state.oppName || '對手'} 的路線`;
-  $('#res-me-result').textContent = resultLabel(me);
-  $('#res-opp-result').textContent = g.opp.left && !opp ? '離線' : resultLabel(opp);
-  $('#res-me-result').classList.toggle('win', res === 'win');
-  $('#res-opp-result').classList.toggle('win', res === 'lose');
-  $('#res-me-steps').textContent = `${me.clicks} 步`;
-  $('#res-opp-steps').textContent = opp ? `${opp.clicks} 步` : `${g.opp.clicks} 步`;
-  $('#res-me-time').textContent = fmtTime(me.elapsed);
-  $('#res-opp-time').textContent = opp ? fmtTime(opp.elapsed) : '—';
-  fillPath($('#res-me-path'), me.path, g.settings.target);
-  fillPath($('#res-opp-path'), g.opp.path, g.settings.target);
   $('#btn-rematch').disabled = !net.connected;
-  $('#btn-rematch').textContent = net.connected ? '再來一局' : '對手已離線';
+  $('#btn-rematch').textContent = net.connected ? '再來一局' : (party ? '其他人都離線了' : '對手已離線');
 
-  const changed = !update || res !== lastOutcome;
+  // 結果可能因為幾乎同時抵達而更正，戰績也跟著更正
   if (!g.recorded) { recordResult(res); g.recorded = res; }
-  else if (g.recorded !== res) {
-    // 雙方幾乎同時抵達時結果可能被更正，戰績也跟著更正
-    const st = loadStats();
-    if (g.recorded === 'win') { st.w--; st.streak = Math.max(0, st.streak - 1); } else if (g.recorded === 'lose') st.l--; else st.d--;
-    store.set('wikirace-stats', JSON.stringify(st));
-    recordResult(res);
-    g.recorded = res;
-  }
+  else if (g.recorded !== res) { unrecordResult(g.recorded); recordResult(res); g.recorded = res; }
+
+  const hero = $('#result-hero');
+  const changed = !update || res !== lastOutcome;
   lastOutcome = res;
   show('result');
   if (!changed) return;
   if (res === 'win') { sfx.win(); confetti(); haptic('success'); }
-  else if (res === 'lose') { sfx.lose(); shake(hero); haptic('error'); }
+  else if (party && g.finished.reason === 'win') { sfx.ready(); haptic('success'); }
+  else { sfx.lose(); shake(hero); haptic('error'); }
   // 結算音效播完後回到大廳音樂
   setTimeout(() => { if (state.view === 'result') music.play('lobby'); }, 3500);
+}
+
+function renderDuelResult(g, res) {
+  const me = g.finished;
+  const o = [...g.others.values()][0] || { name: '對手', clicks: 0, path: [], finished: null, left: true };
+  const opp = o.finished;
+  $('#res-me-name').textContent = `${state.myName}（你）`;
+  $('#res-me-avatar').textContent = initial(state.myName);
+  $('#res-opp-avatar').textContent = initial(o.name);
+  $('#res-opp-name').textContent = o.name;
+  $('#res-opp-path-head').textContent = `${o.name} 的路線`;
+  $('#res-me-result').textContent = resultLabel(me);
+  $('#res-opp-result').textContent = o.left && !opp ? '離線' : resultLabel(opp);
+  $('#res-me-result').classList.toggle('win', res === 'win');
+  $('#res-opp-result').classList.toggle('win', res === 'lose');
+  $('#res-me-steps').textContent = `${me.clicks} 步`;
+  $('#res-opp-steps').textContent = opp ? `${opp.clicks} 步` : `${o.clicks} 步`;
+  $('#res-me-time').textContent = fmtTime(me.elapsed);
+  $('#res-opp-time').textContent = opp ? fmtTime(opp.elapsed) : '—';
+  fillPath($('#res-me-path'), me.path, g.settings.target);
+  fillPath($('#res-opp-path'), o.path, g.settings.target);
 }
 
 function initResult() {
@@ -811,81 +1130,124 @@ net.onPeerJoin = () => {
   setConn('已連線', true);
 };
 
-net.onPeerLeave = () => {
-  setConn('對手已離線');
-  toast('對手已離線', 4000);
-  const g = state.game;
-  if (state.view === 'game' && g && !g.finished) {
-    g.opp.left = true;
-    finishGame('oppLeft');
+net.onPeerLeave = (id) => {
+  if (!net.isHost) {
+    // 房主離開：房間就解散了
+    setConn('房主已離線');
+    toast('房主已離線', 4000);
+    const g = state.game;
+    if (state.view === 'game' && g && !g.finished) {
+      if (g.mode === 'party') finishGame('hostLeft');
+      else { onOtherLeft('host'); }
+      return;
+    }
+    if (g) for (const o of g.others.values()) o.left = true;
+    if (state.view === 'result') showResult(true);
+    else if (state.view === 'room') {
+      show('home');
+      showError('#home-error', '房主已離開房間');
+    }
     return;
   }
-  if (g) g.opp.left = true;
-  if (state.view === 'result') showResult(true);
-  if (net.isHost) {
-    state.oppName = '';
-    state.guestReady = false;
-    if (state.view === 'room') renderRoom();
-  } else if (state.view === 'room') {
-    show('home');
-    showError('#home-error', '房主已離開房間');
-  }
+  const name = nameOf(id);
+  state.players.delete(id);
+  toast(`${name} 離開了`, 3000);
+  net.send({ t: 'left', id });
+  onOtherLeft(id);
+  if (!net.connected) setConn(isParty() ? '等待玩家' : '對手已離線');
+  broadcastLobby();
 };
 
-net.onMessage = (msg) => {
+function handleGuestMessage(msg, from) {
   switch (msg.t) {
-    case 'join':
-      if (!net.isHost) return;
-      state.oppName = String(msg.name || '對手').slice(0, 16);
-      state.guestReady = false;
-      net.send({ t: 'welcome', name: state.myName, settings: readForm() });
-      toast(`${state.oppName} 加入了房間`);
+    case 'join': {
+      const used = new Set([...state.players.values()].map((p) => p.color));
+      const color = COLORS.find((c) => !used.has(c)) || COLORS[state.players.size % COLORS.length];
+      const name = String(msg.name || '玩家').slice(0, 16);
+      state.players.set(from, { id: from, name, ready: false, host: false, color });
+      net.send({ t: 'welcome', you: from }, from);
+      broadcastLobby();
+      toast(`${name} 加入了房間`);
       sfx.ready();
       haptic('medium');
-      if (state.view === 'room') renderRoom();
+      setConn('已連線', true);
       break;
+    }
+    case 'ready': {
+      const p = state.players.get(from);
+      if (!p) return;
+      p.ready = !!msg.ready;
+      if (p.ready) { sfx.ready(); haptic('medium'); }
+      broadcastLobby();
+      break;
+    }
+    case 'progress':
+      net.send({ ...msg, id: from }, null, from);
+      onOtherProgress(from, msg);
+      break;
+    case 'finish':
+      net.send({ ...msg, id: from }, null, from);
+      onOtherFinish(from, msg);
+      break;
+  }
+}
+
+function handleHostMessage(msg) {
+  switch (msg.t) {
     case 'welcome':
-      state.oppName = String(msg.name || '房主').slice(0, 16);
-      state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
-      writeForm(state.settings);
-      renderRoom();
+      state.myId = msg.you;
+      break;
+    case 'lobby':
+      state.mode = msg.mode === 'party' ? 'party' : 'duel';
+      state.players = new Map((msg.players || []).map((p) => [p.id, p]));
+      if (state.myId && state.players.get(state.myId)) state.myReady = !!state.players.get(state.myId).ready;
+      if (state.view !== 'game' && state.view !== 'result') {
+        state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
+        writeForm(state.settings);
+      }
+      if (state.view === 'room') renderRoom();
       break;
     case 'full':
       net.destroy();
       show('home');
       setConn('');
-      showError('#home-error', '這個房間已經滿了');
+      showError('#home-error', msg.started ? '這個房間正在比賽中，請等這局結束再加入' : '這個房間已經滿了');
       break;
     case 'settings':
-      if (net.isHost) return;
       state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
       writeForm(state.settings);
       if (state.view === 'room') renderRoom();
       break;
-    case 'ready':
-      if (!net.isHost) return;
-      state.guestReady = !!msg.ready;
-      if (state.guestReady) { sfx.ready(); haptic('medium'); }
-      if (state.view === 'room') renderRoom();
-      break;
     case 'start':
-      if (net.isHost) return;
+      state.mode = msg.mode === 'party' ? 'party' : 'duel';
+      if (msg.players) state.players = new Map(msg.players.map((p) => [p.id, p]));
       startGame({ ...DEFAULT_SETTINGS, ...msg.settings });
       break;
     case 'progress':
-      onOppProgress(msg);
+      if (msg.id) onOtherProgress(msg.id, msg);
       break;
     case 'finish':
-      onOppFinish(msg);
+      if (msg.id) onOtherFinish(msg.id, msg);
+      break;
+    case 'left':
+      onOtherLeft(msg.id);
+      break;
+    case 'lastcall':
+      applyLastCall(msg.seconds || LAST_CALL, msg.by);
       break;
   }
+}
+
+net.onMessage = (msg, from) => {
+  if (net.isHost) handleGuestMessage(msg, from);
+  else handleHostMessage(msg);
 };
 
 window.addEventListener('beforeunload', (e) => {
   if (state.view === 'game' && state.game && !state.game.finished) e.preventDefault();
 });
 
-// 關閉分頁時主動斷線，讓對手立刻收到通知
+// 關閉分頁時主動斷線，讓其他人立刻收到通知
 window.addEventListener('pagehide', () => net.destroy());
 
 initSound();

@@ -79,7 +79,11 @@
           <div class="stat rate"><b id="stat-rate">–</b><span>勝率</span></div>
           <div class="stat streak"><b id="stat-streak">0</b><span>連勝</span></div>
         </div>
-        <button id="btn-create" class="btn primary wide">建立房間</button>
+        <div class="mode-pick" role="radiogroup" aria-label="遊戲模式">
+          <label class="mode duel"><input type="radio" name="mode" value="duel" checked><span><b>1 對 1</b><small>對決模式</small></span></label>
+          <label class="mode party"><input type="radio" name="mode" value="party"><span><b>2–8 人</b><small>派對模式</small></span></label>
+        </div>
+        <button id="btn-create" class="btn primary wide">建立對決房間</button>
         <div class="divider"><span>或加入朋友的房間</span></div>
         <div class="join-row">
           <input id="join-code" maxlength="6" placeholder="房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼">
@@ -128,6 +132,10 @@
           <div class="pname">等待對手…</div>
           <div class="pstate"></div>
         </div>
+      </div>
+      <div class="party-board" id="party-board" hidden>
+        <div class="party-head"><b>派對模式</b><span id="party-count">1 / 8 人</span></div>
+        <ul class="party-grid" id="party-grid"></ul>
       </div>
     </section>
 
@@ -214,6 +222,8 @@
         <b id="hud-target">—</b>
       </div>
       <div id="hud-opp-page" class="opp-where"></div>
+      <ul id="hud-strip" class="hud-strip" hidden></ul>
+      <div id="hud-lastcall" class="banner lastcall" hidden></div>
       <div id="hud-alert-opp" class="banner danger" hidden></div>
       <div id="hud-alert-me" class="banner notice" hidden></div>
     </div>
@@ -250,7 +260,12 @@
     </section>
 
     <section class="page">
-      <div class="card score">
+      <div class="card ranking" id="ranking" hidden>
+        <div class="ranking-head"><b>排行榜</b><span id="ranking-status"></span></div>
+        <ol class="rank-list" id="rank-list"></ol>
+      </div>
+
+      <div class="card score" id="score-card">
         <div class="score-head">
           <div class="score-player me-side"><span class="avatar" id="res-me-avatar">?</span><b id="res-me-name">你</b></div>
           <div class="score-player opp-side"><span class="avatar" id="res-opp-avatar">?</span><b id="res-opp-name">對手</b></div>
@@ -260,7 +275,7 @@
         <div class="score-row"><span id="res-me-time"></span><em>用時</em><span id="res-opp-time"></span></div>
       </div>
 
-      <div class="result-grid">
+      <div class="result-grid" id="route-grid">
         <div class="card me-side">
           <h2 class="card-title">你的路線</h2>
           <ol id="res-me-path" class="metro"></ol>

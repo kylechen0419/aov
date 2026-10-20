@@ -1,4 +1,5 @@
 // 點對點連線（WebRTC，透過 PeerJS 免費的配對伺服器），不需要自己架後端
+// 房主是中繼站：每位玩家只連到房主，房主再把訊息轉給其他人
 const PREFIX = 'wikirace-tw-1v1-';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -11,16 +12,19 @@ function randomCode() {
 export class Net {
   constructor() {
     this.peer = null;
-    this.conn = null;
+    this.conns = new Map(); // 房主：玩家 id → 連線
+    this.hostConn = null; // 玩家：連到房主的連線
     this.isHost = false;
     this.code = null;
+    this.maxGuests = 1;
     this.onMessage = () => {};
     this.onPeerJoin = () => {};
     this.onPeerLeave = () => {};
   }
 
-  // 房主：用房間代碼註冊一個 Peer ID，等待對手連進來
-  createRoom(tries = 0) {
+  // 房主：用房間代碼註冊一個 Peer ID，等待玩家連進來
+  createRoom(maxGuests = 1, tries = 0) {
+    this.maxGuests = maxGuests;
     return new Promise((resolve, reject) => {
       this.isHost = true;
       this.code = randomCode();
@@ -29,7 +33,7 @@ export class Net {
       peer.on('error', (err) => {
         if (err.type === 'unavailable-id' && tries < 5) {
           peer.destroy();
-          this.createRoom(tries + 1).then(resolve, reject);
+          this.createRoom(maxGuests, tries + 1).then(resolve, reject);
         } else if (!this.peer) {
           reject(new Error(`無法建立房間（${err.type}）`));
         } else {
@@ -37,17 +41,17 @@ export class Net {
         }
       });
       peer.on('connection', (conn) => {
-        if (this.conn && this.conn.open) {
-          conn.on('open', () => { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 500); });
+        if (this.conns.size >= this.maxGuests || this.locked) {
+          conn.on('open', () => { conn.send({ t: 'full', started: !!this.locked }); setTimeout(() => conn.close(), 500); });
           return;
         }
-        this.attach(conn);
+        this.attach(conn, conn.peer);
       });
       peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect(); });
     });
   }
 
-  // 加入者：連到房主的 Peer ID
+  // 玩家：連到房主的 Peer ID
   joinRoom(code) {
     return new Promise((resolve, reject) => {
       this.isHost = false;
@@ -64,7 +68,7 @@ export class Net {
           clearTimeout(timer);
           resolve();
         });
-        this.attach(conn);
+        this.attach(conn, 'host');
       });
       peer.on('error', (err) => {
         if (err.type === 'peer-unavailable') fail('找不到這個房間，請確認代碼');
@@ -74,32 +78,59 @@ export class Net {
     });
   }
 
-  attach(conn) {
-    this.conn = conn;
-    conn.on('open', () => { if (this.isHost) this.onPeerJoin(); });
+  attach(conn, id) {
+    if (this.isHost) {
+      conn.on('open', () => { this.conns.set(id, conn); this.onPeerJoin(id); });
+    } else {
+      this.hostConn = conn;
+    }
     conn.on('data', (msg) => {
-      if (msg && typeof msg === 'object') this.onMessage(msg);
+      if (msg && typeof msg === 'object') this.onMessage(msg, id);
     });
+    let gone = false;
     const leave = () => {
-      if (this.conn !== conn) return;
-      this.conn = null;
-      this.onPeerLeave();
+      if (gone) return;
+      gone = true;
+      if (this.isHost) {
+        if (this.conns.get(id) !== conn) return;
+        this.conns.delete(id);
+      } else {
+        if (this.hostConn !== conn) return;
+        this.hostConn = null;
+      }
+      this.onPeerLeave(id);
     };
     conn.on('close', leave);
     conn.on('error', leave);
   }
 
-  send(msg) {
-    if (this.conn && this.conn.open) this.conn.send(msg);
+  // 房主：不指定 to 就廣播給所有人（可排除某人）；玩家：一律送給房主
+  send(msg, to = null, except = null) {
+    if (!this.isHost) {
+      if (this.hostConn && this.hostConn.open) this.hostConn.send(msg);
+      return;
+    }
+    if (to) {
+      const c = this.conns.get(to);
+      if (c && c.open) c.send(msg);
+      return;
+    }
+    for (const [id, c] of this.conns) if (id !== except && c.open) c.send(msg);
+  }
+
+  get guestIds() {
+    return [...this.conns.keys()];
   }
 
   get connected() {
-    return !!(this.conn && this.conn.open);
+    return this.isHost ? this.conns.size > 0 : !!(this.hostConn && this.hostConn.open);
   }
 
   destroy() {
-    if (this.conn) this.conn.close();
+    for (const c of this.conns.values()) c.close();
+    if (this.hostConn) this.hostConn.close();
     if (this.peer) this.peer.destroy();
-    this.peer = this.conn = null;
+    this.peer = this.hostConn = null;
+    this.conns.clear();
   }
 }
