@@ -90,7 +90,7 @@ function initSound() {
   $('#btn-music').onclick = toggleMusic;
   $('#btn-music-game').onclick = toggleMusic;
   // 瀏覽器要求使用者先操作過才能出聲
-  for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
+  for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
   // 每次點擊按鈕、選項都給一下觸覺與聲音回饋
   document.addEventListener('click', (e) => {
     const el = e.target.closest('button, input[type=checkbox], input[type=radio], .article a');

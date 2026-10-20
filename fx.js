@@ -1,6 +1,6 @@
-// 音效、背景音樂（WebAudio 即時合成，不需要音檔）、觸覺回饋與畫面特效
-let ctx = null;
-let master, sfxBus, musicBus, reverb;
+// 音效、背景音樂、觸覺回饋與畫面特效
+// 聲音全部是事先錄好的 mp3（由 audio/render.py 離線合成），用瀏覽器原生的 <audio> 播放。
+// 不在手機上即時合成，避免 iPhone 上 WebAudio 出現雜音。
 
 const prefs = { sfx: true, music: true };
 try {
@@ -13,301 +13,117 @@ function savePref(k, v) {
   try { localStorage.setItem(`wikirace-${k}`, v ? '1' : '0'); } catch { /* 忽略 */ }
 }
 
-function makeImpulse(seconds, decay) {
-  const len = Math.floor(ctx.sampleRate * seconds);
-  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
-  for (let ch = 0; ch < 2; ch++) {
-    const d = buf.getChannelData(ch);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** decay;
-  }
-  return buf;
+function makeAudio(src, loop = false) {
+  const a = new Audio(src);
+  a.preload = 'auto';
+  a.loop = loop;
+  a.playsInline = true;
+  a.setAttribute('playsinline', '');
+  return a;
 }
 
-// 瀏覽器規定要在使用者操作後才能播放聲音
-export function unlockAudio() {
+// 每個音效準備幾個播放器，讓連續觸發時可以重疊
+const SFX_NAMES = ['tap', 'flip', 'count', 'go', 'opp', 'tick', 'heart', 'alarm', 'near', 'ready', 'win', 'lose'];
+const pools = {};
+for (const name of SFX_NAMES) {
+  const n = name === 'tap' || name === 'tick' || name === 'flip' ? 3 : 2;
+  pools[name] = { els: Array.from({ length: n }, () => makeAudio(`audio/sfx-${name}.mp3`)), i: 0 };
+}
+
+function playSfx(name) {
+  if (!prefs.sfx) return;
+  const pool = pools[name];
+  const a = pool.els[pool.i++ % pool.els.length];
   try {
-    if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
-      master = ctx.createGain();
-      master.gain.value = 0.7;
-      master.connect(ctx.destination);
-      sfxBus = ctx.createGain();
-      sfxBus.gain.value = prefs.sfx ? 1 : 0;
-      sfxBus.connect(master);
-      musicBus = ctx.createGain();
-      musicBus.gain.value = prefs.music ? MUSIC_VOL : 0;
-      musicBus.connect(master);
-      // 輕量的回音（延遲線），取代吃效能的摺積殘響，避免手機上爆音
-      reverb = ctx.createDelay(1);
-      reverb.delayTime.value = 0.32;
-      const fb = ctx.createGain();
-      fb.gain.value = 0.28;
-      const damp = ctx.createBiquadFilter();
-      damp.type = 'lowpass';
-      damp.frequency.value = 2200;
-      const wet = ctx.createGain();
-      wet.gain.value = 0.3;
-      reverb.connect(damp).connect(fb).connect(reverb);
-      damp.connect(wet).connect(musicBus);
-    }
-    if (ctx.state === 'suspended') ctx.resume();
-    if (music.pending) music.play(music.pending);
-  } catch { /* 不支援就安靜 */ }
+    a.currentTime = 0;
+    const p = a.play();
+    if (p) p.catch(() => {});
+  } catch { /* 忽略 */ }
 }
 
-const MUSIC_VOL = 0.5;
+const tracks = { lobby: makeAudio('audio/lobby.mp3', true), race: makeAudio('audio/race.mp3', true) };
+
+// iPhone 規定每個播放器都要在使用者點擊時先播過一次，之後才能自動播放
+let unlocked = false;
+export function unlockAudio() {
+  if (unlocked) return;
+  unlocked = true;
+  const all = [...Object.values(tracks), ...Object.values(pools).flatMap((p) => p.els)];
+  for (const a of all) {
+    if (a === tracks[music.mode] && prefs.music) continue;
+    a.muted = true;
+    const p = a.play();
+    const reset = () => { a.pause(); a.currentTime = 0; a.muted = false; };
+    if (p) p.then(reset, () => { a.muted = false; }); else reset();
+  }
+  if (music.mode) music.apply();
+}
 
 export const isSfxOn = () => prefs.sfx;
 export const isMusicOn = () => prefs.music;
-export function setSfxOn(v) {
-  savePref('sfx', v);
-  if (sfxBus) sfxBus.gain.setTargetAtTime(v ? 1 : 0, ctx.currentTime, 0.05);
-}
-export function setMusicOn(v) {
-  savePref('music', v);
-  if (musicBus) musicBus.gain.setTargetAtTime(v ? MUSIC_VOL : 0, ctx.currentTime, 0.2);
-}
-
-// ---------- 音色 ----------
-function env(gain, t, a, peak, d) {
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(peak, t + a);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
-}
-
-function tone(freq, dur, { type = 'square', vol = 0.06, at = 0, to = null, bus = sfxBus } = {}) {
-  if (!ctx) return;
-  const t = ctx.currentTime + at;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t);
-  if (to) osc.frequency.exponentialRampToValueAtTime(to, t + dur);
-  env(gain, t, 0.005, vol, dur);
-  osc.connect(gain).connect(bus);
-  osc.start(t);
-  osc.stop(t + dur + 0.05);
-}
-
-const midi = (n) => 440 * 2 ** ((n - 69) / 12);
-
-// 柔和的音色：只用正弦／三角波，起音與收尾都有斜坡，避免爆音
-function softEnv(gain, t, a, peak, len) {
-  gain.gain.setValueAtTime(0, t);
-  gain.gain.linearRampToValueAtTime(peak, t + a);
-  gain.gain.setTargetAtTime(0, t + a, len / 4);
-}
-
-// 像鋼片琴的音色
-function bell(t, note, vol, len = 1.6) {
-  const f = midi(note);
-  const g = ctx.createGain();
-  softEnv(g, t, 0.012, vol, len);
-  g.connect(musicBus);
-  g.connect(reverb);
-  for (const [mult, amp] of [[1, 1], [2, 0.18], [4, 0.04]]) {
-    const o = ctx.createOscillator();
-    const og = ctx.createGain();
-    o.type = 'sine';
-    o.frequency.value = f * mult;
-    og.gain.value = amp;
-    o.connect(og).connect(g);
-    o.start(t);
-    o.stop(t + len + 0.3);
-  }
-}
-
-function pad(t, notes, vol, len) {
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(vol, t + len * 0.4);
-  g.gain.linearRampToValueAtTime(0, t + len);
-  g.connect(musicBus);
-  for (const n of notes) {
-    const o = ctx.createOscillator();
-    o.type = 'sine';
-    o.frequency.value = midi(n);
-    o.connect(g);
-    o.start(t);
-    o.stop(t + len + 0.05);
-  }
-}
-
-function bass(t, note, vol, len) {
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.type = 'sine';
-  o.frequency.value = midi(note);
-  softEnv(g, t, 0.015, vol, len);
-  o.connect(g).connect(musicBus);
-  o.start(t);
-  o.stop(t + len + 0.3);
-}
-
-function pluck(t, note, vol, len, cutoff) {
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  const lp = ctx.createBiquadFilter();
-  o.type = 'triangle';
-  o.frequency.value = midi(note);
-  lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(cutoff, t);
-  lp.frequency.exponentialRampToValueAtTime(300, t + len);
-  env(g, t, 0.003, vol, len);
-  o.connect(lp).connect(g).connect(musicBus);
-  g.connect(reverb);
-  o.start(t);
-  o.stop(t + len + 0.05);
-}
-
-let noiseBuf = null;
-function hat(t, vol) {
-  noiseBuf ||= makeImpulse(0.08, 1);
-  const s = ctx.createBufferSource();
-  const hp = ctx.createBiquadFilter();
-  const g = ctx.createGain();
-  s.buffer = noiseBuf;
-  hp.type = 'highpass';
-  hp.frequency.value = 7000;
-  env(g, t, 0.001, vol, 0.05);
-  s.connect(hp).connect(g).connect(musicBus);
-  s.start(t);
-}
-
-function kick(t, vol) {
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.frequency.setValueAtTime(140, t);
-  o.frequency.exponentialRampToValueAtTime(45, t + 0.15);
-  env(g, t, 0.002, vol, 0.2);
-  o.connect(g).connect(musicBus);
-  o.start(t);
-  o.stop(t + 0.25);
-}
+export function setSfxOn(v) { savePref('sfx', v); }
+export function setMusicOn(v) { savePref('music', v); music.apply(); }
 
 // ---------- 背景音樂 ----------
-// 大廳：慢板、明亮的大調，像在圖書館翻書
-const LOBBY = {
-  bpm: 76,
-  chords: [
-    { root: 50, tones: [62, 66, 69, 73] }, // Dmaj7
-    { root: 47, tones: [59, 62, 66, 69] }, // Bm7
-    { root: 43, tones: [59, 62, 67, 71] }, // Gmaj7
-    { root: 45, tones: [61, 64, 69, 71] }, // A6sus
-  ],
-};
-// 比賽：小調、十六分音符推進
-const RACE = {
-  chords: [
-    { root: 45, tones: [57, 60, 64, 69] }, // Am
-    { root: 41, tones: [57, 60, 65, 69] }, // F
-    { root: 38, tones: [57, 62, 65, 69] }, // Dm
-    { root: 40, tones: [56, 59, 64, 68] }, // E
-  ],
-};
+const RATES = [1, 1.12, 1.25];
 
 export const music = {
   mode: null,
-  pending: null,
   intensity: 0,
-  step: 0,
-  nextTime: 0,
-  timer: null,
 
   play(mode) {
-    if (!ctx || ctx.state !== 'running') { this.pending = mode; return; }
-    this.pending = null;
-    if (mode === this.mode) return;
+    if (mode === this.mode) { this.apply(); return; }
     this.mode = mode;
-    this.step = 0;
-    this.nextTime = ctx.currentTime + 0.1;
-    clearInterval(this.timer);
-    this.timer = mode ? setInterval(() => this.schedule(), 60) : null;
+    for (const [name, a] of Object.entries(tracks)) {
+      if (name !== mode) { a.pause(); a.currentTime = 0; }
+    }
+    this.apply();
   },
 
-  stop() { this.play(null); this.pending = null; },
+  stop() { this.play(null); },
 
-  setIntensity(n) { this.intensity = n; },
-
-  bpm() {
-    if (this.mode === 'lobby') return LOBBY.bpm;
-    return [116, 132, 148][this.intensity] || 116;
-  },
-
-  schedule() {
-    // 若分頁曾被暫停，跳過落後的音符，不要一次全部擠出來
-    if (this.nextTime < ctx.currentTime - 0.1) this.nextTime = ctx.currentTime + 0.05;
-    while (this.nextTime < ctx.currentTime + 0.3) {
-      if (prefs.music) {
-        if (this.mode === 'lobby') this.lobbyStep(this.nextTime, this.step);
-        else if (this.mode === 'race') this.raceStep(this.nextTime, this.step);
-      }
-      this.nextTime += 60 / this.bpm() / (this.mode === 'lobby' ? 2 : 4);
-      this.step++;
+  setIntensity(n) {
+    this.intensity = n;
+    const a = tracks.race;
+    const rate = RATES[n] || 1;
+    if (a.playbackRate !== rate) {
+      a.preservesPitch = true;
+      a.webkitPreservesPitch = true;
+      a.playbackRate = rate;
     }
   },
 
-  // 每格是八分音符，一小節 8 格
-  lobbyStep(t, s) {
-    const bar = Math.floor(s / 8) % LOBBY.chords.length;
-    const pos = s % 8;
-    const c = LOBBY.chords[bar];
-    if (pos === 0) {
-      bass(t, c.root, 0.1, 2.4);
-      pad(t, c.tones.slice(0, 3), 0.012, 60 / LOBBY.bpm * 4);
-    }
-    const pattern = [0, 2, 1, 3, 2, 1, 3, 2];
-    if (pos !== 7 || Math.random() < 0.5) {
-      const n = c.tones[pattern[pos]] + (Math.random() < 0.15 ? 12 : 0);
-      bell(t, n, 0.045 + Math.random() * 0.015);
-    }
-  },
-
-  // 每格是十六分音符，一小節 16 格
-  raceStep(t, s) {
-    const bar = Math.floor(s / 16) % RACE.chords.length;
-    const pos = s % 16;
-    const c = RACE.chords[bar];
-    const lvl = this.intensity;
-    if (pos % 4 === 0) kick(t, lvl ? 0.5 : 0.35);
-    if (pos % 4 === 2) hat(t, 0.06 + lvl * 0.02);
-    if (lvl >= 1 && pos % 2 === 1) hat(t, 0.03);
-    if (pos % 2 === 0) bass(t, c.root + (pos % 8 === 6 ? 12 : 0), 0.14, 0.14);
-    const arp = [0, 1, 2, 3, 2, 1, 2, 3];
-    pluck(t, c.tones[arp[pos % 8]] + (lvl >= 2 ? 12 : 0), 0.04, 0.12, 2200 + lvl * 1200);
-    if (lvl >= 1 && pos % 8 === 0) bell(t, c.tones[3] + 12, 0.035, 0.6);
+  apply() {
+    const a = this.mode && tracks[this.mode];
+    for (const t of Object.values(tracks)) if (t !== a) t.pause();
+    if (!a) return;
+    if (!prefs.music) { a.pause(); return; }
+    if (!unlocked) return;
+    const p = a.play();
+    if (p) p.catch(() => {});
   },
 };
 
+// 回到分頁時恢復音樂，離開時暫停
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) for (const t of Object.values(tracks)) t.pause();
+  else music.apply();
+});
+
 // ---------- 音效 ----------
 export const sfx = {
-  count: () => tone(523, 0.18, { type: 'triangle', vol: 0.12 }),
-  go: () => { tone(784, 0.12, { type: 'triangle', vol: 0.12 }); tone(1047, 0.4, { type: 'triangle', vol: 0.12, at: 0.1 }); },
-  // 翻頁聲
-  click: () => {
-    if (!ctx) return;
-    noiseBuf ||= makeImpulse(0.08, 1);
-    const s = ctx.createBufferSource();
-    const bp = ctx.createBiquadFilter();
-    const g = ctx.createGain();
-    const t = ctx.currentTime;
-    s.buffer = makeImpulse(0.12, 2);
-    bp.type = 'bandpass';
-    bp.frequency.setValueAtTime(1800, t);
-    bp.frequency.exponentialRampToValueAtTime(4500, t + 0.1);
-    env(g, t, 0.005, 0.5, 0.12);
-    s.connect(bp).connect(g).connect(sfxBus);
-    s.start(t);
-  },
-  tap: () => tone(880, 0.04, { type: 'sine', vol: 0.05 }),
-  oppMove: () => tone(330, 0.12, { type: 'triangle', vol: 0.07, to: 247 }),
-  tick: () => tone(1200, 0.04, { type: 'square', vol: 0.04 }),
-  heartbeat: () => { tone(70, 0.12, { type: 'sine', vol: 0.4 }); tone(60, 0.14, { type: 'sine', vol: 0.32, at: 0.18 }); },
-  alarm: () => { for (let i = 0; i < 3; i++) { tone(880, 0.12, { type: 'sawtooth', vol: 0.05, at: i * 0.2 }); tone(660, 0.08, { type: 'sawtooth', vol: 0.05, at: i * 0.2 + 0.1 }); } },
-  near: () => { tone(659, 0.12, { type: 'triangle', vol: 0.1 }); tone(988, 0.25, { type: 'triangle', vol: 0.1, at: 0.1 }); },
-  ready: () => { tone(523, 0.1, { type: 'triangle', vol: 0.09 }); tone(659, 0.1, { type: 'triangle', vol: 0.09, at: 0.08 }); tone(784, 0.2, { type: 'triangle', vol: 0.09, at: 0.16 }); },
-  win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i === 4 ? 0.8 : 0.16, { type: 'triangle', vol: 0.12, at: i * 0.11 })),
-  lose: () => [392, 370, 349, 262].forEach((f, i) => tone(f, i === 3 ? 0.8 : 0.25, { type: 'sawtooth', vol: 0.05, at: i * 0.22 })),
+  count: () => playSfx('count'),
+  go: () => playSfx('go'),
+  click: () => playSfx('flip'),
+  tap: () => playSfx('tap'),
+  oppMove: () => playSfx('opp'),
+  tick: () => playSfx('tick'),
+  heartbeat: () => playSfx('heart'),
+  alarm: () => playSfx('alarm'),
+  near: () => playSfx('near'),
+  ready: () => playSfx('ready'),
+  win: () => playSfx('win'),
+  lose: () => playSfx('lose'),
 };
 
 // ---------- 觸覺回饋 ----------
