@@ -1,9 +1,7 @@
 import { Net } from './net.js';
 import * as wiki from './wiki.js';
 import { tw, twTree, zhReady } from './zh.js';
-import { startGraph } from './graph.js';
 
-let graph = null;
 import { sfx, music, unlockAudio, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -49,7 +47,7 @@ function show(view) {
   for (const v of ['home', 'room', 'game', 'result']) $(`#view-${v}`).hidden = v !== view;
   $('.masthead').hidden = view === 'game';
   if (view === 'home' || view === 'room') music.play('lobby');
-  if (view === 'home') graph?.resume();
+  if (view === 'home') renderStats();
   window.scrollTo(0, 0);
 }
 
@@ -114,9 +112,28 @@ const DYK = [
   '「上一頁」也算一步，走錯路時要想清楚是回頭還是繼續往前？',
 ];
 
+// ---------- 戰績（存在這支手機上） ----------
+function loadStats() {
+  try { return { w: 0, l: 0, d: 0, streak: 0, ...JSON.parse(store.get('wikirace-stats') || '{}') }; } catch { return { w: 0, l: 0, d: 0, streak: 0 }; }
+}
+
+function recordResult(res) {
+  const st = loadStats();
+  if (res === 'win') { st.w++; st.streak++; } else if (res === 'lose') { st.l++; st.streak = 0; } else { st.d++; }
+  store.set('wikirace-stats', JSON.stringify(st));
+}
+
+function renderStats() {
+  const st = loadStats();
+  const total = st.w + st.l + st.d;
+  $('#stat-w').textContent = st.w;
+  $('#stat-l').textContent = st.l;
+  $('#stat-rate').textContent = total ? `${Math.round((st.w / total) * 100)}%` : '–';
+  $('#stat-streak').textContent = st.streak;
+}
+
 // ---------- 首頁 ----------
 function initHome() {
-  graph = startGraph($('#graph'), () => state.view === 'home');
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
@@ -403,7 +420,7 @@ function startGame(settings) {
   $('#hud-me-avatar').textContent = initial(state.myName);
   $('#hud-opp-avatar').textContent = initial(state.oppName);
   $('#hud-opp-clicks').textContent = '0';
-  $('#hud-opp-page').textContent = settings.showOpponentPage ? `在：${tw(settings.start)}` : '';
+  $('#hud-opp-page').textContent = settings.showOpponentPage ? `${state.oppName || '對手'} 在《${tw(settings.start)}》` : '';
   $('#hud-alert-opp').hidden = true;
   $('#hud-alert-me').hidden = true;
   $('#hud').classList.remove('danger');
@@ -648,7 +665,7 @@ function onOppProgress(msg) {
   g.opp.current = msg.title;
   g.opp.path.push(msg.title);
   $('#hud-opp-clicks').textContent = msg.clicks;
-  $('#hud-opp-page').textContent = g.settings.showOpponentPage ? `在：${tw(msg.title)}` : '';
+  $('#hud-opp-page').textContent = g.settings.showOpponentPage ? `${state.oppName || '對手'} 在《${tw(msg.title)}》` : '';
   const near = !!msg.near;
   if (near !== g.opp.near) { g.opp.near = near; setOppDanger(near); updateIntensity(); }
   if (moved && g.startAt) {
@@ -765,6 +782,15 @@ function showResult(update = false) {
   $('#btn-rematch').textContent = net.connected ? '再來一局' : '對手已離線';
 
   const changed = !update || res !== lastOutcome;
+  if (!g.recorded) { recordResult(res); g.recorded = res; }
+  else if (g.recorded !== res) {
+    // 雙方幾乎同時抵達時結果可能被更正，戰績也跟著更正
+    const st = loadStats();
+    if (g.recorded === 'win') { st.w--; st.streak = Math.max(0, st.streak - 1); } else if (g.recorded === 'lose') st.l--; else st.d--;
+    store.set('wikirace-stats', JSON.stringify(st));
+    recordResult(res);
+    g.recorded = res;
+  }
   lastOutcome = res;
   show('result');
   if (!changed) return;

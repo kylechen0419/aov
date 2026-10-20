@@ -381,7 +381,7 @@ export function confetti() {
   canvas.height = innerHeight * dpr;
   c.scale(dpr, dpr);
   const glyphs = ['知', '識', '文', '史', '典', 'Ω', 'π', '∑', '∞', 'Æ', 'W', '¶', '§', '★', '?', '√'];
-  const colors = ['#3366cc', '#ac6600', '#14866d', '#d73333', '#202122'];
+  const colors = ['#ffd23f', '#2f7bff', '#ff4d6d', '#22c55e', '#ff5ca8', '#8b5cf6'];
   const bits = Array.from({ length: 90 }, () => ({
     x: Math.random() * innerWidth,
     y: -20 - Math.random() * innerHeight * 0.6,
@@ -399,7 +399,7 @@ export function confetti() {
     for (const b of bits) {
       b.y += b.vy; b.x += b.vx + Math.sin((now + b.size * 50) / 400) * 0.6; b.r += b.vr;
       c.save(); c.translate(b.x, b.y); c.rotate(b.r);
-      c.font = `700 ${b.size}px "Noto Serif TC", Georgia, serif`;
+      c.font = `900 ${b.size}px "Noto Sans TC", system-ui, sans-serif`;
       c.fillStyle = b.color; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText(b.g, 0, 0);
       c.restore();

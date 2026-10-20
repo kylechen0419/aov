@@ -62,14 +62,22 @@ let topicsPromise = null;
 const loadTopics = () => (topicsPromise ||= import('./topics.js').then((m) => m.TOPICS));
 const recent = [];
 
-// 確認條目存在且不是消歧義頁；回傳實際標題或 null
+// 隨機抽到的條目至少要有這麼多瀏覽量（近 30 天），太冷門、大概看不懂的就跳過
+const MIN_VIEWS = { zh: 3000, en: 15000 };
+
+// 確認條目存在、不是消歧義頁、而且夠熱門；回傳實際標題或 null
 async function checkTitle(lang, title) {
   const data = await api(lang, {
-    action: 'query', titles: title, redirects: '1', converttitles: '1', prop: 'pageprops', ppprop: 'disambiguation',
+    action: 'query', titles: title, redirects: '1', converttitles: '1',
+    prop: 'pageprops|pageviews', ppprop: 'disambiguation', pvipdays: '30',
   });
   const page = data.query?.pages?.[0];
   if (!page || page.missing || page.invalid || page.ns !== 0) return null;
   if (page.pageprops && 'disambiguation' in page.pageprops) return null;
+  if (page.pageviews) {
+    const views = Object.values(page.pageviews).reduce((sum, v) => sum + (v || 0), 0);
+    if (views < MIN_VIEWS[lang]) return null;
+  }
   return page.title;
 }
 
@@ -89,7 +97,7 @@ export async function randomTitle(lang, trueRandom) {
   }
   try {
     const topics = await loadTopics();
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 12; i++) {
       const pick = topics[Math.floor(Math.random() * topics.length)];
       if (recent.includes(pick)) continue;
       const title = lang === 'zh' ? await checkTitle('zh', pick) : await toEnglish(pick);

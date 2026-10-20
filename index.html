@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#16223d">
+  <meta name="theme-color" content="#4f46e5">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,7 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
   <link rel="stylesheet" href="style.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
@@ -51,18 +51,16 @@
 
   <!-- 首頁 -->
   <main id="view-home" class="view">
-    <section class="cover home-cover">
-      <canvas id="graph" class="graph" aria-hidden="true"></canvas>
-      <div class="cover-inner">
-        <div class="foil-rule" aria-hidden="true"></div>
-        <h1 class="cover-title foil">維基競速</h1>
-        <p class="cover-sub">從一個條目，連到另一個條目</p>
-        <div class="chips">
-          <span class="chip"><b id="topic-count">10,000+</b> 個條目</span>
-          <span class="chip">1 對 1</span>
-          <span class="chip">即時對戰</span>
-        </div>
-        <div class="foil-rule" aria-hidden="true"></div>
+    <section class="hero">
+      <div class="bubbles" aria-hidden="true">
+        <span class="bub b1">?</span><span class="bub b2">!</span><span class="bub b3">A</span><span class="bub b4">★</span><span class="bub b5">文</span><span class="bub b6">∞</span>
+      </div>
+      <div class="hero-badge">1 VS 1 知識對戰</div>
+      <h1 class="logo-title">維基<br>競速</h1>
+      <p class="hero-sub">從一個條目連到另一個條目，比誰先到！</p>
+      <div class="chips">
+        <span class="chip"><b id="topic-count">10,000+</b> 題庫</span>
+        <span class="chip">即時連線</span>
       </div>
     </section>
 
@@ -75,11 +73,17 @@
             <input id="nickname" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname">
           </label>
         </div>
+        <div class="stats" aria-label="你的戰績">
+          <div class="stat win"><b id="stat-w">0</b><span>勝場</span></div>
+          <div class="stat lose"><b id="stat-l">0</b><span>敗場</span></div>
+          <div class="stat rate"><b id="stat-rate">–</b><span>勝率</span></div>
+          <div class="stat streak"><b id="stat-streak">0</b><span>連勝</span></div>
+        </div>
         <button id="btn-create" class="btn primary wide">建立房間</button>
         <div class="divider"><span>或加入朋友的房間</span></div>
         <div class="join-row">
           <input id="join-code" maxlength="6" placeholder="房間代碼" autocomplete="off" spellcheck="false" aria-label="房間代碼">
-          <button id="btn-join" class="btn dark">加入</button>
+          <button id="btn-join" class="btn green">加入</button>
         </div>
         <p id="home-error" class="error" hidden></p>
       </div>
@@ -105,10 +109,10 @@
       <div class="room-head">
         <div>
           <div class="eyebrow">房間代碼</div>
-          <div class="room-code foil" id="room-code">-----</div>
+          <div class="room-code" id="room-code">-----</div>
         </div>
         <div class="head-actions">
-          <button id="btn-copy-link" class="btn gold small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
+          <button id="btn-copy-link" class="btn pink small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
           <button id="btn-leave" class="icon-btn" aria-label="離開房間" title="離開房間"><svg class="ic"><use href="#i-exit"/></svg></button>
         </div>
       </div>
@@ -118,7 +122,7 @@
           <div class="pname">—</div>
           <div class="pstate"></div>
         </div>
-        <div class="vs foil">VS</div>
+        <div class="vs">VS</div>
         <div class="player opp-side" id="slot-guest">
           <span class="avatar big">?</span>
           <div class="pname">等待對手…</div>
@@ -187,27 +191,29 @@
   <!-- 比賽 -->
   <main id="view-game" class="view game" hidden>
     <div class="hud" id="hud">
-      <div class="hud-top">
-        <div class="hud-target">
-          <svg class="ic"><use href="#i-target"/></svg>
-          <span class="hud-target-label">終點</span>
-          <b id="hud-target">—</b>
-        </div>
-        <div class="hud-timer" id="hud-timer">00:00</div>
-      </div>
       <div class="hud-race">
         <div class="racer me-side">
-          <span class="avatar sm" id="hud-me-avatar">你</span>
-          <span class="racer-name">你</span>
-          <b id="hud-clicks" class="racer-steps">0</b><span class="racer-unit">步</span>
+          <span class="avatar" id="hud-me-avatar">你</span>
+          <div class="racer-info">
+            <span class="racer-name">你</span>
+            <span class="racer-steps"><b id="hud-clicks">0</b> 步</span>
+          </div>
         </div>
+        <div class="hud-timer" id="hud-timer">00:00</div>
         <div class="racer opp-side" id="hud-opp">
-          <span class="avatar sm" id="hud-opp-avatar">?</span>
-          <span class="racer-name" id="hud-opp-name">對手</span>
-          <b id="hud-opp-clicks" class="racer-steps">0</b><span class="racer-unit">步</span>
-          <span id="hud-opp-page" class="racer-page"></span>
+          <div class="racer-info">
+            <span class="racer-name" id="hud-opp-name">對手</span>
+            <span class="racer-steps"><b id="hud-opp-clicks">0</b> 步</span>
+          </div>
+          <span class="avatar" id="hud-opp-avatar">?</span>
         </div>
       </div>
+      <div class="hud-target">
+        <svg class="ic"><use href="#i-target"/></svg>
+        <span class="hud-target-label">目標</span>
+        <b id="hud-target">—</b>
+      </div>
+      <div id="hud-opp-page" class="opp-where"></div>
       <div id="hud-alert-opp" class="banner danger" hidden></div>
       <div id="hud-alert-me" class="banner notice" hidden></div>
     </div>
