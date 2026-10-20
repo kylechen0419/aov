@@ -165,3 +165,15 @@ export async function fetchArticle(lang, title, retried = false) {
 export function articleUrl(lang, title) {
   return `https://${LANGS[lang].host}/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 }
+
+// 條目的一句話簡介（例如「英格蘭西北部城市」），用來模糊顯示對手在哪裡；查過的會記住
+const descCache = new Map();
+export function describe(lang, title) {
+  const k = `${lang}:${title}`;
+  if (!descCache.has(k)) {
+    descCache.set(k, api(lang, { action: 'query', prop: 'description', titles: title, redirects: '1' })
+      .then((d) => d.query?.pages?.[0]?.description || '')
+      .catch(() => { descCache.delete(k); return ''; }));
+  }
+  return descCache.get(k);
+}

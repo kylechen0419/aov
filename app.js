@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=50';
-import * as wiki from './wiki.js?v=50';
-import { tw, twTree, zhReady } from './zh.js?v=50';
-import { makeShareImage } from './share.js?v=50';
-import { solve } from './solver.js?v=50';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=50';
+import { Net } from './net.js?v=51';
+import * as wiki from './wiki.js?v=51';
+import { tw, twTree, zhReady } from './zh.js?v=51';
+import { makeShareImage } from './share.js?v=51';
+import { solve } from './solver.js?v=51';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=51';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -11,8 +11,9 @@ const net = new Net();
 
 const DEFAULT_SETTINGS = {
   lang: 'zh', goal: 'speed', timeLimit: 0, lastCall: 0, start: '', target: '',
-  // 預設不顯示對手在哪個條目：看得到就能一步一步照抄領先者的路線
-  showOpponentPage: false, allowBack: true, trueRandom: false,
+  // 對手位置怎麼顯示：dist＝只看遠近、hint＝模糊位置（條目簡介）、full＝完整條目名稱
+  // 預設模糊：看得出對手大概在哪，但不知道確切的條目，沒辦法照抄路線
+  oppView: 'hint', allowBack: true, trueRandom: false,
 };
 const MAX_PLAYERS = { duel: 2, party: 8 };
 // 斷線後保留位置的時間：比賽中久一點，房間裡短一點
@@ -620,7 +621,7 @@ function readForm() {
     lastCall: Number(f.lastCall.value) || 0,
     start: f.start.value.trim(),
     target: f.target.value.trim(),
-    showOpponentPage: f.showOpponentPage.checked,
+    oppView: ['dist', 'hint', 'full'].includes(f.oppView.value) ? f.oppView.value : 'hint',
     allowBack: f.allowBack.checked,
     trueRandom: f.trueRandom.checked,
   };
@@ -633,7 +634,7 @@ function writeForm(s) {
   f.lastCall.value = String(s.lastCall || 0);
   if (document.activeElement !== f.start) f.start.value = tw(s.start);
   if (document.activeElement !== f.target) f.target.value = tw(s.target);
-  f.showOpponentPage.checked = s.showOpponentPage;
+  f.oppView.value = oppViewOf(s);
   f.allowBack.checked = s.allowBack;
   f.trueRandom.checked = s.trueRandom;
   paintRoomGoal();
@@ -1294,8 +1295,11 @@ function renderOppHud() {
     if (o?.finished?.reason === 'win') where = `${o.name} 已用 ${o.finished.clicks} 步抵達`;
     else if (o?.left) where = `${o.name} 已離線`;
     else if (o?.offline) where = `${o.name} 斷線中，等待重新連線…${waitLeft(o)}`;
-    else if (o && g.settings.showOpponentPage) where = `${o.name} 在《${tw(o.current)}》`;
-    else if (o && distLabel(o.dist)) where = `${o.name} ${distLabel(o.dist)}`;
+    else if (o) {
+      // 例如「小華 在「英格蘭西北部城市」 · 差 1 步！」或只有「小華 · 約差 2 步」
+      const at = oppWhere(g, o);
+      where = [at ? `${o.name} 在${at}` : distLabel(o.dist) && o.name, distLabel(o.dist)].filter(Boolean).join(' · ');
+    }
     $('#hud-opp-page').textContent = where;
     $('#hud-opp').classList.toggle('offline', !!o?.offline);
     return;
@@ -1321,12 +1325,8 @@ function renderOppHud() {
     info.className = 'strip-info';
     const label = o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : o.offline ? `斷線${waitLeft(o, true)}` : `${o.clicks} 步`;
     info.append(Object.assign(document.createElement('b'), { textContent: o.name }), Object.assign(document.createElement('span'), { textContent: label }));
-    if (!g.settings.showOpponentPage && distLabel(o.dist) && !o.finished && !o.left && !o.offline) {
-      info.append(Object.assign(document.createElement('small'), { textContent: distLabel(o.dist) }));
-    }
-    if (g.settings.showOpponentPage && !o.finished && !o.left && !o.offline) {
-      info.append(Object.assign(document.createElement('small'), { textContent: tw(o.current) }));
-    }
+    const here = [oppWhere(g, o).replace(/^[《「]|[》」]$/g, ''), distLabel(o.dist)].filter(Boolean).join(' · ');
+    if (here && !o.finished && !o.left && !o.offline) info.append(Object.assign(document.createElement('small'), { textContent: here }));
     li.append(info);
     return li;
   });
@@ -1335,6 +1335,16 @@ function renderOppHud() {
 
 // 離終點多遠（只說大概，不說在哪個條目，免得被照抄路線）
 const distLabel = (d) => ({ 1: '差 1 步！', 2: '約差 2 步', 3: '還很遠' }[d] || '');
+// 舊版只有開或關（showOpponentPage），新版分三種
+const oppViewOf = (s) => (['dist', 'hint', 'full'].includes(s?.oppView) ? s.oppView : s?.showOpponentPage ? 'full' : 'hint');
+
+// 對手在哪裡：依房間設定顯示完整條目、模糊的條目簡介，或只有離終點多遠
+function oppWhere(g, o) {
+  const view = oppViewOf(g.settings);
+  if (view === 'full') return `《${tw(o.current)}》`;
+  if (view === 'hint' && o.desc) return `「${o.desc}」`;
+  return '';
+}
 
 function elapsed() {
   const g = state.game;
@@ -1419,6 +1429,15 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
 
     g.dist = distanceHere(g);
     sendProgress({ t: 'progress', title: art.title, clicks: g.clicks, near, path: g.path, d: g.dist ?? undefined });
+    if (oppViewOf(g.settings) === 'hint') {
+      const here = art.title;
+      wiki.describe(g.settings.lang, here).then(async (d) => {
+        if (!d || state.game !== g || g.finished || g.current !== here) return;
+        await zhReady;
+        const desc = maskTitle(g.settings.lang === 'zh' ? tw(d) : d, here, g.settings.lang).slice(0, 40);
+        sendProgress({ t: 'progress', title: here, clicks: g.clicks, near: g.near, path: g.path, d: g.dist ?? undefined, desc });
+      });
+    }
     if (reached) finishGame('win');
     else {
       renderGoal();
@@ -1691,6 +1710,8 @@ function onOtherProgress(id, msg) {
   else if (moved) o.path.push(msg.title);
   o.near = !!msg.near;
   if (msg.d >= 1 && msg.d <= 3) o.dist = msg.d;
+  if (moved) o.desc = '';
+  if (typeof msg.desc === 'string') o.desc = msg.desc;
   o.offline = false;
   renderOppHud();
   if (g.finished) {
@@ -1706,7 +1727,7 @@ function onOtherProgress(id, msg) {
     racer.classList.add('bump');
     sfx.oppMove();
     const color = g.mode === 'party' ? o.color : null;
-    feed(g.settings.showOpponentPage ? [{ b: o.name }, ` 前往《${tw(msg.title)}》`] : [{ b: o.name }, ' 又前進了一步'], `第${msg.clicks}步`, color);
+    feed(oppViewOf(g.settings) === 'full' ? [{ b: o.name }, ` 前往《${tw(msg.title)}》`] : [{ b: o.name }, ' 又前進了一步'], `第${msg.clicks}步`, color);
     haptic('light');
   }
 }
@@ -3065,6 +3086,7 @@ function cleanProgress(msg) {
   if (typeof msg.title !== 'string' || !msg.title) return null;
   const out = { t: 'progress', title: msg.title.slice(0, 200), clicks: Math.floor(cleanNum(msg.clicks)), near: !!msg.near, path: cleanPath(msg.path) };
   if (msg.d >= 1 && msg.d <= 3) out.d = Math.floor(msg.d);
+  if (typeof msg.desc === 'string') out.desc = msg.desc.slice(0, 40);
   return out;
 }
 function cleanFinish(msg) {
