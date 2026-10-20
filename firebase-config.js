@@ -1,16 +1,13 @@
-// 線上人數計數器的設定（選填）。
-// 沒有填的話，首頁的「人在線上」就會自動隱藏，遊戲其他功能一切正常。
-//
-// 要開啟線上人數，請照 README 的「線上人數」步驟，在 Firebase 建一個免費專案，
-// 把它給你的設定貼到下面 window.WIKIRACE_FIREBASE = { ... } 裡（記得填 databaseURL）。
-//
-// 範例：
-// window.WIKIRACE_FIREBASE = {
-//   apiKey: 'AIza...............',
-//   authDomain: 'your-project.firebaseapp.com',
-//   databaseURL: 'https://your-project-default-rtdb.firebaseio.com',
-//   projectId: 'your-project',
-//   appId: '1:1234567890:web:abcdef',
-// };
+// 線上人數計數器的設定。
+// 這是 Firebase 的網頁設定，本來就會公開在網頁裡，不是密碼（真正的保護在資料庫規則）。
+// 沒有填的話，首頁的「人在線上」會自動隱藏，遊戲其他功能一切正常。
 
-window.WIKIRACE_FIREBASE = null;
+window.WIKIRACE_FIREBASE = {
+  apiKey: 'AIzaSyAIpmZB6KYcHwtZv-Vjmvz4PxxDAIPYt4I',
+  authDomain: 'wiki-race-5786c.firebaseapp.com',
+  databaseURL: 'https://wiki-race-5786c-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'wiki-race-5786c',
+  storageBucket: 'wiki-race-5786c.firebasestorage.app',
+  messagingSenderId: '693547120867',
+  appId: '1:693547120867:web:4fc864b995f21cecd46dd6',
+};
