@@ -34,6 +34,9 @@
     <symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></symbol>
     <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" class="fill"/></symbol>
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></symbol>
+    <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M8 14.5s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="10" r="1.2" class="fill"/><circle cx="15" cy="10" r="1.2" class="fill"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-5 4 4 3-3 4 4"/></symbol>
     <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
   </svg>
 
@@ -143,6 +146,17 @@
       </div>
     </section>
 
+    <section class="page chat-page">
+      <div class="card chat" data-chat>
+        <div class="chat-head"><b>聊天室</b><span class="chat-sub">房間裡的人都看得到</span></div>
+        <ul class="chat-log" aria-live="polite"></ul>
+        <form class="chat-form" autocomplete="off">
+          <input class="chat-input" maxlength="100" placeholder="說點什麼…" enterkeyhint="send" aria-label="聊天訊息">
+          <button class="btn blue chat-send" aria-label="送出"><svg class="ic"><use href="#i-send"/></svg></button>
+        </form>
+      </div>
+    </section>
+
     <form id="settings-form" class="page settings" autocomplete="off">
       <h2 class="section-title">路線 <span id="host-only-hint" class="section-note" hidden>只有房主可以修改</span></h2>
       <div class="card route-card">
@@ -244,6 +258,7 @@
     <nav class="tabbar">
       <button id="btn-back" class="tab"><svg class="ic"><use href="#i-back"/></svg><span>上一頁</span></button>
       <button id="btn-path" class="tab"><svg class="ic"><use href="#i-route"/></svg><span>路線 <b id="path-count">1</b></span></button>
+      <button id="btn-emote-game" class="tab" data-emote-open><svg class="ic"><use href="#i-smile"/></svg><span>表情</span></button>
       <button id="btn-music-game" class="tab"><svg class="ic"><use href="#i-music"/></svg><span>音樂</span></button>
       <button id="btn-giveup" class="tab danger"><svg class="ic"><use href="#i-flag"/></svg><span>投降</span></button>
     </nav>
@@ -289,9 +304,40 @@
           <ol id="res-opp-path" class="metro"></ol>
         </div>
       </div>
-      <button id="btn-rematch" class="btn primary wide">再來一局</button>
+      <div class="result-actions">
+        <button id="btn-share" class="btn pink"><svg class="ic"><use href="#i-image"/></svg>分享戰績</button>
+        <button id="btn-rematch" class="btn primary">再來一局</button>
+      </div>
+
+      <div class="card chat" data-chat>
+        <div class="chat-head"><b>聊天室</b><span class="chat-sub">賽後聊聊</span></div>
+        <ul class="chat-log" aria-live="polite"></ul>
+        <form class="chat-form" autocomplete="off">
+          <input class="chat-input" maxlength="100" placeholder="說點什麼…" enterkeyhint="send" aria-label="聊天訊息">
+          <button class="btn blue chat-send" aria-label="送出"><svg class="ic"><use href="#i-send"/></svg></button>
+        </form>
+      </div>
     </section>
   </main>
+
+  <button id="emote-fab" class="emote-fab" data-emote-open aria-label="快速表情" hidden><svg class="ic"><use href="#i-smile"/></svg></button>
+  <div id="emote-tray" class="emote-tray" hidden>
+    <div class="emote-grid" id="emote-grid"></div>
+  </div>
+  <div id="emote-layer" class="emote-layer" aria-live="polite"></div>
+  <div id="net-banner" class="net-banner" hidden></div>
+
+  <div id="share-modal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><b>分享戰績</b><button id="share-close" class="icon-btn" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <img id="share-img" class="share-img" alt="戰績圖">
+      <p class="share-tip" id="share-tip">長按圖片可以儲存到相簿</p>
+      <div class="modal-actions">
+        <button id="share-go" class="btn pink"><svg class="ic"><use href="#i-share"/></svg>分享</button>
+        <a id="share-save" class="btn primary" download="維基競速戰績.png">儲存圖片</a>
+      </div>
+    </div>
+  </div>
 
   <div id="countdown" class="overlay" hidden>
     <div class="brief">

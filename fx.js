@@ -166,6 +166,8 @@ const PATTERNS = {
 export function haptic(kind = 'light') {
   const pattern = PATTERNS[kind] || PATTERNS.light;
   try {
+    // 瀏覽器規定使用者點過畫面之後才能震動
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
     if (navigator.vibrate) { navigator.vibrate(pattern); return; }
     // iOS 只有單次輕觸，用多次輕觸模擬節奏
     const pulses = Math.ceil(pattern.length / 2);

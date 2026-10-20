@@ -426,7 +426,7 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 /* 底部分頁列 */
 .tabbar {
   position: fixed; z-index: 25; left: 0; right: 0; bottom: 0;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
   padding: 8px var(--gutter-r) calc(8px + env(safe-area-inset-bottom, 0px)) var(--gutter-l);
   background: #fff; border-radius: 24px 24px 0 0;
   box-shadow: 0 -6px 24px rgba(30, 20, 90, .2);
@@ -692,3 +692,109 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
   background: var(--green); color: #fff; box-shadow: 0 0 0 2px #fff;
 }
 .avatar-opt:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
+
+/* ---------- 斷線狀態 ---------- */
+.net-banner {
+  position: fixed; z-index: 70; left: 50%; transform: translateX(-50%);
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  max-width: calc(100vw - 32px);
+  background: var(--ink); color: #fff; font-weight: 900; font-size: 14px;
+  padding: 8px 16px 8px 36px; border-radius: 99px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+}
+.net-banner::before {
+  content: ""; position: absolute; left: 12px; top: 50%; width: 14px; height: 14px; margin-top: -7px;
+  border: 3px solid rgba(255, 255, 255, .3); border-top-color: var(--yellow); border-radius: 50%; animation: spin .8s linear infinite;
+}
+.party-player.offline, .player.offline { opacity: .55; }
+.party-player.offline .party-tag { background: #ffe7ec; color: var(--red-d); }
+.racer.offline .avatar { opacity: .5; }
+
+/* ---------- 聊天室 ---------- */
+.chat-page { padding-top: 12px; padding-bottom: 0; }
+.chat { gap: 10px; padding: 14px; }
+.chat-head { display: flex; justify-content: space-between; align-items: baseline; }
+.chat-head b { font-size: 16px; }
+.chat-sub { font-size: 12px; color: var(--muted); font-weight: 700; }
+.chat-log {
+  margin: 0; padding: 4px 2px; list-style: none; display: grid; gap: 8px; align-content: start;
+  max-height: 210px; min-height: 64px; overflow-y: auto; overscroll-behavior: contain;
+}
+.chat-sys { text-align: center; font-size: 12px; color: var(--muted); font-weight: 700; }
+.chat-msg { display: flex; align-items: flex-end; gap: 8px; }
+.chat-msg .avatar.sm { width: 28px; height: 28px; font-size: 12px; flex: none; }
+.chat-msg .avatar.sm.has-img { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--side, var(--blue)); }
+.chat-bubble { display: grid; max-width: 78%; background: var(--card-2); padding: 6px 12px 7px; border-radius: 16px 16px 16px 4px; min-width: 0; }
+.chat-bubble b { font-size: 11px; color: var(--muted); }
+.chat-bubble span { font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.chat-msg.mine { flex-direction: row-reverse; }
+.chat-msg.mine .chat-bubble { background: var(--blue); color: #fff; border-radius: 16px 16px 4px 16px; }
+.chat-msg.mine .chat-bubble b { color: rgba(255, 255, 255, .8); text-align: right; }
+.chat-form { display: flex; gap: 8px; }
+.chat-form .chat-input { flex: 1; padding: 10px 14px; }
+.chat-send { padding: 10px 14px; border-radius: 14px; box-shadow: 0 4px 0 var(--bd); }
+.chat-send .ic { width: 20px; height: 20px; }
+
+/* ---------- 快速表情 ---------- */
+.emote-fab {
+  position: fixed; z-index: 35; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--yellow); color: var(--yellow-ink); box-shadow: 0 5px 0 var(--yellow-d), 0 10px 24px rgba(30, 20, 90, .3);
+  display: grid; place-items: center; transition: transform .1s;
+}
+.emote-fab .ic { width: 30px; height: 30px; }
+.emote-fab:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--yellow-d); }
+.emote-tray {
+  position: fixed; z-index: 45; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  width: min(92vw, 340px); background: #fff; border-radius: 22px; padding: 12px;
+  box-shadow: 0 16px 40px rgba(30, 20, 90, .35); animation: feedIn .25s cubic-bezier(.2, 1.6, .4, 1);
+}
+.emote-tray.in-game { left: 50%; right: auto; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+.emote-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.emote-btn {
+  border: 0; border-radius: 14px; background: var(--card-2); cursor: pointer; font-size: 28px; line-height: 1;
+  padding: 10px 0; transition: transform .1s, background .15s;
+}
+.emote-btn.text { font-size: 13px; font-weight: 900; color: var(--ink); padding: 14px 2px; }
+.emote-btn:active { transform: scale(.88); background: var(--blue-t); }
+#btn-emote-game { --c: #a06a00; --t: #fff4cc; }
+.emote-layer { position: fixed; inset: 0; z-index: 65; pointer-events: none; overflow: hidden; }
+.emote-pop {
+  position: absolute; bottom: 120px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px 6px 6px; border-radius: 99px;
+  background: #fff; box-shadow: 0 8px 24px rgba(30, 20, 90, .3);
+  animation: emoteRise 2.8s cubic-bezier(.2, .7, .3, 1) forwards;
+}
+.emote-pop.mine { background: #fffbe6; }
+.emote-pop .avatar.sm { width: 32px; height: 32px; font-size: 13px; }
+.emote-body { display: grid; justify-items: start; line-height: 1.1; }
+.emote-emoji { font-size: 34px; }
+.emote-text { font-size: 18px; font-weight: 900; color: var(--ink); }
+.emote-body small { font-size: 11px; font-weight: 700; color: var(--muted); }
+@keyframes emoteRise {
+  0% { opacity: 0; transform: translate(-50%, 30px) scale(.6); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  20% { transform: translate(-50%, -10px) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -260px) scale(.95); }
+}
+
+/* ---------- 結果畫面按鈕與分享 ---------- */
+.result-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.result-actions .btn { padding: 15px 10px; font-size: 18px; border-radius: 18px; }
+.modal {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(20, 12, 70, .6); backdrop-filter: blur(4px);
+}
+.modal-card {
+  width: min(100%, 420px); max-height: calc(100vh - 32px); overflow: auto;
+  background: #fff; border-radius: 26px; padding: 14px; display: grid; gap: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35); animation: feedIn .3s cubic-bezier(.2, 1.4, .4, 1);
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; padding-left: 6px; }
+.modal-head b { font-size: 18px; }
+.share-img { width: 100%; height: auto; border-radius: 16px; box-shadow: 0 4px 16px rgba(30, 20, 90, .2); }
+.share-tip { margin: 0; text-align: center; font-size: 13px; color: var(--muted); font-weight: 700; }
+.modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions .btn { text-decoration: none; }
+.modal-actions .btn[hidden] + .btn { grid-column: 1 / -1; }
