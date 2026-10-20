@@ -181,15 +181,30 @@ let unlocked = false;
 export function unlockAudio() {
   if (unlocked) return;
   unlocked = true;
+  // Web Audio：在點擊當下播一段無聲的緩衝區，iPhone 就會讓之後的音效出聲
+  if (ctx) {
+    try {
+      ctx.resume().catch(() => {});
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch { /* 忽略 */ }
+  }
+  // <audio>：在點擊當下 play() 一下就算解鎖了，而且「同一瞬間」馬上暫停。
+  // 以前是等 play() 回應才暫停，iPhone 回應得慢、靜音又不一定有用，會一次播出一大堆音效。
   const all = [...Object.values(tracks), ...Object.values(pools).flatMap((p) => p.els)];
   for (const a of all) {
     if (a === tracks[music.mode] && prefs.music) continue;
     if (a.live) continue;
     a.muted = true;
-    const p = a.play();
-    // 解鎖的同一下點擊如果已經在播按鍵聲，就不要把它停掉
-    const reset = () => { if (!a.live) { a.pause(); a.currentTime = 0; } a.muted = false; };
-    if (p) p.then(reset, () => { a.muted = false; }); else reset();
+    try {
+      const p = a.play();
+      a.pause();
+      a.currentTime = 0;
+      if (p) p.catch(() => {});
+    } catch { /* 忽略 */ }
+    a.muted = false;
   }
   if (music.mode) music.apply();
 }

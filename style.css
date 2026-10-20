@@ -412,6 +412,12 @@ body.solo #route-grid .opp-side { display: none; }
 .article a.wl { border-radius: 4px; }
 .article a.wl:hover { text-decoration: underline; }
 .article a.wl:active { background: rgba(47, 123, 255, .18); }
+/* 按上一頁回來：剛剛點的那個連結閃一下黃色 */
+.article a.wl.back-here { animation: backHere 2.4s ease-out; }
+@keyframes backHere {
+  0%, 45% { background: #ffe27a; box-shadow: 0 0 0 4px #ffe27a; }
+  100% { background: transparent; box-shadow: 0 0 0 4px transparent; }
+}
 .article a.dead { color: inherit; cursor: default; font-weight: inherit; }
 .article a.is-target {
   color: var(--yellow-ink); background: var(--yellow); padding: 1px 7px; font-weight: 900; border-radius: 8px;

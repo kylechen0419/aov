@@ -1,12 +1,12 @@
-import { Net } from './net.js?v=62';
-import { initPresence } from './presence.js?v=62';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=62';
-import { initNotify, notify } from './notify.js?v=62';
-import * as wiki from './wiki.js?v=62';
-import { tw, twTree, zhReady } from './zh.js?v=62';
-import { makeShareImage } from './share.js?v=62';
-import { solve } from './solver.js?v=62';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=62';
+import { Net } from './net.js?v=63';
+import { initPresence } from './presence.js?v=63';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=63';
+import { initNotify, notify } from './notify.js?v=63';
+import * as wiki from './wiki.js?v=63';
+import { tw, twTree, zhReady } from './zh.js?v=63';
+import { makeShareImage } from './share.js?v=63';
+import { solve } from './solver.js?v=63';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=63';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -1319,6 +1319,7 @@ function createGame(settings, id) {
     clicks: 0,
     path: [],
     stack: [],
+    spots: [],  // 跟 stack 一一對應：離開那一頁時點的是哪個連結、在畫面哪裡，按上一頁時捲回去
     current: null,
     loading: false,
     near: false,
@@ -1468,6 +1469,7 @@ function resumeGame(snap) {
   g.clicks = mine.clicks || 0;
   g.path = Array.isArray(mine.path) ? mine.path.slice() : [];
   g.stack = g.path.slice(0, -1);
+  g.spots = g.stack.map(() => null);
   if (snap.lastCall > 0) g.lastCallEnd = performance.now() + snap.lastCall;
   if (snap.hint) setTimeout(showHint, 800);
   renderOppHud();
@@ -1602,7 +1604,7 @@ function updateIntensity(left = Infinity) {
   music.setIntensity(lvl);
 }
 
-async function goTo(title, { first = false, back = false, restore = false, preload = null } = {}) {
+async function goTo(title, { first = false, back = false, restore = false, preload = null, from = null, spot = null } = {}) {
   const g = state.game;
   if (!g || g.finished || g.loading) return;
   g.loading = true;
@@ -1619,11 +1621,12 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
       if (g.path[g.path.length - 1] !== art.title) g.path.push(art.title);
     } else {
       if (!first) g.clicks++;
-      if (g.current && !back) g.stack.push(g.current);
+      if (g.current && !back) { g.stack.push(g.current); g.spots.push(from); }
       g.path.push(art.title);
     }
     g.current = art.title;
     renderArticle(art);
+    if (spot) restoreSpot(spot);
     renderBreadcrumb(g);
     $('#hud-clicks').textContent = g.clicks;
     fillPath($('#hud-path'), g.path, g.settings.target);
@@ -1683,6 +1686,27 @@ function renderBreadcrumb(g) {
 function renderArticle(art) {
   fillArticle($('#article'), $('#article-title'), art, state.game.settings);
   window.scrollTo(0, 0);
+}
+
+// 記住點的是哪個連結：同一個關鍵字在一頁裡可能出現好幾次，記第幾個，還有它當時在畫面上的高度
+function linkSpot(a) {
+  const title = a.dataset.title;
+  const same = [...$('#article').querySelectorAll('a.wl')].filter((x) => x.dataset.title === title);
+  return { title, k: Math.max(0, same.indexOf(a)), top: a.getBoundingClientRect().top };
+}
+
+// 按上一頁回來時，捲回剛剛點的那個連結並閃一下，長條目也不用重新找
+function restoreSpot(spot) {
+  const same = [...$('#article').querySelectorAll('a.wl')].filter((x) => x.dataset.title === spot.title);
+  const a = same[spot.k] || same[0];
+  if (!a) return;
+  // 盡量放回原本的高度，但不要被上方資訊列或下方按鈕擋住
+  const top = Math.min(Math.max(spot.top, innerHeight * 0.25), innerHeight * 0.6);
+  window.scrollTo(0, Math.max(0, a.getBoundingClientRect().top + scrollY - top));
+  a.classList.remove('back-here');
+  void a.offsetWidth;
+  a.classList.add('back-here');
+  setTimeout(() => a.classList.remove('back-here'), 2600);
 }
 
 // 把條目內容放進畫面：比賽和觀戰共用
@@ -1835,11 +1859,11 @@ function initGame() {
         const slip = all[Math.floor(Math.random() * all.length)] || a;
         showHit('🍌', `滑倒了！跑去了《${slip.textContent.trim() || tw(slip.dataset.title)}》`);
         haptic('error');
-        goTo(slip.dataset.title);
+        goTo(slip.dataset.title, { from: linkSpot(a) });
         return;
       }
     }
-    goTo(a.dataset.title);
+    goTo(a.dataset.title, { from: linkSpot(a) });
   });
   // 擋掉中鍵另開分頁
   root.addEventListener('auxclick', (e) => { if (e.target.closest('a')) e.preventDefault(); });
@@ -1849,8 +1873,9 @@ function initGame() {
     if (!g || !g.stack.length || g.loading) return;
     if (fxOn(g, 'freeze')) { toast('🧊 被冰凍了，等一下！', 1200); return; }
     const prev = g.stack.pop();
-    goTo(prev, { back: true }).then(() => {
-      if (g.current !== prev) g.stack.push(prev);
+    const spot = g.spots.pop() || null;
+    goTo(prev, { back: true, spot }).then(() => {
+      if (g.current !== prev) { g.stack.push(prev); g.spots.push(spot); }
     });
   };
 
@@ -2435,8 +2460,9 @@ async function findSolution(g) {
 }
 
 // ---------- 全體投票拿提示 ----------
-// 比賽超過 5 分鐘，還在比的人都同意，就給大家看終點條目的簡介（把終點的名字遮起來）
-const HINT_AFTER = 5 * 60 * 1000;
+// 比賽超過 3 分鐘，還在比的人都同意，就給大家看終點條目的簡介（把終點的名字遮起來）
+const HINT_MIN = 3;
+const HINT_AFTER = HINT_MIN * 60 * 1000;
 
 function offerHint() {
   const g = state.game;
@@ -2444,7 +2470,7 @@ function offerHint() {
   g.hint.offered = true;
   $('#hint-bar').hidden = false;
   renderHintBar();
-  toast(state.solo ? '已經 5 分鐘了！卡住的話可以看提示' : '已經 5 分鐘了！大家都同意就能看提示', 3000);
+  toast(state.solo ? `已經 ${HINT_MIN} 分鐘了！卡住的話可以看提示` : `已經 ${HINT_MIN} 分鐘了！大家都同意就能看提示`, 3000);
   sfx.near();
 }
 
@@ -2462,7 +2488,7 @@ function renderHintBar() {
   btn.textContent = h.myVote ? '✓ 已同意' : '💡 我要提示';
   $('#hint-ask-text').textContent = h.need
     ? `提示投票：${h.yes.length} / ${h.need} 人同意${h.myVote && h.yes.length < h.need ? '，等其他人…' : ''}`
-    : '比了 5 分鐘還沒到？大家都同意就能看提示';
+    : `比了 ${HINT_MIN} 分鐘還沒到？大家都同意就能看提示`;
 }
 
 function voteHint() {
