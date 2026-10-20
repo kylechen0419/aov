@@ -147,14 +147,15 @@ def write_wav(name, x):
         w.writeframes((x * 32767).astype('<i2').tobytes())
 
 def tock():
-    # 像手機密碼鍵盤的「嗒」：很短的木頭敲擊。幾個不成倍數的共振一下就消失，所以聽起來是「敲」不是「嗶」
-    n = int(0.035 * SR); t = np.arange(n) / SR
+    # 像 iPhone 密碼鍵盤的「嗒」：依照錄音量出來的特性重做
+    # 主共振約 1100 Hz，旁邊有 920、1350、2170 Hz，加上 200 Hz 左右的厚度，全部 2～4 毫秒內就衰減
+    n = int(0.03 * SR); t = np.arange(n) / SR
     x = np.zeros(n)
-    for f, amp, tau in [(1650, 1.0, 0.0055), (3700, 0.45, 0.0028), (5600, 0.18, 0.0015), (420, 0.35, 0.004)]:
+    for f, amp, tau in [(1100, 1.0, 0.0042), (1350, 0.5, 0.0034), (920, 0.45, 0.004), (620, 0.55, 0.003), (2170, 0.4, 0.0024), (3100, 0.25, 0.0015), (205, 0.5, 0.0045)]:
         x += amp * np.sin(2 * np.pi * f * t) * np.exp(-t / tau)
-    snap = biquad_bp(rng.standard_normal(n), 3000, 1.2) * np.exp(-t / 0.0007)
-    x += 0.25 * snap / (np.max(np.abs(snap)) or 1)
-    return fade(x * np.minimum(1, t / 0.0004), 0.0002, 0.006)
+    snap = biquad_bp(rng.standard_normal(n), 1800, 0.8) * np.exp(-t / 0.0008)
+    x += 0.35 * snap / (np.max(np.abs(snap)) or 1)
+    return fade(x * np.minimum(1, t / 0.0003), 0.0002, 0.005)
 
 def bubble():
     # 泡泡「啵」：音高快速往上滑的短音

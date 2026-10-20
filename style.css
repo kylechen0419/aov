@@ -626,14 +626,15 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .hud-strip { margin: 0; padding: 0 0 2px; list-style: none; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .hud-strip::-webkit-scrollbar { display: none; }
 .strip-chip {
-  flex: none; display: flex; align-items: center; gap: 5px; padding: 2px 9px 2px 2px; border-radius: 99px;
-  background: rgba(255, 255, 255, .18); color: #fff; max-width: 150px;
+  flex: none; display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 3px; border-radius: 13px;
+  background: rgba(255, 255, 255, .18); color: #fff; max-width: 160px;
 }
 .strip-chip .avatar.sm { width: 22px; height: 22px; font-size: 10px; box-shadow: 0 0 0 2px #fff; }
-.strip-info { display: flex; align-items: baseline; gap: 5px; line-height: 1.2; min-width: 0; }
+.strip-info { display: grid; grid-template-columns: minmax(0, auto) auto; column-gap: 5px; align-items: baseline; line-height: 1.2; min-width: 0; }
 .strip-info b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.strip-info span { flex: none; font-family: var(--font-num); font-weight: 800; font-size: 12px; }
-.strip-info small { display: none; }
+.strip-info span { font-family: var(--font-num); font-weight: 800; font-size: 12px; }
+/* 對手現在在哪個條目（房主可以在設定裡關掉） */
+.strip-info small { grid-column: 1 / -1; font-size: 10px; opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .strip-chip.done { background: var(--yellow); color: var(--yellow-ink); }
 .strip-chip.out { opacity: .5; }
 .strip-chip.near { background: var(--red); }
@@ -794,15 +795,22 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .result-actions .btn { padding: 15px 10px; font-size: 18px; border-radius: 18px; }
 .modal {
   position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
-  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   background: rgba(20, 12, 70, .6); backdrop-filter: blur(4px);
+  overflow-y: auto; overscroll-behavior: contain;
 }
+/* 視窗高度用「看得到的高度」（dvh），面板自己捲動，關閉鈕固定在面板頂端 */
 .modal-card {
-  width: min(100%, 420px); max-height: calc(100vh - 32px); overflow: auto;
+  width: min(100%, 420px); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   background: #fff; border-radius: 26px; padding: 14px; display: grid; gap: 10px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, .35); animation: feedIn .3s cubic-bezier(.2, 1.4, .4, 1);
 }
-.modal-head { display: flex; justify-content: space-between; align-items: center; padding-left: 6px; }
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center; padding-left: 6px;
+  position: sticky; top: -14px; z-index: 3; background: #fff; margin: -14px -14px 0; padding: 14px 14px 8px 20px;
+  border-radius: 26px 26px 0 0;
+}
 .modal-head b { font-size: 18px; }
 .share-img { width: 100%; height: auto; border-radius: 16px; box-shadow: 0 4px 16px rgba(30, 20, 90, .2); }
 .share-tip { margin: 0; text-align: center; font-size: 13px; color: var(--muted); font-weight: 700; }
@@ -1125,7 +1133,8 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 
 /* 往下捲動閱讀時把上方資訊收小，往上捲再展開 */
 .hud.compact { gap: 5px; padding-bottom: 7px; }
-.hud.compact .racer .avatar, .hud.compact .racer-name, .hud.compact .hud-strip, .hud.compact .opp-where { display: none; }
+.hud.compact .racer .avatar, .hud.compact .racer-name, .hud.compact .strip-chip .avatar { display: none; }
+.hud.compact .strip-chip { padding: 2px 9px; }
 .hud.compact .racer-steps b { font-size: 18px; }
 .hud.compact .hud-timer { font-size: 17px; padding: 3px 10px; min-width: 64px; }
 .hud.compact .hud-target { padding: 3px 10px; }
@@ -1140,3 +1149,24 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 /* 上方資訊收合時不讓瀏覽器自動補捲動位置（會跟收合互相觸發而抖動） */
 html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 #view-game { overflow-anchor: none; }
+
+/* ---------- 踢出玩家 ---------- */
+.party-player { position: relative; }
+.player { position: relative; }
+.kick-btn {
+  position: absolute; top: 4px; right: 4px; border: 0; cursor: pointer; font: inherit; font-size: 11px; font-weight: 900;
+  color: var(--red-d); background: #fff; padding: 2px 7px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
+}
+.kick-btn:active { transform: scale(.92); }
+
+/* ---------- 道具教學 ---------- */
+.items-card { gap: 12px; }
+.items-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.items-steps li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: start; font-size: 14px; line-height: 1.55; color: #4b4570; }
+.items-steps li > span { width: 28px; height: 28px; border-radius: 50%; background: var(--pink); color: #fff; font-weight: 900; display: grid; place-items: center; font-size: 14px; }
+.items-steps b { color: var(--ink); }
+.items-group { margin: 4px 6px 0; font-size: 13px; font-weight: 900; color: var(--muted); }
+.items-list li.atk i { background: #ffe7ec; border-radius: 10px; }
+.items-list li.self i { background: var(--green-t); border-radius: 10px; }
+.room-items-help { margin-left: 6px; border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; color: var(--pink-d); background: #fff; padding: 3px 10px; border-radius: 999px; }
+.item-guide-btn { border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; padding: 3px 9px; border-radius: 999px; background: #fff; color: var(--pink-d); box-shadow: 0 2px 6px rgba(0, 0, 0, .2); }

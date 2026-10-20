@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=41';
-import * as wiki from './wiki.js?v=41';
-import { tw, twTree, zhReady } from './zh.js?v=41';
-import { makeShareImage } from './share.js?v=41';
-import { solve } from './solver.js?v=41';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=41';
+import { Net } from './net.js?v=43';
+import * as wiki from './wiki.js?v=43';
+import { tw, twTree, zhReady } from './zh.js?v=43';
+import { makeShareImage } from './share.js?v=43';
+import { solve } from './solver.js?v=43';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=43';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -36,6 +36,7 @@ const CHAT_MAX = 50;
 const state = {
   watch: { id: null, shown: null, token: 0, follow: true, ready: false, live: {} },
   migrating: null,
+  banned: new Set(),
   myName: '',
   myAvatar: null,
   myId: null,
@@ -586,6 +587,8 @@ function renderDuelSlots() {
   $('#slot-guest').classList.toggle('ready', !!guest?.ready && guest.online !== false);
   $('#slot-guest').classList.toggle('empty', !guest);
   $('#slot-guest').classList.toggle('offline', guest?.online === false);
+  $('#slot-guest .kick-btn')?.remove();
+  if (iAmHost && guest) $('#slot-guest').append(kickButton(guest));
   $('#slot-host').classList.toggle('offline', host?.online === false);
   $('#slot-host').classList.toggle('is-me', iAmHost);
   $('#slot-guest').classList.toggle('is-me', !iAmHost);
@@ -610,6 +613,7 @@ function renderPartyBoard() {
     const name = Object.assign(document.createElement('b'), { textContent: p.name });
     const tag = Object.assign(document.createElement('span'), { className: 'party-tag', textContent: playerTag(p) });
     li.append(name, tag);
+    if (net.isHost && !p.host) li.append(kickButton(p));
     return li;
   });
   for (let i = list.length; i < max; i++) {
@@ -626,6 +630,12 @@ function paintRoomGoal() {
   $('#room-goal').textContent = `${GOALS[goal].icon} ${GOALS[goal].name} · ${isParty() ? '派對' : '1 對 1'}`;
   $('#room-goal').classList.toggle('steps', goal === 'steps');
   $('#room-goal').classList.toggle('items', goal === 'items');
+  $('#room-items-help').hidden = goal !== 'items';
+  // 第一次玩道具賽：進房間時先看一次教學
+  if (goal === 'items' && state.view === 'room' && !store.get('wikirace-items-guide') && $('#items-modal').hidden && !state.itemsGuideShown) {
+    state.itemsGuideShown = true;
+    setTimeout(openItemsGuide, 400);
+  }
 }
 
 function renderRoom() {
@@ -779,6 +789,25 @@ function initRoom() {
   };
 
   $('#btn-start').onclick = hostStart;
+}
+
+// ---------- 踢出玩家 ----------
+// 房主可以把人請出房間；被踢的人這個房間用同一個身分回不來
+function kickButton(p) {
+  const b = Object.assign(document.createElement('button'), { type: 'button', className: 'kick-btn', textContent: '踢出' });
+  b.setAttribute('aria-label', `把 ${p.name} 請出房間`);
+  b.onclick = (e) => { e.stopPropagation(); kickPlayer(p.id); };
+  return b;
+}
+
+function kickPlayer(pid) {
+  const p = state.players.get(pid);
+  if (!p || !net.isHost || p.host || state.view !== 'room') return;
+  if (!confirm(`要把 ${p.name} 請出房間嗎？`)) return;
+  state.banned.add(pid);
+  net.kick(pid, { t: 'kicked' });
+  p.leaving = true;
+  removePlayer(pid, { kicked: true });
 }
 
 // ---------- 轉移房主 ----------
@@ -974,6 +1003,7 @@ function createGame(settings, id) {
   $('#hud-me-avatar').style.setProperty('--side', party && me ? me.color : '');
   $('#hud-strip').hidden = !party;
   $('#hud-timer').classList.remove('sprint');
+  $('#items-modal').hidden = true;
   $('#hud').classList.remove('compact');
   $('#hint-bar').hidden = true;
   $('#hint-card').hidden = true;
@@ -2322,19 +2352,28 @@ async function runCrystal() {
   }
 }
 
+function openItemsGuide() { $('#items-modal').hidden = false; }
+
 function initItems() {
   $$('.item-slot').forEach((b) => { b.onclick = () => useItem(Number(b.dataset.slot)); });
-  $('#items-list').replaceChildren(...Object.values(ITEMS).map((it) => {
+  const row = (it) => {
     const li = document.createElement('li');
+    li.className = it.kind === 'self' ? 'self' : 'atk';
     li.append(Object.assign(document.createElement('i'), { textContent: it.icon }));
     const d = document.createElement('div');
     d.append(Object.assign(document.createElement('b'), { textContent: it.name }), Object.assign(document.createElement('small'), { textContent: it.desc }));
     li.append(d);
     return li;
-  }));
-  $('#item-timer').onclick = () => { $('#items-modal').hidden = false; };
-  $('#items-close').onclick = () => { $('#items-modal').hidden = true; };
-  $('#items-modal').addEventListener('click', (e) => { if (e.target.id === 'items-modal') $('#items-modal').hidden = true; });
+  };
+  $('#items-list-atk').replaceChildren(...Object.values(ITEMS).filter((it) => it.kind !== 'self').map(row));
+  $('#items-list-self').replaceChildren(...Object.values(ITEMS).filter((it) => it.kind === 'self').map(row));
+  const close = () => { $('#items-modal').hidden = true; store.set('wikirace-items-guide', '1'); };
+  $('#item-timer').onclick = openItemsGuide;
+  $('#item-guide').onclick = openItemsGuide;
+  $('#room-items-help').onclick = openItemsGuide;
+  $('#items-ok').onclick = close;
+  $('#items-close').onclick = close;
+  $('#items-modal').addEventListener('click', (e) => { if (e.target.id === 'items-modal') close(); });
 }
 
 // ---------- 觀戰：比完的人看還在比的人 ----------
@@ -2789,14 +2828,14 @@ function runCoach() {
 }
 
 // ---------- 連線：房主這一側 ----------
-function removePlayer(pid) {
+function removePlayer(pid, { kicked = false } = {}) {
   const p = state.players.get(pid);
   clearTimeout(graceTimers.get(pid));
   graceTimers.delete(pid);
   if (!p) return;
   state.players.delete(pid);
-  toast(`${p.name} 離開了`, 3000);
-  sysChat(`${p.name} 離開了`);
+  toast(kicked ? `已把 ${p.name} 請出房間` : `${p.name} 離開了`, 3000);
+  sysChat(kicked ? `${p.name} 被房主請出房間` : `${p.name} 離開了`);
   net.send({ t: 'left', id: pid });
   onOtherLeft(pid);
   if (!net.connected) setConn(isParty() ? '等待玩家' : '對手已離線');
@@ -2831,6 +2870,7 @@ function handleGuestMessage(msg, from, cid) {
       const key = cleanKey(msg.key) || cid;
       const name = String(msg.name || '玩家').slice(0, 16);
       const avatar = cleanAvatar(msg.avatar);
+      if (state.banned.has(key)) { net.reject(cid, { t: 'full', kicked: true }); return; }
       const existing = state.players.get(key);
       if (existing && !existing.host) {
         // 同一位玩家重新連線
@@ -2981,7 +3021,15 @@ function handleHostMessage(msg) {
       net.destroy();
       show('home');
       setConn('');
-      showError('#home-error', msg.started ? '這個房間正在比賽中，請等這局結束再加入' : '這個房間已經滿了');
+      showError('#home-error', msg.kicked ? '你已經被房主請出這個房間了' : msg.started ? '這個房間正在比賽中，請等這局結束再加入' : '這個房間已經滿了');
+      break;
+    case 'kicked':
+      session.clear();
+      net.destroy();
+      netBanner('');
+      show('home');
+      setConn('');
+      showError('#home-error', '你被房主請出房間了');
       break;
     case 'closed':
       session.clear();

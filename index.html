@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=41">
+  <link rel="stylesheet" href="style.css?v=43">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -129,7 +129,7 @@
         <div>
           <div class="eyebrow">房間代碼</div>
           <div class="room-code" id="room-code">-----</div>
-          <div id="room-goal" class="room-goal"></div>
+          <div id="room-goal" class="room-goal"></div><button id="room-items-help" class="room-items-help" type="button" hidden>📖 道具說明</button>
         </div>
         <div class="head-actions">
           <button id="btn-copy-link" class="btn pink small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
@@ -401,14 +401,23 @@
     <button class="item-slot" type="button" data-slot="0" aria-label="道具欄 1"></button>
     <button class="item-slot" type="button" data-slot="1" aria-label="道具欄 2"></button>
     <button id="item-timer" class="item-timer" type="button" aria-label="下一個道具（點一下看說明）">🎁</button>
+    <button id="item-guide" class="item-guide-btn" type="button">📖 道具說明</button>
   </div>
   <div id="item-hit" class="item-hit" hidden><span id="item-hit-icon"></span><b id="item-hit-text"></b></div>
 
   <div id="items-modal" class="modal" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="items-title">
-      <div class="modal-head"><b id="items-title">🎁 道具說明</b><button id="items-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
-      <p class="pick-sub">每 40 秒自動發一個道具，最多帶 2 個。離終點越遠的人拿到越強的道具（閃電、冰凍、香蕉皮…），領先的人只拿得到比較弱的。</p>
-      <ul id="items-list" class="items-list"></ul>
+    <div class="modal-card items-card" role="dialog" aria-modal="true" aria-labelledby="items-title">
+      <div class="modal-head"><b id="items-title">🎁 道具賽教學</b><button id="items-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <ol class="items-steps">
+        <li><span>1</span><div><b>道具會自動發</b>：比賽開始後每 40 秒發一個，最多帶 2 個，右下角會顯示下一個還要幾秒。</div></li>
+        <li><span>2</span><div><b>落後的人拿比較強的</b>：離終點越遠，越容易拿到閃電、冰凍這種強力道具；領先的人只拿得到比較弱的。</div></li>
+        <li><span>3</span><div><b>點右下角的道具就能用</b>：攻擊道具在派對模式可以選要丟給誰，自己用的道具會馬上生效。</div></li>
+      </ol>
+      <p class="items-group">⚔️ 攻擊對手</p>
+      <ul id="items-list-atk" class="items-list"></ul>
+      <p class="items-group">💚 自己用</p>
+      <ul id="items-list-self" class="items-list"></ul>
+      <button id="items-ok" class="btn primary" type="button">我知道了！</button>
     </div>
   </div>
 
@@ -523,6 +532,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=41"></script>
+  <script type="module" src="app.js?v=43"></script>
 </body>
 </html>

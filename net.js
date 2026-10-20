@@ -102,6 +102,18 @@ export class Net {
     this.alias.set(cid, pid);
   }
 
+  // 房主：把某位玩家請出去（送出通知後關掉他的連線）
+  kick(pid, msg) {
+    for (const [cid, p] of this.alias) {
+      if (p !== pid) continue;
+      const c = this.conns.get(cid);
+      this.alias.delete(cid);
+      if (!c) continue;
+      try { c.send(msg); } catch { /* 忽略 */ }
+      setTimeout(() => { this.conns.delete(cid); try { c.close(); } catch { /* 忽略 */ } }, 400);
+    }
+  }
+
   // 房主：拒絕某條連線
   reject(cid, msg) {
     const c = this.conns.get(cid);
