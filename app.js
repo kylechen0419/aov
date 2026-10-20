@@ -1,11 +1,12 @@
-import { Net } from './net.js?v=61';
-import { initPresence } from './presence.js?v=61';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=61';
-import * as wiki from './wiki.js?v=61';
-import { tw, twTree, zhReady } from './zh.js?v=61';
-import { makeShareImage } from './share.js?v=61';
-import { solve } from './solver.js?v=61';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=61';
+import { Net } from './net.js?v=62';
+import { initPresence } from './presence.js?v=62';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=62';
+import { initNotify, notify } from './notify.js?v=62';
+import * as wiki from './wiki.js?v=62';
+import { tw, twTree, zhReady } from './zh.js?v=62';
+import { makeShareImage } from './share.js?v=62';
+import { solve } from './solver.js?v=62';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=62';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -191,6 +192,8 @@ const GOALS = {
   steps: { icon: '👣', name: '比步數', brief: '步數最少的贏' },
   items: { icon: '🎁', name: '道具賽', brief: '每 40 秒發一個道具，落後的人拿到比較強的' },
 };
+const goalText = (goal) => { const g = GOALS[cleanGoal(goal)]; return `${g.icon} ${g.name}`; };
+let notifiedStart = null;  // 已經通知過「開始比賽」的房間代碼
 const cleanGoal = (g) => (GOALS[g] ? g : 'speed');
 const opponents = () => [...state.players.values()].filter((p) => p.id !== state.myId);
 const nameOf = (id) => state.players.get(id)?.name || state.game?.others.get(id)?.name || '玩家';
@@ -617,6 +620,7 @@ function initHome() {
       setConn(isParty() ? '等待玩家' : '等待對手');
       enterRoom(code);
       sysChat(`${name} 建立了房間`);
+      notify('room', '有人開了房間', `${isParty() ? '派對（2–8 人）' : '1 對 1'} · ${goalText(state.settings.goal)}`);
     } catch (e) {
       showError('#home-error', e.message);
       setConn('');
@@ -1204,6 +1208,11 @@ async function hostStart() {
     net.send({ t: 'settings', settings: s });
     net.send({ t: 'start', id, settings: s, mode: state.mode, players: [...state.players.values()] });
     startGame(s, id);
+    // 製作者通知：每間房只通知第一場，再來一局就不吵
+    if (!state.roomScore.games && notifiedStart !== net.code) {
+      notifiedStart = net.code;
+      notify('start', '比賽開始了', `${state.players.size} 位玩家 · ${goalText(s.goal)}`);
+    }
   } catch (e) {
     showError('#room-error', e.message);
   } finally {
@@ -1275,6 +1284,7 @@ async function startTraining() {
     $('#solo-modal').hidden = true;
     setConn('單人練習');
     startGame(s, randomKey());
+    notify('solo', '有人在單人訓練', `${tw(s.start)} → ${tw(s.target)}`);
   } catch (e) {
     showError('#solo-error', e.message || '出了點問題，再試一次');
   } finally {
@@ -3684,6 +3694,7 @@ initMusicSettings();
 initSolo();
 $('#btn-hint-vote').onclick = voteHint;
 initAnnounce();
+initNotify();
 show('home');
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 // 第一次來的人先看教學；從邀請連結來的人只顯示提示，不擋住加入（重新整理回房間時都不打擾）

@@ -65,6 +65,21 @@
   .ctl .close { background: #4a1530; color: var(--red); }
   .empty { color: var(--muted); text-align: center; padding: 30px 0; }
   .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .nt-state { font-size: 13px; font-weight: 800; margin: 0 0 8px; }
+  .nt-state.on { color: var(--green); }
+  .nt-steps { margin: 0 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.7; color: var(--muted); }
+  .nt-steps b, .nt-steps a { color: var(--ink); }
+  .nt-topic { display: flex; gap: 8px; align-items: center; background: var(--card2); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; }
+  .nt-topic code { flex: 1; min-width: 0; font-size: 15px; font-weight: 800; overflow-wrap: anywhere; user-select: all; }
+  .nt-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .nt-btns button, .nt-topic button { border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 8px 12px; border-radius: 10px; cursor: pointer; background: var(--line); color: var(--ink); }
+  .nt-btns .primary { background: var(--blue); color: #fff; }
+  .nt-btns .danger { background: #4a1530; color: var(--red); }
+  .nt-head { font-size: 12px; color: var(--muted); font-weight: 800; margin: 14px 0 4px; }
+  .chk { display: flex; align-items: center; gap: 10px; font-size: 14px; padding: 7px 0; cursor: pointer; }
+  .chk input { width: 20px; height: 20px; accent-color: var(--blue); flex: none; }
+  .chk.self { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; color: var(--muted); }
+  .nt-msg { font-size: 13px; color: var(--yellow); margin: 8px 0 0; min-height: 1em; }
 </style>
 </head>
 <body>
@@ -97,6 +112,33 @@
       <p class="ann-cur" id="ann-cur"></p>
     </div>
 
+    <h2>📱 手機通知</h2>
+    <div class="panel">
+      <p class="nt-state" id="nt-state">還沒開啟</p>
+      <div id="nt-setup" hidden>
+        <ol class="nt-steps">
+          <li>在 iPhone 的 App Store 搜尋並下載 <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener"><b>ntfy</b></a>（免費），打開時<b>允許通知</b>。</li>
+          <li>在 ntfy 按右上角 <b>＋</b>，把下面的頻道名稱貼進 Topic，按 <b>Subscribe</b>。</li>
+          <li>按「傳一則測試通知」，手機有跳出來就完成了。</li>
+        </ol>
+        <div class="nt-topic"><code id="nt-topic">—</code><button id="nt-copy" type="button">複製</button></div>
+      </div>
+      <div class="nt-btns">
+        <button id="nt-on" class="primary" type="button">開啟通知</button>
+        <button id="nt-test" type="button" hidden>傳一則測試通知</button>
+        <button id="nt-new" type="button" hidden>換一個頻道</button>
+        <button id="nt-off" class="danger" type="button" hidden>關閉通知</button>
+      </div>
+      <div id="nt-opts" hidden>
+        <p class="nt-head">什麼時候通知我</p>
+        <label class="chk"><input type="checkbox" data-nt="room"> 有人開了房間</label>
+        <label class="chk"><input type="checkbox" data-nt="start"> 房間開始第一場比賽</label>
+        <label class="chk"><input type="checkbox" data-nt="solo"> 有人開始單人訓練</label>
+        <label class="chk self"><input type="checkbox" id="nt-self"> 我用這支手機玩的時候，不要通知我自己</label>
+      </div>
+      <p class="nt-msg" id="nt-msg"></p>
+    </div>
+
     <h2>📊 歷史統計 <span class="seg" style="float:right"><button data-period="today" class="on">今日</button><button data-period="week">本週</button><button data-period="all">全部</button></span></h2>
     <div class="panel" id="stats">
       <div class="grid2">
@@ -120,7 +162,7 @@
     <div id="rooms" class="rooms"></div>
   </main>
 
-  <script src="firebase-config.js?v=61"></script>
+  <script src="firebase-config.js?v=62"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -143,6 +185,7 @@
   const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };
   const dur = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
+  let notifyCfg = null;
   let db = null, lastRooms = null, games = [], sortBy = 'new', filterBy = 'all', period = 'today';
 
   function start() {
@@ -163,6 +206,7 @@
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
         db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); });
+        db.ref('config/notify').on('value', (snap) => { notifyCfg = snap.val(); renderNotify(); }, () => { $('#nt-msg').textContent = '讀不到通知設定：請到 Firebase 規則加上 config（見 README）'; });
         db.ref('broadcast').on('value', (snap) => { const b = snap.val(); $('#ann-cur').textContent = b && b.text ? `目前公告：「${b.text}」（點清除可移除）` : '目前沒有公告'; });
         setInterval(() => renderRooms(), 5000);
         wireControls();
@@ -178,12 +222,62 @@
       $('#ann-text').value = '';
     };
     $('#ann-clear').onclick = () => db && db.ref('broadcast').remove();
+    wireNotify();
     $('#sort').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; sortBy = b.dataset.sort; sel('#sort', b); renderRooms(); };
     $('#filter').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filterBy = b.dataset.filter; sel('#filter', b); renderRooms(); };
     document.querySelector('.seg').parentElement.querySelector('.seg').addEventListener('click', () => {});
     document.querySelectorAll('[data-period]').forEach((b) => { b.onclick = () => { period = b.dataset.period; document.querySelectorAll('[data-period]').forEach((x) => x.classList.toggle('on', x === b)); renderStats(); }; });
   }
   function sel(group, btn) { $(group).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn)); }
+
+  // ---------- 手機通知（ntfy） ----------
+  const newTopic = () => 'wikirace-' + Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
+  const ntMsg = (t) => { $('#nt-msg').textContent = t || ''; };
+  const ntFail = () => ntMsg('存不進去：請先到 Firebase 規則加上 config（見 README）');
+  function renderNotify() {
+    const c = notifyCfg;
+    const on = !!(c && c.topic);
+    $('#nt-state').textContent = on ? '✅ 已開啟：有人在玩時會通知你的手機' : '還沒開啟';
+    $('#nt-state').classList.toggle('on', on);
+    $('#nt-setup').hidden = !on;
+    $('#nt-opts').hidden = !on;
+    $('#nt-on').hidden = on;
+    for (const id of ['#nt-test', '#nt-new', '#nt-off']) $(id).hidden = !on;
+    if (!on) return;
+    $('#nt-topic').textContent = c.topic;
+    document.querySelectorAll('[data-nt]').forEach((x) => { x.checked = !!c[x.dataset.nt]; });
+  }
+  function wireNotify() {
+    let self = null;
+    try { self = localStorage.getItem('wikirace-notify-self'); } catch (e) {}
+    $('#nt-self').checked = self !== '0';
+    $('#nt-self').onchange = () => { try { localStorage.setItem('wikirace-notify-self', $('#nt-self').checked ? '1' : '0'); } catch (e) {} };
+    $('#nt-on').onclick = () => {
+      // 預設不通知製作者自己玩的局
+      try { if (localStorage.getItem('wikirace-notify-self') == null) localStorage.setItem('wikirace-notify-self', '1'); } catch (e) {}
+      $('#nt-self').checked = true;
+      db.ref('config/notify').set({ topic: newTopic(), room: true, start: true, solo: true, at: Date.now() }).then(() => ntMsg('已開啟，照上面三個步驟在手機上訂閱'), ntFail);
+    };
+    $('#nt-new').onclick = () => {
+      if (!confirm('換頻道後，手機要重新訂閱新的頻道名稱。確定要換？')) return;
+      db.ref('config/notify').update({ topic: newTopic(), at: Date.now() }).then(() => ntMsg('已換新頻道，記得在 ntfy 訂閱新的名稱'), ntFail);
+    };
+    $('#nt-off').onclick = () => {
+      if (!confirm('確定要關閉手機通知？')) return;
+      db.ref('config/notify').remove().then(() => ntMsg('已關閉'), ntFail);
+    };
+    document.querySelectorAll('[data-nt]').forEach((x) => { x.onchange = () => db.ref('config/notify').update({ [x.dataset.nt]: x.checked }).then(() => ntMsg(''), ntFail); });
+    $('#nt-copy').onclick = () => {
+      const t = $('#nt-topic').textContent;
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => ntMsg('已複製頻道名稱'), () => ntMsg('複製失敗，請長按頻道名稱自己複製'));
+    };
+    $('#nt-test').onclick = async () => {
+      if (!notifyCfg || !notifyCfg.topic) return;
+      const { sendNtfy } = await import('./notify.js?v=62');
+      await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
+      ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
+    };
+  }
 
   function renderRooms() {
     let list = Object.values(lastRooms || {}).filter((r) => r && Date.now() - (r.updatedAt || 0) < 90000);

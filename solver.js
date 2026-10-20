@@ -4,7 +4,7 @@
 //   2 步：起點連到的條目裡，有沒有連到終點的
 //   3 步：起點連到的條目，再連到「會連到終點的條目」
 //   4 步：再往外多找一層（只找部分，找到的不一定最短）
-import { api } from './wiki.js?v=61';
+import { api } from './wiki.js?v=62';
 
 const BATCH = 50;
 const PARALLEL = 3;
