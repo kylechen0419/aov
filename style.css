@@ -1029,3 +1029,16 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .follow-btn[hidden] { display: none; }
 .follow-btn .live-dot { background: #fff; box-shadow: none; }
 .follow-btn:active { transform: translateX(-50%) translateY(3px); }
+
+/* ---------- 選玩家、轉移房主 ---------- */
+.crown-btn { font-size: 20px; }
+.pick-sub { margin: -4px 6px 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.pick-sub:empty { display: none; }
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pick-item {
+  width: 100%; display: flex; align-items: center; gap: 10px; border: 0; cursor: pointer; text-align: left;
+  font: inherit; background: var(--card-2); color: var(--ink); padding: 8px 12px; border-radius: 16px;
+}
+.pick-item b { font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-item small { font-size: 12px; font-weight: 800; color: var(--muted); }
+.pick-item:active { transform: scale(.97); background: var(--blue-t); }

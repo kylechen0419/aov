@@ -30,15 +30,19 @@ export class Net {
   }
 
   // ---------- 房主 ----------
-  createRoom(tries = 0) {
+  // 指定 code 時是接手別人的房間：舊房主剛放掉這個代碼，可能要等一下才能用
+  createRoom(tries = 0, code = null) {
     return new Promise((resolve, reject) => {
       this.isHost = true;
       this.closing = false;
-      this.code = randomCode();
+      this.code = code || randomCode();
       const peer = new Peer(PREFIX + this.code);
       peer.on('open', () => { this.peer = peer; resolve(this.code); });
       peer.on('error', (err) => {
-        if (err.type === 'unavailable-id' && tries < 5 && !this.peer) {
+        if (err.type === 'unavailable-id' && code && tries < 20 && !this.peer) {
+          peer.destroy();
+          setTimeout(() => this.createRoom(tries + 1, code).then(resolve, reject), 1000);
+        } else if (err.type === 'unavailable-id' && !code && tries < 5 && !this.peer) {
           peer.destroy();
           this.createRoom(tries + 1).then(resolve, reject);
         } else if (!this.peer) {

@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=34">
+  <link rel="stylesheet" href="style.css?v=35">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -132,6 +132,7 @@
         </div>
         <div class="head-actions">
           <button id="btn-copy-link" class="btn pink small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
+          <button id="btn-transfer" class="icon-btn crown-btn" type="button" aria-label="轉移房主" title="轉移房主" hidden>👑</button>
           <button id="btn-leave" class="icon-btn" aria-label="離開房間" title="離開房間"><svg class="ic"><use href="#i-exit"/></svg></button>
         </div>
       </div>
@@ -392,6 +393,14 @@
     <p class="splash-note"><svg class="ic"><use href="#i-music"/></svg>開啟音樂與音效</p>
   </div>
 
+  <div id="pick-modal" class="modal" hidden>
+    <div class="modal-card pick-card" role="dialog" aria-modal="true" aria-labelledby="pick-title">
+      <div class="modal-head"><b id="pick-title"></b><button id="pick-close" class="icon-btn" type="button" aria-label="取消"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <p id="pick-sub" class="pick-sub"></p>
+      <ul id="pick-list" class="pick-list"></ul>
+    </div>
+  </div>
+
   <div id="share-modal" class="modal" hidden>
     <div class="modal-card">
       <div class="modal-head"><b>分享戰績</b><button id="share-close" class="icon-btn" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
@@ -482,6 +491,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=34"></script>
+  <script type="module" src="app.js?v=35"></script>
 </body>
 </html>
