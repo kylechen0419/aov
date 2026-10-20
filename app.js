@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=53';
-import * as wiki from './wiki.js?v=53';
-import { tw, twTree, zhReady } from './zh.js?v=53';
-import { makeShareImage } from './share.js?v=53';
-import { solve } from './solver.js?v=53';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=53';
+import { Net } from './net.js?v=54';
+import * as wiki from './wiki.js?v=54';
+import { tw, twTree, zhReady } from './zh.js?v=54';
+import { makeShareImage } from './share.js?v=54';
+import { solve } from './solver.js?v=54';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=54';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -2895,7 +2895,7 @@ function closeEmotes() { $('#emote-tray').hidden = true; }
 
 function sendEmote(e) {
   if (!EMOTES.includes(e)) return;
-  if (tooFast(`emote:${state.myId}`, 1200)) { toast('表情冷卻中…', 1000); return; }
+  if (tooFast(`emote:${state.myId}`, 2000)) { toast('表情冷卻中…', 1000); return; }
   showEmote(state.myId, e);
   if (net.isHost) net.send({ t: 'emote', id: state.myId, e });
   else net.send({ t: 'emote', e });
@@ -3185,7 +3185,7 @@ function handleGuestMessage(msg, from, cid) {
       break;
     }
     case 'emote':
-      if (!EMOTES.includes(msg.e) || tooFast(`emote:${from}`, 1000)) return;
+      if (!EMOTES.includes(msg.e) || tooFast(`emote:${from}`, 1800)) return;
       net.send({ t: 'emote', id: from, e: msg.e }, null, from);
       showEmote(from, msg.e);
       break;
