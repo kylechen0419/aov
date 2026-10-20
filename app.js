@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=46';
-import * as wiki from './wiki.js?v=46';
-import { tw, twTree, zhReady } from './zh.js?v=46';
-import { makeShareImage } from './share.js?v=46';
-import { solve } from './solver.js?v=46';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=46';
+import { Net } from './net.js?v=48';
+import * as wiki from './wiki.js?v=48';
+import { tw, twTree, zhReady } from './zh.js?v=48';
+import { makeShareImage } from './share.js?v=48';
+import { solve } from './solver.js?v=48';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=48';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -37,6 +37,8 @@ const state = {
   watch: { id: null, shown: null, token: 0, follow: true, ready: false, live: {} },
   migrating: null,
   banned: new Set(),
+  devices: new Map(),
+  roomScore: { games: 0, wins: {} },
   myName: '',
   myAvatar: null,
   myId: null,
@@ -70,6 +72,13 @@ const session = {
 };
 
 const randomKey = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+// 這支手機的代號：被踢出的人換個身分重新輸入代碼也進不來
+const deviceId = (() => {
+  let d = null;
+  try { d = localStorage.getItem('wikirace-device'); } catch { /* 忽略 */ }
+  if (!d || !/^[a-z0-9]{6,20}$/.test(d)) { d = randomKey(); try { localStorage.setItem('wikirace-device', d); } catch { /* 忽略 */ } }
+  return d;
+})();
 
 let toastTimer;
 function toast(msg, ms = 2600) {
@@ -96,7 +105,7 @@ function show(view) {
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
-  if (view === 'home') renderStats();
+  if (view === 'home') { renderStats(); renderHistory(); }
   if (view === 'room' || view === 'result') renderChat();
   window.scrollTo(0, 0);
 }
@@ -381,6 +390,56 @@ function renderStats() {
   $('#stat-streak').textContent = st.streak;
 }
 
+// ---------- 最近對戰（最多記 20 場） ----------
+function loadHistory() {
+  try { const h = JSON.parse(store.get('wikirace-history') || '[]'); return Array.isArray(h) ? h : []; } catch { return []; }
+}
+
+// 一局結束時記一筆；同一局的結果被更正時就更新那一筆
+function saveHistory(g, info) {
+  const list = loadHistory().filter((h) => h.id !== g.id);
+  const me = g.finished;
+  const opps = [...g.others.values()].map((o) => o.name);
+  const mine = info.entries?.find((e) => e.me);
+  list.unshift({
+    id: g.id, at: Date.now(), goal: cleanGoal(g.settings.goal), mode: g.mode, res: info.res,
+    place: mine?.place || null, total: info.entries?.length || 2,
+    start: tw(g.settings.start), target: tw(g.settings.target), clicks: me.clicks, ms: me.elapsed, reason: me.reason,
+    opp: opps.slice(0, 3).join('、') + (opps.length > 3 ? ` 等 ${opps.length} 人` : ''),
+  });
+  store.set('wikirace-history', JSON.stringify(list.slice(0, 20)));
+}
+
+let historyAll = false;
+function renderHistory() {
+  const list = loadHistory();
+  const shown = historyAll ? list : list.slice(0, 5);
+  $('#history-more').hidden = list.length <= 5;
+  $('#history-more').textContent = historyAll ? '收起' : `看全部（${list.length}）`;
+  if (!list.length) {
+    $('#history').replaceChildren(Object.assign(document.createElement('p'), { className: 'history-empty', textContent: '還沒有對戰紀錄，開一間房間跟朋友比一場吧！' }));
+    return;
+  }
+  $('#history').replaceChildren(...shown.map((h) => {
+    const li = document.createElement('li');
+    const badge = document.createElement('span');
+    const party = h.mode === 'party';
+    badge.className = `h-badge ${h.res === 'win' ? 'win' : h.res === 'lose' && !(party && h.place) ? 'lose' : ''}`;
+    badge.textContent = party ? (h.place ? `#${h.place}` : '–') : ({ win: '勝', lose: '敗', draw: '和' }[h.res] || '–');
+    const body = document.createElement('div');
+    body.className = 'h-body';
+    const d = new Date(h.at);
+    const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const how = h.reason === 'win' ? `${h.clicks} 步 · ${fmtTime(h.ms)}` : resultLabel({ reason: h.reason });
+    body.append(
+      Object.assign(document.createElement('span'), { className: 'h-route', textContent: `${h.start} → ${h.target}` }),
+      Object.assign(document.createElement('span'), { className: 'h-meta', textContent: `${GOALS[h.goal]?.icon || ''} ${party ? '派對' : '1對1'} · ${how} · vs ${h.opp || '—'} · ${when}` }),
+    );
+    li.append(badge, body);
+    return li;
+  }));
+}
+
 // ---------- 首頁 ----------
 function selectedGoal() {
   return cleanGoal(document.querySelector('input[name="goalHome"]:checked')?.value);
@@ -419,7 +478,7 @@ async function joinAsGuest(code, { auto = false } = {}) {
 }
 
 function sendJoin() {
-  net.send({ t: 'join', name: state.myName, avatar: state.myAvatar, key: state.myKey, gameId: state.game?.id || null });
+  net.send({ t: 'join', name: state.myName, avatar: state.myAvatar, key: state.myKey, device: deviceId, gameId: state.game?.id || null });
 }
 
 function initHome() {
@@ -448,6 +507,7 @@ function initHome() {
       store.set('wikirace-avatar', id);
       paintPicker();
       paintHomeAvatar();
+      toggleAvatarPick(false);
       const home = $('#home-avatar');
       home.classList.remove('pop');
       void home.offsetWidth;
@@ -463,6 +523,14 @@ function initHome() {
   paintPicker();
   paintHomeAvatar();
   $('#nickname').addEventListener('input', paintHomeAvatar);
+  // 頭像選單平常收起來，點自己的頭像才打開，首頁比較短
+  const toggleAvatarPick = (open = $('#avatar-pick').hidden) => {
+    $('#avatar-pick').hidden = !open;
+    $('#home-avatar-btn').setAttribute('aria-expanded', String(open));
+  };
+  $('#home-avatar-btn').onclick = () => toggleAvatarPick();
+  $('#history-more').onclick = () => { historyAll = !historyAll; renderHistory(); };
+  renderHistory();
 
   const savedMode = store.get('wikirace-mode');
   if (savedMode === 'party') document.querySelector('input[name="mode"][value="party"]').checked = true;
@@ -501,6 +569,8 @@ function initHome() {
       const code = await net.createRoom();
       state.myId = 'host';
       state.chat = [];
+      state.roomScore = { games: 0, wins: {} };
+      state.banned = new Set();
       state.players = new Map([['host', { id: 'host', name, avatar: state.myAvatar, ready: true, host: true, color: COLORS[0], online: true }]]);
       session.clear();
       setConn(isParty() ? '等待玩家' : '等待對手');
@@ -643,6 +713,7 @@ function renderRoom() {
   const host = net.isHost;
   const party = isParty();
   paintRoomGoal();
+  renderRoomScore();
   $('#row-lastcall').hidden = !party;
   $('#btn-transfer').hidden = !(host && onlineGuests().length);
   $('.versus').hidden = party;
@@ -682,7 +753,35 @@ function enterRoom(code) {
 
 // 房主：把玩家名單和設定同步給所有人
 function lobbyMsg() {
-  return { t: 'lobby', mode: state.mode, players: [...state.players.values()], settings: state.settings };
+  return { t: 'lobby', mode: state.mode, players: [...state.players.values()], settings: state.settings, score: state.roomScore };
+}
+
+// 一局的冠軍記一勝（平手或沒人抵達就只算場數）
+function scoreGame(g, info) {
+  g.scored = true;
+  let winners = [];
+  if (g.mode === 'party') winners = info.entries.filter((e) => e.place === 1).map((e) => e.id);
+  else if (info.res === 'win') winners = [state.myId];
+  else if (info.res === 'lose') winners = [...g.others.keys()];
+  const sc = state.roomScore;
+  sc.games += 1;
+  for (const id of winners) sc.wins[id] = (sc.wins[id] || 0) + 1;
+  broadcastLobby();
+}
+
+function renderRoomScore() {
+  const sc = state.roomScore;
+  $('#room-score').hidden = !sc.games;
+  if (!sc.games) return;
+  $('#room-score-games').textContent = `已經比了 ${sc.games} 局`;
+  const rows = [...state.players.values()].map((p) => ({ p, w: sc.wins[p.id] || 0 })).sort((a, b) => b.w - a.w);
+  const top = rows[0]?.w || 0;
+  $('#room-score-list').replaceChildren(...rows.map(({ p, w }) => {
+    const li = document.createElement('li');
+    li.classList.toggle('top', w > 0 && w === top);
+    li.append(avatarEl(p, 'sm'), Object.assign(document.createElement('b'), { textContent: p.id === state.myId ? `${p.name}（你）` : p.name }), Object.assign(document.createElement('span'), { textContent: `${w} 勝` }));
+    return li;
+  }));
 }
 
 function broadcastLobby() {
@@ -824,6 +923,7 @@ function kickPlayer(pid) {
   if (!p || !net.isHost || p.host || state.view !== 'room' || stillRacing(pid)) return;
   if (!confirm(`要把 ${p.name} 請出房間嗎？`)) return;
   state.banned.add(pid);
+  if (state.devices.get(pid)) state.banned.add(state.devices.get(pid));
   net.kick(pid, { t: 'kicked' });
   p.leaving = true;
   removePlayer(pid, { kicked: true });
@@ -848,7 +948,10 @@ function migrateHost(toId, { leaving = false } = {}) {
       return { ...p };
     });
   sysChat(leaving ? `${state.myName} 離開了，房主交給 ${to.name}` : `${state.myName} 把房主交給 ${to.name}`);
-  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned] });
+  const wins = { ...state.roomScore.wins };
+  if (wins[state.myId] !== undefined) { wins[myNewKey] = wins[state.myId]; delete wins[state.myId]; }
+  state.roomScore = { games: state.roomScore.games, wins };
+  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned], score: state.roomScore });
   state.hostLocked = true;
   session.clear();
   for (const t of graceTimers.values()) clearTimeout(t);
@@ -895,6 +998,7 @@ async function takeOverHost(msg) {
   state.players = new Map((msg.players || []).map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar), online: p.id === state.myId, migrating: p.id !== state.myId }]));
   state.myReady = false;
   state.banned = new Set(Array.isArray(msg.banned) ? msg.banned.filter((k) => typeof k === 'string') : []);
+  if (msg.score?.wins) state.roomScore = { games: Number(msg.score.games) || 0, wins: { ...msg.score.wins } };
   try {
     await net.createRoom(0, msg.code);
   } catch (e) {
@@ -1188,7 +1292,7 @@ function renderOppHud() {
     let where = '';
     if (o?.finished?.reason === 'win') where = `${o.name} 已用 ${o.finished.clicks} 步抵達`;
     else if (o?.left) where = `${o.name} 已離線`;
-    else if (o?.offline) where = `${o.name} 斷線中，等待重新連線…`;
+    else if (o?.offline) where = `${o.name} 斷線中，等待重新連線…${waitLeft(o)}`;
     else if (o && g.settings.showOpponentPage) where = `${o.name} 在《${tw(o.current)}》`;
     $('#hud-opp-page').textContent = where;
     $('#hud-opp').classList.toggle('offline', !!o?.offline);
@@ -1213,7 +1317,7 @@ function renderOppHud() {
     li.append(avatarEl(o, 'sm'));
     const info = document.createElement('span');
     info.className = 'strip-info';
-    const label = o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : o.offline ? '斷線中…' : `${o.clicks} 步`;
+    const label = o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : o.offline ? `斷線${waitLeft(o, true)}` : `${o.clicks} 步`;
     info.append(Object.assign(document.createElement('b'), { textContent: o.name }), Object.assign(document.createElement('span'), { textContent: label }));
     if (g.settings.showOpponentPage && !o.finished && !o.left && !o.offline) {
       info.append(Object.assign(document.createElement('small'), { textContent: tw(o.current) }));
@@ -1757,12 +1861,14 @@ function onOtherLeft(id) {
   else if (state.view === 'result') showResult(true);
 }
 
-function onPresence(id, online) {
+function onPresence(id, online, wait = 0) {
   const p = state.players.get(id);
   if (p) p.online = online;
   const o = state.game?.others.get(id);
   if (o && !o.left) {
     o.offline = !online;
+    o.offlineUntil = online ? 0 : performance.now() + (Number(wait) || 0);
+    refreshWaitTicker();
     if (!online) o.near = false;
     renderOppHud();
     if (state.view === 'game' && !state.game.finished) {
@@ -1772,6 +1878,29 @@ function onPresence(id, online) {
   }
   if (state.view === 'room') renderRoom();
   if (state.view === 'result' && state.game) showResult(true);
+}
+
+// 斷線的人還會等多久（秒）
+function waitLeft(o, short = false) {
+  if (!o.offlineUntil) return '';
+  const sec = Math.max(0, Math.ceil((o.offlineUntil - performance.now()) / 1000));
+  return short ? ` ${sec}s` : `（還等 ${sec} 秒）`;
+}
+
+// 有人斷線時，每秒更新畫面上的倒數
+let waitTicker = null;
+function refreshWaitTicker() {
+  const g = state.game;
+  const any = g && [...g.others.values()].some((o) => o.offline && !o.left && !o.finished);
+  if (any && !waitTicker) {
+    waitTicker = setInterval(() => {
+      const gg = state.game;
+      if (!gg || ![...gg.others.values()].some((o) => o.offline && !o.left && !o.finished)) { clearInterval(waitTicker); waitTicker = null; return; }
+      if (state.view === 'game') renderOppHud();
+      else if (state.view === 'result' && gg.mode === 'party') renderRanking(gg, ranking(gg));
+      else if (state.view === 'watch') renderWatch();
+    }, 1000);
+  }
 }
 
 // ---------- 結果 ----------
@@ -1803,7 +1932,7 @@ function ranking(g) {
   const meP = state.players.get(state.myId);
   const entries = [
     { id: state.myId, name: state.myName, avatar: state.myAvatar, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false },
-    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left })),
+    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left, offline: o.offline, offlineUntil: o.offlineUntil })),
   ];
   const group = (e) => {
     if (e.finished?.reason === 'win') return 0;
@@ -1835,6 +1964,7 @@ function resultLabel(f) {
 function rankStatus(e) {
   if (e.finished?.reason === 'win') return `${e.clicks} 步 · ${fmtTime(e.finished.elapsed)}`;
   if (e.left && !e.finished) return '離線';
+  if (!e.finished && e.offline) return `斷線中${waitLeft(e)}`;
   if (!e.finished) return `比賽中… ${e.clicks} 步`;
   if (e.finished.reason === 'timeout') return `時間到 · ${e.clicks} 步`;
   if (e.finished.reason === 'giveup') return `投降 · ${e.clicks} 步`;
@@ -1863,9 +1993,16 @@ function renderRanking(g, entries) {
     body.append(sum, ol);
     li.append(badge, body);
     if (g.finished && !e.me && !e.finished && !e.left) {
-      const w = Object.assign(document.createElement('button'), { type: 'button', className: 'rank-watch', textContent: '👀 觀戰' });
-      w.onclick = () => openWatch(e.id);
-      li.append(w);
+      if (e.offline && net.isHost) {
+        // 房主不想等斷線的人：直接當他離開，排名馬上結算
+        const w = Object.assign(document.createElement('button'), { type: 'button', className: 'wait-btn', textContent: '不等了' });
+        w.onclick = () => { if (confirm(`不等 ${e.name} 了嗎？他會被當成離開。`)) { const p = state.players.get(e.id); if (p) p.leaving = true; removePlayer(e.id); } };
+        li.append(w);
+      } else if (!e.offline) {
+        const w = Object.assign(document.createElement('button'), { type: 'button', className: 'rank-watch', textContent: '👀 觀戰' });
+        w.onclick = () => openWatch(e.id);
+        li.append(w);
+      }
     }
     return li;
   });
@@ -1926,6 +2063,11 @@ function showResult(update = false) {
   else if (!g.recorded && g.restored) g.recorded = res;
   else if (!g.recorded) { recordResult(g.settings.goal, res); g.recorded = res; }
   else if (g.recorded !== res) { unrecordResult(g.settings.goal, g.recorded); recordResult(g.settings.goal, res); g.recorded = res; }
+  // 最近對戰：派對要等名次確定才記
+  if (res !== 'pending' && (!party || allDone(g))) saveHistory(g, info);
+  // 房主：這一局大家都比完了，記到本房戰績
+  if (net.isHost && allDone(g) && !g.scored) scoreGame(g, info);
+  refreshWaitTicker();
 
   const hero = $('#result-hero');
   const changed = !update || res !== lastOutcome;
@@ -2445,7 +2587,7 @@ function renderWatch(moved = false) {
   if (o.finished?.reason === 'win') { st.textContent = '抵達終點！'; st.classList.add('done'); }
   else if (o.finished) st.textContent = o.finished.reason === 'giveup' ? '投降了' : '時間到';
   else if (o.left) st.textContent = '離線了';
-  else if (o.offline) st.textContent = '斷線中，等待重新連線…';
+  else if (o.offline) st.textContent = `斷線中，等待重新連線…${waitLeft(o)}`;
   else if (o.near) { st.textContent = '終點連結就在這一頁！'; st.classList.add('near'); }
   else st.textContent = `正在看《${tw(o.current)}》`;
   if (moved) {
@@ -2611,7 +2753,12 @@ async function openShare() {
 }
 
 function initResult() {
-  $('#btn-rematch').onclick = () => enterRoom(net.code);
+  $('#btn-rematch').onclick = () => {
+    // 派對還沒全部比完就先回房間：用目前的名次記進最近對戰
+    const g = state.game;
+    if (g?.finished && !loadHistory().some((h) => h.id === g.id)) saveHistory(g, resultInfo(g));
+    enterRoom(net.code);
+  };
   $('#btn-share').onclick = openShare;
   $('#pick-close').onclick = () => closePick(null);
   $('#pick-modal').addEventListener('click', (e) => { if (e.target.id === 'pick-modal') closePick(null); });
@@ -2882,8 +3029,9 @@ function markOffline(pid) {
   const p = state.players.get(pid);
   if (!p || p.online === false) return;
   p.online = false;
-  net.send({ t: 'presence', id: pid, online: false });
-  onPresence(pid, false);
+  const wait = stillRacing(pid) ? GRACE_GAME : GRACE_ROOM;
+  net.send({ t: 'presence', id: pid, online: false, wait });
+  onPresence(pid, false, wait);
   broadcastLobby();
   // 還在比賽中的人多給一點時間回來（就算房主已經回到房間也一樣）
   const inRace = stillRacing(pid);
@@ -2923,7 +3071,9 @@ function handleGuestMessage(msg, from, cid) {
       const key = cleanKey(msg.key) || cid;
       const name = String(msg.name || '玩家').slice(0, 16);
       const avatar = cleanAvatar(msg.avatar);
-      if (state.banned.has(key)) { net.reject(cid, { t: 'full', kicked: true }); return; }
+      const device = cleanKey(msg.device);
+      if (state.banned.has(key) || (device && state.banned.has(device))) { net.reject(cid, { t: 'full', kicked: true }); return; }
+      if (device) state.devices.set(key, device);
       const existing = state.players.get(key);
       if (existing && !existing.host) {
         // 同一位玩家重新連線
@@ -3070,6 +3220,7 @@ function handleHostMessage(msg) {
       break;
     }
     case 'lobby':
+      if (msg.score && Number.isFinite(msg.score.games) && msg.score.wins && typeof msg.score.wins === 'object') state.roomScore = { games: msg.score.games, wins: { ...msg.score.wins } };
       state.mode = msg.mode === 'party' ? 'party' : 'duel';
       state.players = new Map((msg.players || []).map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
       if (state.myId && state.players.get(state.myId)) state.myReady = !!state.players.get(state.myId).ready;
@@ -3147,7 +3298,7 @@ function handleHostMessage(msg) {
       onOtherLeft(msg.id);
       break;
     case 'presence':
-      onPresence(msg.id, !!msg.online);
+      onPresence(msg.id, !!msg.online, Math.min(120000, Number(msg.wait) || 0));
       break;
     case 'chat':
       if (msg.m && typeof msg.m.text === 'string') pushChat({ ...msg.m, avatar: cleanAvatar(msg.m.avatar), text: msg.m.text.slice(0, 100) });
@@ -3247,4 +3398,9 @@ initMusicSettings();
 $('#btn-hint-vote').onclick = voteHint;
 show('home');
 // 第一次來的人先看教學（重新整理回房間時不打擾）
-if (!store.get('wikirace-tutorial-done') && !session.load()) openTutorial();
+// 第一次來的人先看教學；從邀請連結來的人只顯示提示，不擋住加入（重新整理回房間時都不打擾）
+if (!store.get('wikirace-tutorial-done') && !session.load()) {
+  if (new URLSearchParams(location.search).get('room')) $('#tut-hint').hidden = false;
+  else openTutorial();
+}
+$('#tut-hint').onclick = () => { $('#tut-hint').hidden = true; openTutorial(); };

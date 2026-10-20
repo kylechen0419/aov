@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=46">
+  <link rel="stylesheet" href="style.css?v=48">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -60,8 +60,7 @@
       <div class="bubbles" aria-hidden="true">
         <span class="bub b1">?</span><span class="bub b2">!</span><span class="bub b3">A</span><span class="bub b4">★</span><span class="bub b5">文</span><span class="bub b6">∞</span>
       </div>
-      <div class="hero-badge">1 VS 1 知識對戰</div>
-      <h1 class="logo-title">維基<br>競速</h1>
+      <h1 class="logo-title">維基競速</h1>
       <p class="hero-sub">從一個條目連到另一個條目，比誰先到！</p>
       <div class="chips">
         <span class="chip"><b id="topic-count">10,000+</b> 題庫</span>
@@ -72,20 +71,13 @@
     <section class="page">
       <div class="card">
         <div class="profile-row">
-          <span class="avatar me-side" id="home-avatar">?</span>
+          <button id="home-avatar-btn" class="avatar-edit" type="button" aria-label="換頭像" aria-expanded="false"><span class="avatar me-side" id="home-avatar">?</span><span class="avatar-edit-tag">換</span></button>
           <label class="field grow" for="nickname">
             <span class="field-label">你的暱稱</span>
             <input id="nickname" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname">
           </label>
         </div>
-        <p id="stats-label" class="stats-label">⚡ 比速度戰績</p>
-        <div class="stats" aria-label="你的戰績">
-          <div class="stat win"><b id="stat-w">0</b><span>勝場</span></div>
-          <div class="stat lose"><b id="stat-l">0</b><span>敗場</span></div>
-          <div class="stat rate"><b id="stat-rate">–</b><span>勝率</span></div>
-          <div class="stat streak"><b id="stat-streak">0</b><span>連勝</span></div>
-        </div>
-        <div class="avatar-pick">
+        <div class="avatar-pick" id="avatar-pick" hidden>
           <span class="field-label">選擇頭像</span>
           <div class="avatar-grid" id="avatar-grid" role="radiogroup" aria-label="選擇頭像"></div>
         </div>
@@ -105,6 +97,19 @@
           <button id="btn-join" class="btn green">加入</button>
         </div>
         <p id="home-error" class="error" hidden></p>
+        <button id="tut-hint" class="tut-hint" type="button" hidden>👋 第一次玩？30 秒看懂怎麼玩</button>
+      </div>
+
+      <div class="card record-card">
+        <p id="stats-label" class="stats-label">⚡ 比速度戰績</p>
+        <div class="stats" aria-label="你的戰績">
+          <div class="stat win"><b id="stat-w">0</b><span>勝場</span></div>
+          <div class="stat lose"><b id="stat-l">0</b><span>敗場</span></div>
+          <div class="stat rate"><b id="stat-rate">–</b><span>勝率</span></div>
+          <div class="stat streak"><b id="stat-streak">0</b><span>連勝</span></div>
+        </div>
+        <div class="history-head"><b>最近對戰</b><button id="history-more" class="link-btn dark" type="button" hidden>看全部</button></div>
+        <ul id="history" class="history"></ul>
       </div>
 
       <h2 class="section-title">怎麼玩 <button type="button" id="btn-tutorial" class="link-btn"><svg class="ic"><use href="#i-play"/></svg>看教學</button></h2>
@@ -157,6 +162,10 @@
     </section>
 
     <section class="page chat-page">
+      <div class="card room-score" id="room-score" hidden>
+        <div class="room-score-head"><b>🏆 本房戰績</b><span id="room-score-games"></span></div>
+        <ol id="room-score-list" class="room-score-list"></ol>
+      </div>
       <div class="card chat" data-chat>
         <div class="chat-head"><b>聊天室</b><span class="chat-sub">房間裡的人都看得到</span></div>
         <ul class="chat-log" aria-live="polite"></ul>
@@ -534,6 +543,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=46"></script>
+  <script type="module" src="app.js?v=48"></script>
 </body>
 </html>

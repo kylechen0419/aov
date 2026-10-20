@@ -107,7 +107,7 @@ symbol .fill { fill: currentColor; stroke: none; }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .14em; }
 
 /* 首頁主視覺 */
-.hero { position: relative; text-align: center; padding: 26px var(--gutter-r) 22px var(--gutter-l); display: grid; justify-items: center; gap: 10px; overflow: hidden; }
+.hero { position: relative; text-align: center; padding: 12px var(--gutter-r) 14px var(--gutter-l); display: grid; justify-items: center; gap: 6px; overflow: hidden; }
 .bubbles { position: absolute; inset: 0; pointer-events: none; }
 .bub {
   position: absolute; display: grid; place-items: center; border-radius: 50%;
@@ -129,7 +129,7 @@ symbol .fill { fill: currentColor; stroke: none; }
 }
 .logo-title {
   position: relative; z-index: 1; margin: 0;
-  font-weight: 900; font-size: clamp(64px, 22vw, 104px); line-height: .98; letter-spacing: .04em;
+  font-weight: 900; font-size: clamp(44px, 13vw, 66px); line-height: 1.05; letter-spacing: .04em;
   color: #fff;
   text-shadow: 0 4px 0 #2a1d9e, 0 8px 0 rgba(20, 10, 80, .35), 0 14px 30px rgba(20, 10, 80, .35);
   -webkit-text-stroke: 2px #2a1d9e;
@@ -1171,3 +1171,49 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .items-list li.self i { background: var(--green-t); border-radius: 10px; }
 .room-items-help { margin-left: 6px; border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; color: var(--pink-d); background: #fff; padding: 3px 10px; border-radius: 999px; }
 .item-guide-btn { border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; padding: 3px 9px; border-radius: 999px; background: #fff; color: var(--pink-d); box-shadow: 0 2px 6px rgba(0, 0, 0, .2); }
+
+/* ---------- 首頁精簡 ---------- */
+.splash .logo-title { font-size: clamp(64px, 22vw, 104px); line-height: .98; }
+.hero .bub { width: 30px; height: 30px; font-size: 15px; }
+.hero .b1 { left: 3%; top: 8%; } .hero .b2 { right: 3%; top: 10%; }
+.hero .b5 { left: 6%; top: auto; bottom: 10%; } .hero .b6 { right: 6%; top: auto; bottom: 12%; }
+.hero .b3, .hero .b4 { display: none; }
+.hero-sub { font-size: 14px; }
+.avatar-edit { position: relative; flex: none; border: 0; padding: 0; background: none; cursor: pointer; border-radius: 50%; }
+.avatar-edit .avatar { display: grid; }
+.avatar-edit-tag {
+  position: absolute; right: -4px; bottom: -2px; font-size: 11px; font-weight: 900; color: #fff; background: var(--blue);
+  padding: 1px 7px; border-radius: 999px; box-shadow: 0 0 0 2px #fff;
+}
+.avatar-pick[hidden] { display: none; }
+.tut-hint { justify-self: center; border: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 900; color: var(--blue-d); background: var(--blue-t); padding: 8px 14px; border-radius: 999px; }
+.tut-hint[hidden] { display: none; }
+.record-card { gap: 10px; }
+.history-head { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.history-head b { font-size: 14px; color: var(--ink); }
+.link-btn.dark { background: var(--card-2); color: var(--blue-d); }
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.history li { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 14px; background: var(--card-2); }
+.history .h-badge { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; font-size: 18px; background: #e4e0f5; color: var(--muted); }
+.history .h-badge.win { background: var(--yellow); color: var(--yellow-ink); }
+.history .h-badge.lose { background: var(--red-t); color: var(--red-d); }
+.history .h-route { font-size: 14px; font-weight: 900; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history .h-meta { font-size: 11px; font-weight: 700; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history .h-body { min-width: 0; display: grid; gap: 1px; }
+.history-empty { margin: 0; font-size: 13px; color: var(--muted); font-weight: 700; text-align: center; padding: 6px 0; }
+
+/* ---------- 本房戰績 ---------- */
+.room-score { gap: 8px; }
+.room-score[hidden] { display: none; }
+.room-score-head { display: flex; justify-content: space-between; align-items: baseline; }
+.room-score-head b { font-size: 16px; }
+.room-score-head span { font-size: 12px; font-weight: 700; color: var(--muted); }
+.room-score-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.room-score-list li { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 5px; border-radius: 999px; background: var(--card-2); }
+.room-score-list li.top { background: #fff4cc; }
+.room-score-list .avatar.sm { width: 28px; height: 28px; font-size: 12px; }
+.room-score-list b { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-score-list span { font-family: var(--font-num); font-weight: 800; font-size: 14px; color: var(--ink); }
+.room-score-list li.top span { color: #a06a00; }
+/* 斷線等待：房主可以不等了 */
+.wait-btn { flex: none; align-self: center; border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; background: var(--red); color: #fff; padding: 6px 10px; border-radius: 999px; box-shadow: 0 3px 0 var(--red-d); }
