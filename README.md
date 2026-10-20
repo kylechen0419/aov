@@ -52,3 +52,27 @@ python3 -m http.server 8000
 3. 之後每次推送到 `main` 都會自動部署，網址為 `https://<你的帳號>.github.io/<repo 名稱>/`。
 
 也可以部署到 Firebase Hosting、Netlify、Vercel 等任何靜態網站服務。
+
+## 線上人數（選用）
+
+首頁可以顯示「🟢 N 人在線上」。這需要一個免費的 Firebase 專案（遊戲本身不需要後端，只有這個計數需要）。不設定的話，首頁就不會出現這塊，其他功能一切正常。
+
+設定步驟：
+1. 用 Google 帳號登入 <https://console.firebase.google.com/>，點「建立專案」，名稱隨意，不用開 Google Analytics。
+2. 左側選 **Build → Realtime Database → 建立資料庫**，位置選「新加坡（asia-southeast1）」之類離台灣近的，規則先選 **測試模式（test mode）**。
+3. 建好後，到 Realtime Database 的 **規則（Rules）** 分頁，貼上這段後按發布：
+   ```json
+   { "rules": { "online": { ".read": true, ".write": true } } }
+   ```
+4. 回到專案首頁，點 **</> 網頁**，註冊一個 App，Firebase 會給你一段 `const firebaseConfig = { ... }`。
+5. 打開本專案的 `firebase-config.js`，把那段貼進去，改成：
+   ```js
+   window.WIKIRACE_FIREBASE = {
+     apiKey: '...', authDomain: '...', databaseURL: 'https://...firebaseio.com',
+     projectId: '...', appId: '...',
+   };
+   ```
+   **一定要有 `databaseURL`**（在 Realtime Database 頁面上方看得到）。
+6. 推送到 `main` 重新部署即可。
+
+這個計數只記「現在有幾個人打開網站」的總數，不會記下是誰、也看不到任何人的畫面。免費額度對朋友間的使用綽綽有餘。

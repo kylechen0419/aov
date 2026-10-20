@@ -1,9 +1,10 @@
-import { Net } from './net.js?v=54';
-import * as wiki from './wiki.js?v=54';
-import { tw, twTree, zhReady } from './zh.js?v=54';
-import { makeShareImage } from './share.js?v=54';
-import { solve } from './solver.js?v=54';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=54';
+import { Net } from './net.js?v=55';
+import { initPresence } from './presence.js?v=55';
+import * as wiki from './wiki.js?v=55';
+import { tw, twTree, zhReady } from './zh.js?v=55';
+import { makeShareImage } from './share.js?v=55';
+import { solve } from './solver.js?v=55';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=55';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -3420,6 +3421,11 @@ window.__wikirace = { net, state };
 
 initSound();
 initHome();
+// 線上人數（有設定 firebase-config.js 才會顯示）
+initPresence((n) => {
+  $('#online-count').textContent = n.toLocaleString('en-US');
+  $('#online-chip').hidden = !(n > 0);
+});
 initRoom();
 initGame();
 initResult();

@@ -1219,3 +1219,8 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .wait-btn { flex: none; align-self: center; border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; background: var(--red); color: #fff; padding: 6px 10px; border-radius: 999px; box-shadow: 0 3px 0 var(--red-d); }
 /* 快捷語是單數時，最後一顆（GG）佔滿整排 */
 .phrase-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* ---------- 線上人數 ---------- */
+.chip.online { display: inline-flex; align-items: center; gap: 6px; background: rgba(34, 197, 94, .28); }
+.chip.online[hidden] { display: none; }
+.online-dot { width: 8px; height: 8px; border-radius: 50%; background: #3cff8e; box-shadow: 0 0 0 0 rgba(60, 255, 142, .7); animation: livePulse 1.6s ease-out infinite; }
