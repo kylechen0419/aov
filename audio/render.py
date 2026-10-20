@@ -123,13 +123,22 @@ def biquad_bp(x, f0, q):
         y[i] = o
     return y
 
+def lowpass(x, fc):
+    a = np.exp(-2 * np.pi * fc / SR); y = np.zeros_like(x); v = 0.0
+    for i, s_ in enumerate(x):
+        v = (1 - a) * s_ + a * v; y[i] = v
+    return y
+
 def click():
-    # 像手機鍵盤／輸入密碼的「嗒」：很短、偏中音、帶一點木頭共鳴，不刺耳
-    n = int(0.03 * SR); t = np.arange(n) / SR
-    burst = rng.standard_normal(n) * np.exp(-t / 0.0012)
-    tock = biquad_bp(burst, 1700, 9) + 0.3 * biquad_bp(burst, 2900, 10)
-    body = np.sin(2 * np.pi * 1150 * t) * np.exp(-t / 0.004) * 0.35
-    return fade(tock / (np.max(np.abs(tock)) or 1) + body, 0.0003, 0.008)
+    # 像手機鍵盤／輸入密碼的「嗒」：完全不用純音（純音聽起來就是「嗶」），
+    # 只用很短的雜音，分成「喀」的高頻和「嗒」的低頻兩層
+    n = int(0.022 * SR); t = np.arange(n) / SR
+    noise = rng.standard_normal(n)
+    crisp = biquad_bp(noise, 3000, 0.9) * np.exp(-t / 0.0010)
+    thock = lowpass(lowpass(noise, 900), 900) * np.exp(-t / 0.0025)
+    crisp /= np.max(np.abs(crisp)) or 1
+    thock /= np.max(np.abs(thock)) or 1
+    return fade(crisp + 0.8 * thock, 0.0002, 0.006)
 
 def write_wav(name, x):
     x = np.clip(x, -1, 1)

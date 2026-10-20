@@ -1,8 +1,8 @@
-import { Net } from './net.js';
-import * as wiki from './wiki.js';
-import { tw, twTree, zhReady } from './zh.js';
-import { makeShareImage } from './share.js';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js';
+import { Net } from './net.js?v=25';
+import * as wiki from './wiki.js?v=25';
+import { tw, twTree, zhReady } from './zh.js?v=25';
+import { makeShareImage } from './share.js?v=25';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=25';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];

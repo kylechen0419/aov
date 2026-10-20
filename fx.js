@@ -27,7 +27,7 @@ const SFX_NAMES = ['click', 'flip', 'count', 'go', 'opp', 'tick', 'heart', 'alar
 const pools = {};
 for (const name of SFX_NAMES) {
   // 按鍵聲用 wav：mp3 開頭有一小段靜音，點下去會慢半拍
-  const src = name === 'click' ? 'audio/sfx-click.wav?v=2' : `audio/sfx-${name}.mp3`;
+  const src = name === 'click' ? 'audio/sfx-click.wav?v=3' : `audio/sfx-${name}.mp3`;
   const n = name === 'click' ? 4 : name === 'tick' || name === 'flip' ? 3 : 2;
   pools[name] = { els: Array.from({ length: n }, () => makeAudio(src)), i: 0 };
 }
