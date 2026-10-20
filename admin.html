@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>維基競速・後台</title>
+<style>
+  :root { color-scheme: dark; --bg: #16122e; --card: #241c46; --line: #352a63; --muted: #9c93c9; --ink: #fff; --blue: #4f8cff; --green: #35d07f; --yellow: #ffd23f; --red: #ff5c7a; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; font-family: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", sans-serif; background: var(--bg); color: var(--ink); padding: max(16px, env(safe-area-inset-top)) 16px 40px; }
+  h1 { font-size: 20px; margin: 8px 0 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .gate { max-width: 360px; margin: 18vh auto 0; display: grid; gap: 12px; text-align: center; }
+  .gate input { font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink); }
+  .gate button { font: inherit; font-weight: 800; font-size: 16px; padding: 12px; border: 0; border-radius: 12px; background: var(--blue); color: #fff; cursor: pointer; }
+  .gate .err { color: var(--red); font-size: 13px; min-height: 18px; }
+  .stat { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .stat .box { background: var(--card); border-radius: 14px; padding: 10px 16px; }
+  .stat b { font-size: 24px; display: block; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .rooms { display: grid; gap: 12px; }
+  .room { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+  .room-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .code { font-family: "Baloo 2", monospace; font-weight: 800; font-size: 18px; letter-spacing: .08em; }
+  .tag { font-size: 12px; font-weight: 800; padding: 2px 9px; border-radius: 999px; background: var(--line); color: var(--ink); }
+  .tag.game { background: #1e5bbf; }
+  .tag.result { background: #7a5a12; color: var(--yellow); }
+  .tag.room { background: #2b6b3f; color: #bff3d2; }
+  .meta { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  .players { display: grid; gap: 5px; }
+  .pl { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .pl .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl .pg { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pl.done .pg { color: var(--green); font-weight: 800; }
+  .pl.left { opacity: .5; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+</style>
+</head>
+<body>
+  <div id="gate" class="gate">
+    <h1>維基競速・後台</h1>
+    <p class="sub">請輸入後台密碼</p>
+    <input id="pw" type="password" placeholder="密碼" autocomplete="off" enterkeyhint="go">
+    <button id="go">進入</button>
+    <p id="err" class="err"></p>
+  </div>
+
+  <main id="main" hidden>
+    <h1>🎮 正在遊玩的房間</h1>
+    <p class="sub" id="status">連線中…</p>
+    <div class="stat">
+      <div class="box"><b id="s-rooms">0</b><span>房間</span></div>
+      <div class="box"><b id="s-players">0</b><span>遊玩中</span></div>
+      <div class="box"><b id="s-online">–</b><span>在線上</span></div>
+    </div>
+    <div id="rooms" class="rooms"></div>
+  </main>
+
+  <script src="firebase-config.js?v=57"></script>
+  <script>
+  // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
+  const ADMIN_PASS = 'wiki0419';
+  const $ = (s) => document.querySelector(s);
+
+  function openGate() {
+    const tryPw = () => {
+      if ($('#pw').value === ADMIN_PASS) {
+        try { sessionStorage.setItem('wikirace-admin', '1'); } catch {}
+        start();
+      } else { $('#err').textContent = '密碼不對'; }
+    };
+    $('#go').onclick = tryPw;
+    $('#pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryPw(); });
+    $('#pw').focus();
+  }
+
+  const GOAL = { speed: '⚡ 比速度', steps: '👣 比步數', items: '🎁 道具賽' };
+  const STATE = { room: ['room', '房間中'], game: ['game', '比賽中'], result: ['result', '結算中'] };
+  const dist = (d) => ({ 1: '差 1 步', 2: '約差 2 步', 3: '還很遠' }[d] || '');
+  const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };
+
+  function render(rooms) {
+    const list = Object.values(rooms || {}).filter((r) => r && Date.now() - (r.updatedAt || 0) < 90000)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    $('#s-rooms').textContent = list.length;
+    $('#s-players').textContent = list.reduce((n, r) => n + (r.count || 0), 0);
+    $('#status').textContent = `更新於 ${new Date().toLocaleTimeString('zh-TW')}`;
+    if (!list.length) { $('#rooms').innerHTML = '<p class="empty">目前沒有人在玩</p>'; return; }
+    $('#rooms').innerHTML = '';
+    for (const r of list) {
+      const el = document.createElement('div');
+      el.className = 'room';
+      const [cls, label] = STATE[r.state] || STATE.room;
+      const head = `<div class="room-top"><span class="code">${esc(r.code || '')}</span><span class="tag ${cls}">${label}</span><span class="tag">${r.mode === 'party' ? '派對' : '1 對 1'}</span><span class="tag">${GOAL[r.goal] || ''}</span></div>`;
+      const route = r.start ? `《${esc(r.start)}》→《${esc(r.target)}》 · ` : '';
+      const meta = `<p class="meta">房主 ${esc(r.host || '')} · ${r.count || 0} 人 · ${route}已比 ${r.games || 0} 局${r.startedAt ? ' · 本局 ' + ago(r.startedAt) : ''} · ${ago(r.updatedAt)}前更新</p>`;
+      const players = (r.players || []).map((p) => {
+        const prog = r.state === 'game' || r.state === 'result'
+          ? `${p.steps || 0} 步${dist(p.dist) ? ' · ' + dist(p.dist) : ''}${p.done ? ' · ✅' : ''}`
+          : (p.ready ? '✓ 準備' : '…');
+        return `<div class="pl ${p.done ? 'done' : ''} ${p.left ? 'left' : ''}"><span class="nm">${esc(p.name || '')}</span><span class="pg">${prog}</span></div>`;
+      }).join('');
+      el.innerHTML = head + meta + `<div class="players">${players}</div>`;
+      $('#rooms').appendChild(el);
+    }
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  async function start() {
+    $('#gate').hidden = true;
+    $('#main').hidden = false;
+    const CFG = window.WIKIRACE_FIREBASE;
+    if (!CFG || !CFG.databaseURL) { $('#status').textContent = '尚未設定 Firebase（firebase-config.js）'; return; }
+    const load = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+    try {
+      if (!window.firebase) {
+        await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+        await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
+      }
+      const app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
+      const db = firebase.database(app);
+      db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); render(lastRooms); });
+      db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
+      // 每 5 秒重畫一次，讓「幾秒前更新」「本局時間」的數字跟著跑
+      setInterval(() => render(lastRooms), 5000);
+    } catch { $('#status').textContent = '連不上 Firebase'; }
+  }
+  let lastRooms = null;
+
+  if (sessionStorage.getItem('wikirace-admin') === '1') start(); else openGate();
+  </script>
+</body>
+</html>

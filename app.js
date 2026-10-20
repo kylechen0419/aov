@@ -1,10 +1,11 @@
-import { Net } from './net.js?v=55';
-import { initPresence } from './presence.js?v=55';
-import * as wiki from './wiki.js?v=55';
-import { tw, twTree, zhReady } from './zh.js?v=55';
-import { makeShareImage } from './share.js?v=55';
-import { solve } from './solver.js?v=55';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=55';
+import { Net } from './net.js?v=57';
+import { initPresence } from './presence.js?v=57';
+import { publishRoom, clearRoom } from './rooms.js?v=57';
+import * as wiki from './wiki.js?v=57';
+import { tw, twTree, zhReady } from './zh.js?v=57';
+import { makeShareImage } from './share.js?v=57';
+import { solve } from './solver.js?v=57';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=57';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -746,6 +747,33 @@ function renderRoom() {
   $('#room-hint').textContent = hint;
 }
 
+// 後台：房主把房間概況寫到 Firebase（只有房間層級資訊，沒有誰在哪個條目）。節流，不會太頻繁。
+let roomSyncAt = 0;
+function syncRoom(force = false) {
+  if (!net.isHost || !net.code) return;
+  const now = performance.now();
+  if (!force && now - roomSyncAt < 2500) return;
+  roomSyncAt = now;
+  const g = state.game;
+  const inGame = (state.view === 'game' || state.view === 'result') && g;
+  let players;
+  if (inGame) {
+    players = [{ name: state.myName, steps: g.finished?.clicks ?? g.clicks, dist: g.dist || 0, done: !!g.finished }];
+    for (const o of g.others.values()) players.push({ name: o.name, steps: o.clicks, dist: o.dist || 0, done: !!o.finished, left: !!o.left });
+  } else {
+    players = [...state.players.values()].map((pl) => ({ name: pl.name, steps: 0, dist: 0, done: false, ready: !!(pl.host || pl.ready) }));
+  }
+  publishRoom(net.code, {
+    code: net.code, host: state.myName, mode: state.mode,
+    goal: cleanGoal(state.settings.goal), state: state.view,
+    count: inGame ? players.length : state.players.size,
+    players, games: state.roomScore.games,
+    start: inGame ? tw(g.settings.start) : '',
+    target: inGame ? tw(g.settings.target) : '',
+    startedAt: inGame && g.startAt ? Date.now() - (performance.now() - g.startAt) : 0,
+  });
+}
+
 function enterRoom(code) {
   $('#room-code').textContent = code;
   if (net.isHost) state.hostLocked = false;
@@ -753,6 +781,7 @@ function enterRoom(code) {
   showError('#room-error');
   show('room');
   renderRoom();
+  syncRoom(true);
 }
 
 // 房主：把玩家名單和設定同步給所有人
@@ -791,6 +820,7 @@ function renderRoomScore() {
 function broadcastLobby() {
   net.send(lobbyMsg());
   if (state.view === 'room') renderRoom();
+  syncRoom(true);
 }
 
 let settingsTimer;
@@ -951,6 +981,7 @@ function migrateHost(toId, { leaving = false } = {}) {
       if (p.id === toId) return { ...p, host: true, ready: true };
       return { ...p };
     });
+  clearRoom(code);
   sysChat(leaving ? `${state.myName} 離開了，房主交給 ${to.name}` : `${state.myName} 把房主交給 ${to.name}`);
   const wins = { ...state.roomScore.wins };
   if (wins[state.myId] !== undefined) { wins[myNewKey] = wins[state.myId]; delete wins[state.myId]; }
@@ -1056,6 +1087,7 @@ function closePick(id = null) {
 // 主動離開：先告訴大家，房主則直接解散房間
 function leaveRoom() {
   session.clear();
+  if (net.isHost) clearRoom(net.code);
   net.send(net.isHost ? { t: 'closed' } : { t: 'bye' });
   setTimeout(() => {
     net.destroy();
@@ -1208,6 +1240,7 @@ function startGame(settings, id) {
     setTimeout(() => { overlay.hidden = true; }, 450);
     g.startAt = performance.now();
     g.timer = setInterval(tick, 200);
+    syncRoom(true);
     goTo(settings.start, { first: true, preload });
   }, 1000);
 }
@@ -1378,6 +1411,7 @@ function tick() {
     if (left < 10000 && sec !== g.lastSecond) { g.lastSecond = sec; sfx.tick(); haptic('light'); }
   }
   updateIntensity(left);
+  syncRoom();
   if (g.fx) applyFx();
   if (isItems(g)) itemClock(g);
   if (ms >= HINT_AFTER && !g.hint.offered && !g.hint.shown) offerHint();
@@ -1716,6 +1750,7 @@ function onOtherProgress(id, msg) {
   if (typeof msg.desc === 'string') o.desc = msg.desc;
   o.offline = false;
   renderOppHud();
+  syncRoom();
   if (g.finished) {
     if (state.view === 'result') showResult(true);
     else if (state.view === 'watch') renderWatch(id === state.watch.id && moved);
@@ -2090,6 +2125,7 @@ function showResult(update = false) {
   $('#btn-rematch').textContent = net.connected ? '再來一局' : (party ? '其他人都離線了' : '對手已離線');
 
   // 結果可能因為幾乎同時抵達而更正，戰績也跟著更正
+  syncRoom(true);
   if (res === 'pending') { /* 勝負未定，先不記戰績 */ }
   else if (!g.recorded && g.restored) g.recorded = res;
   else if (!g.recorded) { recordResult(g.settings.goal, res); g.recorded = res; }
