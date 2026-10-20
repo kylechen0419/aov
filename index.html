@@ -253,16 +253,6 @@
     <article class="paper">
       <p id="breadcrumb" class="breadcrumb"></p>
       <h1 id="article-title" class="article-title"></h1>
-      <div class="view-switch">
-        <div class="segmented" role="radiogroup" aria-label="條目顯示方式">
-          <label><input type="radio" name="artview" value="full" checked><span>全文</span></label>
-          <label><input type="radio" name="artview" value="links"><span>只看連結 <b id="link-count">0</b></span></label>
-        </div>
-      </div>
-      <div id="link-view" class="link-view" hidden>
-        <label class="link-search"><svg class="ic"><use href="#i-search"/></svg><input id="link-filter" type="search" placeholder="搜尋這一頁的連結…" autocomplete="off" enterkeyhint="search"></label>
-        <div id="link-groups"></div>
-      </div>
       <div id="article" class="article"></div>
       <div id="article-loading" class="loading" hidden><div class="spinner"></div></div>
     </article>
@@ -334,7 +324,10 @@
 
   <button id="emote-fab" class="emote-fab" data-emote-open aria-label="快速表情" hidden><svg class="ic"><use href="#i-smile"/></svg></button>
   <div id="emote-tray" class="emote-tray" hidden>
+    <p class="emote-label">表情</p>
     <div class="emote-grid" id="emote-grid"></div>
+    <p class="emote-label">快捷語</p>
+    <div class="phrase-grid" id="phrase-grid"></div>
   </div>
   <div id="emote-layer" class="emote-layer" aria-live="polite"></div>
   <div id="net-banner" class="net-banner" hidden></div>
@@ -384,10 +377,10 @@
         </section>
         <section class="tut-slide">
           <div class="tut-art art-tabs">
-            <div class="mini-tabs"><span><i>‹</i>上一頁</span><span><i>☰</i>只看連結</span><span><i>☺</i>表情</span><span><i>⚑</i>投降</span></div>
+            <div class="mini-tabs"><span><i>‹</i>上一頁</span><span><i>⇄</i>路線</span><span><i>☺</i>表情</span><span><i>⚑</i>投降</span></div>
           </div>
           <h2>好用的小工具</h2>
-          <p>走錯路可以按<b>上一頁</b>（也算一步）。條目太長找不到連結？切換到<b>「只看連結」</b>，還能搜尋。比賽中也能丟<b>表情</b>給對手。</p>
+          <p>走錯路可以按<b>上一頁</b>（也算一步），按<b>路線</b>看自己走過哪些條目。比賽中還能丟<b>表情</b>和<b>快捷語</b>嗆對手！</p>
         </section>
         <section class="tut-slide">
           <div class="tut-art art-modes">

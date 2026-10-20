@@ -27,7 +27,9 @@ const AVATARS = [
   ['rabbit', '兔兔'], ['dino', '小恐龍'], ['robot', '機器人'], ['shiba', '柴犬'], ['lion', '獅子'], ['chick', '小雞'],
 ];
 const AVATAR_IDS = new Set(AVATARS.map(([id]) => id));
-const EMOTES = ['👍', '😂', '😱', '🔥', '😭', '🤯', '😎', '👋', '快到了！', '迷路了…', '等等我！', 'GG'];
+const EMOJIS = ['👍', '😂', '😱', '🔥', '😭', '🤯', '😎', '👋'];
+const PHRASES = ['我快到了！', '迷路了…', '等等我啦！', 'GG FXXING EZ'];
+const EMOTES = [...EMOJIS, ...PHRASES];
 const CHAT_MAX = 50;
 
 const state = {
@@ -43,7 +45,6 @@ const state = {
   game: null,
   chat: [],
   hostLocked: false,
-  artView: 'full',
 };
 
 // 房主用：斷線玩家的保留計時、聊天與表情的頻率限制
@@ -181,7 +182,7 @@ function initSound() {
     if (!e.isTrusted || e.target.closest('[data-haptic]')) return;
     const el = e.target.closest('button, input[type=checkbox], input[type=radio], .article a');
     if (!el || el.disabled) return;
-    if (el.matches('.article a, .lchip')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }
+    if (el.matches('.article a')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }
     haptic('light');
     sfx.tap();
   }, true);
@@ -973,74 +974,7 @@ function renderArticle(art) {
     }
     a.removeAttribute('target');
   });
-  buildLinkIndex(root, art.title);
   window.scrollTo(0, 0);
-}
-
-// ---------- 只看連結 ----------
-// 依條目段落整理這一頁所有可以點的連結
-function buildLinkIndex(root, current) {
-  const g = state.game;
-  const groups = new Map();
-  const seen = new Set();
-  const target = g.settings.target;
-  let label = '開頭';
-  for (const el of root.querySelectorAll('h2, h3, a.wl')) {
-    if (el.tagName !== 'A') {
-      const text = el.textContent.replace(/\[.*?\]/g, '').trim();
-      if (text) label = text;
-      continue;
-    }
-    const t = el.dataset.title;
-    if (!t || t === current || seen.has(t)) continue;
-    seen.add(t);
-    let group = label;
-    if (t === target) group = '★ 終點就在這裡！';
-    else if (el.closest('.infobox')) group = '資訊框';
-    else if (el.closest('.navbox, .vertical-navbox')) group = '相關主題';
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group).push({ title: t, text: el.textContent.trim() || tw(t) });
-  }
-  // 終點連結永遠排在最上面
-  const sorted = [...groups.entries()].sort(([a], [b]) => (b.startsWith('★') ? 1 : 0) - (a.startsWith('★') ? 1 : 0));
-  g.links = sorted;
-  $('#link-count').textContent = seen.size;
-  $('#link-filter').value = '';
-  renderLinkGroups();
-}
-
-function renderLinkGroups() {
-  const g = state.game;
-  if (!g?.links) return;
-  const q = $('#link-filter').value.trim().toLowerCase();
-  const out = [];
-  for (const [label, items] of g.links) {
-    const hits = q ? items.filter((it) => it.text.toLowerCase().includes(q) || tw(it.title).toLowerCase().includes(q)) : items;
-    if (!hits.length) continue;
-    const box = document.createElement('section');
-    box.className = 'lgroup';
-    if (label.startsWith('★')) box.classList.add('goal');
-    box.append(Object.assign(document.createElement('h3'), { textContent: label }));
-    const wrap = document.createElement('div');
-    wrap.className = 'lchips';
-    for (const it of hits) {
-      const b = Object.assign(document.createElement('button'), { type: 'button', className: 'lchip', textContent: it.text, title: tw(it.title) });
-      b.dataset.title = it.title;
-      wrap.append(b);
-    }
-    box.append(wrap);
-    out.push(box);
-  }
-  if (!out.length) out.push(Object.assign(document.createElement('p'), { className: 'lempty', textContent: q ? '這一頁沒有符合的連結' : '這一頁沒有可以點的連結，試試上一頁' }));
-  $('#link-groups').replaceChildren(...out);
-}
-
-function setArtView(v) {
-  state.artView = v === 'links' ? 'links' : 'full';
-  store.set('wikirace-view', state.artView);
-  document.querySelector(`input[name="artview"][value="${state.artView}"]`).checked = true;
-  $('#article').hidden = state.artView === 'links';
-  $('#link-view').hidden = state.artView !== 'links';
 }
 
 function initGame() {
@@ -1075,14 +1009,6 @@ function initGame() {
     const msg = isParty() ? '確定要投降嗎？這一局你就不會有名次了。' : '確定要投降嗎？對手會直接獲勝。';
     if (confirm(msg)) finishGame('giveup');
   };
-
-  setArtView(store.get('wikirace-view'));
-  document.querySelectorAll('input[name="artview"]').forEach((r) => r.addEventListener('change', () => setArtView(r.value)));
-  $('#link-filter').addEventListener('input', renderLinkGroups);
-  $('#link-groups').addEventListener('click', (e) => {
-    const b = e.target.closest('.lchip');
-    if (b) goTo(b.dataset.title);
-  });
 
   $('#btn-path').onclick = () => { $('#path-drawer').hidden = !$('#path-drawer').hidden; };
   $('#btn-path-close').onclick = () => { $('#path-drawer').hidden = true; };
@@ -1591,8 +1517,9 @@ function showEmote(id, e) {
   const el = document.createElement('div');
   el.className = 'emote-pop';
   if (id === state.myId) el.classList.add('mine');
-  el.style.left = `${12 + Math.random() * 64}%`;
   const isText = !/\p{Extended_Pictographic}/u.test(e);
+  // 快捷語比較寬，靠中間一點才不會超出畫面
+  el.style.left = isText ? `${32 + Math.random() * 36}%` : `${12 + Math.random() * 64}%`;
   el.append(avatarEl(p, 'sm'));
   const body = document.createElement('div');
   body.className = 'emote-body';
@@ -1605,14 +1532,13 @@ function showEmote(id, e) {
 }
 
 function initEmotes() {
-  $('#emote-grid').replaceChildren(...EMOTES.map((e) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = /\p{Extended_Pictographic}/u.test(e) ? 'emote-btn' : 'emote-btn text';
-    b.textContent = e;
+  const make = (e, cls) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: cls, textContent: e });
     b.onclick = () => { sendEmote(e); closeEmotes(); };
     return b;
-  }));
+  };
+  $('#emote-grid').replaceChildren(...EMOJIS.map((e) => make(e, 'emote-btn')));
+  $('#phrase-grid').replaceChildren(...PHRASES.map((e) => make(e, 'phrase-btn')));
   for (const b of $$('[data-emote-open]')) {
     b.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -1672,7 +1598,7 @@ function initTutorial() {
 // 第一次比賽時，指出畫面上的重點
 const COACH = [
   { sel: ['.hud-target'], title: '這是你的終點', text: '抵達這個條目就贏了！計時已經開始囉。' },
-  { sel: ['#article a.wl', '.lchip', '.view-switch'], title: '點藍色連結前進', text: '每點一次算一步。找不到連結時，切換到「只看連結」還能搜尋。' },
+  { sel: ['#article a.wl'], title: '點藍色連結前進', text: '每點一次算一步，看到金色的連結就是終點！' },
   { sel: ['.tabbar'], title: '下方的小工具', text: '走錯了按「上一頁」，也能看路線、丟表情或投降。' },
 ];
 
