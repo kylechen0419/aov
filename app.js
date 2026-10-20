@@ -192,9 +192,15 @@ function initSound() {
   document.addEventListener('click', (e) => {
     // 只回應真人的點擊；程式觸發的點擊（例如 iPhone 震動用的隱藏開關）一律略過，否則會無限循環
     if (!e.isTrusted || e.target.closest('[data-haptic]')) return;
-    const el = e.target.closest('button, input[type=checkbox], input[type=radio], .article a');
-    if (!el || el.disabled) return;
-    if (el.matches('.article a')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }
+    // 點到 label 時瀏覽器會再對裡面的 input 送一次 click，略過那一次免得響兩聲
+    if (e.target.matches('input') && e.target.closest('label') && e.detail === 0) return;
+    if (e.target.closest('.article')) {
+      const a = e.target.closest('a');
+      if (a) haptic(a.dataset.title ? 'medium' : 'light');
+      return;
+    }
+    const el = e.target.closest('button, a, label, input, select, summary, [role=button], .splash, .coach');
+    if (!el || el.disabled || (el.matches('input') && el.type !== 'checkbox' && el.type !== 'radio')) return;
     haptic('light');
     sfx.tap();
   }, true);
@@ -1468,7 +1474,7 @@ function pushChat(m) {
   state.chat.push(m);
   if (state.chat.length > CHAT_MAX) state.chat.splice(0, state.chat.length - CHAT_MAX);
   renderChat();
-  if (m.kind === 'msg' && m.id !== state.myId && (state.view === 'room' || state.view === 'result')) { sfx.tap(); haptic('light'); }
+  if (m.kind === 'msg' && m.id !== state.myId && (state.view === 'room' || state.view === 'result')) { sfx.tick(); haptic('light'); }
 }
 
 // 房主：所有聊天訊息經過房主整理後再廣播

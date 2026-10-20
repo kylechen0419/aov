@@ -23,11 +23,13 @@ function makeAudio(src, loop = false) {
 }
 
 // 每個音效準備幾個播放器，讓連續觸發時可以重疊
-const SFX_NAMES = ['tap', 'flip', 'count', 'go', 'opp', 'tick', 'heart', 'alarm', 'near', 'ready', 'win', 'lose'];
+const SFX_NAMES = ['click', 'flip', 'count', 'go', 'opp', 'tick', 'heart', 'alarm', 'near', 'ready', 'win', 'lose'];
 const pools = {};
 for (const name of SFX_NAMES) {
-  const n = name === 'tap' || name === 'tick' || name === 'flip' ? 3 : 2;
-  pools[name] = { els: Array.from({ length: n }, () => makeAudio(`audio/sfx-${name}.mp3`)), i: 0 };
+  // 按鍵聲用 wav：mp3 開頭有一小段靜音，點下去會慢半拍
+  const src = name === 'click' ? 'audio/sfx-click.wav' : `audio/sfx-${name}.mp3`;
+  const n = name === 'click' ? 4 : name === 'tick' || name === 'flip' ? 3 : 2;
+  pools[name] = { els: Array.from({ length: n }, () => makeAudio(src)), i: 0 };
 }
 
 function playSfx(name) {
@@ -35,6 +37,8 @@ function playSfx(name) {
   const pool = pools[name];
   const a = pool.els[pool.i++ % pool.els.length];
   try {
+    a.live = true;
+    a.muted = false;
     a.currentTime = 0;
     const p = a.play();
     if (p) p.catch(() => {});
@@ -51,9 +55,11 @@ export function unlockAudio() {
   const all = [...Object.values(tracks), ...Object.values(pools).flatMap((p) => p.els)];
   for (const a of all) {
     if (a === tracks[music.mode] && prefs.music) continue;
+    if (a.live) continue;
     a.muted = true;
     const p = a.play();
-    const reset = () => { a.pause(); a.currentTime = 0; a.muted = false; };
+    // 解鎖的同一下點擊如果已經在播按鍵聲，就不要把它停掉
+    const reset = () => { if (!a.live) { a.pause(); a.currentTime = 0; } a.muted = false; };
     if (p) p.then(reset, () => { a.muted = false; }); else reset();
   }
   if (music.mode) music.apply();
@@ -118,7 +124,7 @@ export const sfx = {
   count: () => playSfx('count'),
   go: () => playSfx('go'),
   click: () => playSfx('flip'),
-  tap: () => playSfx('tap'),
+  tap: () => playSfx('click'),
   oppMove: () => playSfx('opp'),
   tick: () => playSfx('tick'),
   heartbeat: () => playSfx('heart'),

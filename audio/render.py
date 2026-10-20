@@ -111,6 +111,24 @@ def write(name, x, br='96k'):
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-c:a', 'libmp3lame', '-b:a', br, os.path.join(OUT, name + '.mp3')], check=True)
     os.remove(wav)
 
+# ---------- 按鍵點擊聲：清脆短促，存成 wav（mp3 開頭會多一小段靜音，點擊會感覺慢半拍） ----------
+def click():
+    n = int(0.045 * SR); t = np.arange(n) / SR
+    snap = np.diff(rng.standard_normal(n + 1)) * np.exp(-t / 0.0015)  # 高頻的「喀」
+    f = 1700 + 900 * np.exp(-t / 0.006)  # 由高往下滑的「嗒」
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.008)
+    pop = np.sin(2 * np.pi * 620 * t) * np.exp(-t / 0.006) * 0.6  # 一點點厚度
+    return fade(0.35 * snap + body + pop, 0.0005, 0.01)
+
+def write_wav(name, x):
+    x = np.clip(x, -1, 1)
+    with wave.open(os.path.join(OUT, name + '.wav'), 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
+        w.writeframes((x * 32767).astype('<i2').tobytes())
+
+write_wav('sfx-click', normalize(click(), -3))
+if '--click-only' in sys.argv: sys.exit()
+
 # ---------- 大廳：輕快的鋼琴（D 大調，84 BPM） ----------
 bpm = 84; beat = 60 / bpm; bar = beat * 4
 prog = [(50, [62, 66, 69, 73]), (47, [59, 62, 66, 69]), (43, [59, 62, 67, 71]), (45, [61, 64, 69, 73])]
