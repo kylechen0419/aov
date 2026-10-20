@@ -2,7 +2,7 @@ import { Net } from './net.js';
 import * as wiki from './wiki.js';
 import { tw, twTree, zhReady } from './zh.js';
 import { makeShareImage } from './share.js';
-import { sfx, music, unlockAudio, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -189,6 +189,24 @@ function initSound() {
   splash.addEventListener('click', closeSplash);
   document.addEventListener('music-playing', closeSplash);
   // 每次點擊按鈕、選項都給一下觸覺與聲音回饋
+  const soundTarget = (t) => {
+    if (t.closest('.article, [data-haptic]')) return null;
+    const el = t.closest('button, a, label, input, select, summary, [role=button], .splash, .coach');
+    if (!el || el.disabled || (el.matches('input') && el.type !== 'checkbox' && el.type !== 'radio')) return null;
+    return el;
+  };
+  // 按鍵聲在手指一按下就播（像手機鍵盤），不用等放開；放開時的 click 就不再重播
+  let pressed = null;
+  let pressedAt = 0;
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.isTrusted || e.button > 0 || !canClickNow()) return;
+    const el = soundTarget(e.target);
+    if (!el) return;
+    pressed = el;
+    pressedAt = performance.now();
+    sfx.tap();
+  }, true);
+  document.addEventListener('pointercancel', () => { pressed = null; }, true);
   document.addEventListener('click', (e) => {
     // 只回應真人的點擊；程式觸發的點擊（例如 iPhone 震動用的隱藏開關）一律略過，否則會無限循環
     if (!e.isTrusted || e.target.closest('[data-haptic]')) return;
@@ -199,10 +217,12 @@ function initSound() {
       if (a) haptic(a.dataset.title ? 'medium' : 'light');
       return;
     }
-    const el = e.target.closest('button, a, label, input, select, summary, [role=button], .splash, .coach');
-    if (!el || el.disabled || (el.matches('input') && el.type !== 'checkbox' && el.type !== 'radio')) return;
+    const el = soundTarget(e.target);
+    if (!el) return;
     haptic('light');
-    sfx.tap();
+    const already = pressed && (pressed === el || pressed.contains(el) || el.contains(pressed)) && performance.now() - pressedAt < 2000;
+    pressed = null;
+    if (!already) sfx.tap();
   }, true);
 }
 

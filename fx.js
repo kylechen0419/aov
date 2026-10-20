@@ -32,8 +32,46 @@ for (const name of SFX_NAMES) {
   pools[name] = { els: Array.from({ length: n }, () => makeAudio(src)), i: 0 };
 }
 
+// 低延遲播放：音效先解碼放在記憶體，用 Web Audio 播放，比 <audio> 快很多。
+// 還不能用時（第一次點擊之前、或瀏覽器不支援）才退回 <audio>。
+const AC = window.AudioContext || window.webkitAudioContext;
+let ctx = null;
+const buffers = {};
+try {
+  // iOS 17 以上：讓音效跟音樂一樣，不受靜音鍵影響
+  if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  if (AC) {
+    ctx = new AC({ latencyHint: 'interactive' });
+    for (const name of SFX_NAMES) {
+      fetch(pools[name].els[0].src)
+        .then((r) => r.arrayBuffer())
+        .then((data) => new Promise((ok, bad) => ctx.decodeAudioData(data, ok, bad)))
+        .then((buf) => { buffers[name] = buf; }, () => {});
+    }
+  }
+} catch { ctx = null; }
+
+// iPhone 切到背景回來後 Web Audio 會被暫停，每次點擊都順手叫醒
+function wakeCtx() {
+  if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
+}
+for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, wakeCtx, { passive: true, capture: true });
+
+const fastReady = (name) => !!(ctx && ctx.state === 'running' && buffers[name]);
+// 現在播放按鍵聲會不會馬上有聲音（手指一按下就播的前提）
+export const canClickNow = () => prefs.sfx && (fastReady('click') || unlocked);
+
 function playSfx(name) {
   if (!prefs.sfx) return;
+  if (fastReady(name)) {
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = buffers[name];
+      src.connect(ctx.destination);
+      src.start(0);
+      return;
+    } catch { /* 退回 <audio> */ }
+  }
   const pool = pools[name];
   const a = pool.els[pool.i++ % pool.els.length];
   try {
