@@ -634,8 +634,6 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .strip-chip.done { background: var(--yellow); color: var(--yellow-ink); }
 .strip-chip.out { opacity: .5; }
 .strip-chip.near { background: var(--red); animation: throb .6s ease-in-out infinite alternate; }
-.banner.lastcall { background: #fff; color: var(--red-d); box-shadow: 0 4px 0 rgba(0, 0, 0, .12); animation: throb .5s ease-in-out infinite alternate; }
-.banner.lastcall::before { content: "⏱"; }
 
 /* ---------- 派對排行榜 ---------- */
 .ranking { gap: 10px; }

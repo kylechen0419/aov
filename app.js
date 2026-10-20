@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=29';
-import * as wiki from './wiki.js?v=29';
-import { tw, twTree, zhReady } from './zh.js?v=29';
-import { makeShareImage } from './share.js?v=29';
-import { solve } from './solver.js?v=29';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=29';
+import { Net } from './net.js?v=30';
+import * as wiki from './wiki.js?v=30';
+import { tw, twTree, zhReady } from './zh.js?v=30';
+import { makeShareImage } from './share.js?v=30';
+import { solve } from './solver.js?v=30';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=30';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -15,7 +15,6 @@ const DEFAULT_SETTINGS = {
 };
 const MAX_PLAYERS = { duel: 2, party: 8 };
 // 派對模式：第一個人抵達後，其他人剩這麼多秒
-const LAST_CALL = 60;
 // 斷線後保留位置的時間：比賽中久一點，房間裡短一點
 const GRACE_GAME = 60000;
 const GRACE_ROOM = 15000;
@@ -238,7 +237,7 @@ const DYK = [
   '條目最上方的資訊框（Infobox）常常藏著通往國家、首都和人物的捷徑？',
   '條目最下方的導航框（Navbox）收錄同類主題，是跳到相關條目的好地方？',
   '「上一頁」也算一步，走錯路時要想清楚是回頭還是繼續往前？',
-  '派對模式最多可以 8 個人一起比，第一個人抵達後其他人只剩 60 秒？',
+  '派對模式最多可以 8 個人一起比，每個人都能比到最後？',
   '比賽中不小心斷線也別慌，60 秒內連回來就能接著原本的進度？',
 ];
 
@@ -718,8 +717,6 @@ function createGame(settings, id) {
     near: false,
     finished: null,
     lastSecond: null,
-    lastCallEnd: 0,
-    lastCallSent: false,
     timer: null,
     heart: null,
   };
@@ -732,7 +729,6 @@ function createGame(settings, id) {
   paintAvatar($('#hud-me-avatar'), { name: state.myName, avatar: state.myAvatar });
   $('#hud-me-avatar').style.setProperty('--side', party && me ? me.color : '');
   $('#hud-strip').hidden = !party;
-  $('#hud-lastcall').hidden = true;
   renderOppHud();
   $('#hud-alert-opp').hidden = true;
   $('#hud-alert-me').hidden = true;
@@ -821,7 +817,6 @@ function gameSnapshot() {
   return {
     id: g.id, settings: g.settings, mode: g.mode, players: [...state.players.values()],
     elapsed: g.startAt ? performance.now() - g.startAt : 0,
-    lastCall: g.lastCallEnd ? Math.max(0, g.lastCallEnd - performance.now()) : 0,
     progress,
   };
 }
@@ -849,7 +844,6 @@ function resumeGame(snap) {
   g.clicks = mine.clicks || 0;
   g.path = Array.isArray(mine.path) ? mine.path.slice() : [];
   g.stack = g.path.slice(0, -1);
-  if (snap.lastCall > 0) g.lastCallEnd = performance.now() + snap.lastCall;
   renderOppHud();
   show('game');
   $('#countdown').hidden = true;
@@ -926,16 +920,9 @@ function tick() {
   const ms = elapsed();
   const limit = g.settings.timeLimit * 1000;
   const timer = $('#hud-timer');
-  let left = limit ? limit - ms : Infinity;
+  const left = limit ? limit - ms : Infinity;
   timer.textContent = limit ? fmtTime(left) : fmtTime(ms);
 
-  // 派對模式的最後衝刺倒數
-  if (g.lastCallEnd) {
-    const lc = g.lastCallEnd - performance.now();
-    left = Math.min(left, lc);
-    $('#hud-lastcall').hidden = false;
-    $('#hud-lastcall').textContent = `最後衝刺！剩 ${Math.max(0, Math.ceil(lc / 1000))} 秒`;
-  }
   if (left !== Infinity) {
     timer.classList.toggle('warn', left < 60000 && left >= 10000);
     timer.classList.toggle('crit', left < 10000);
@@ -1207,7 +1194,6 @@ function finishGame(reason) {
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
   sendProgress({ t: 'finish', ...g.finished });
-  if (net.isHost) onAnyFinish(state.myId, g.finished);
   $('#countdown').hidden = true;
   $('#path-drawer').hidden = true;
   $('#coach').hidden = true;
@@ -1221,27 +1207,6 @@ function finishGame(reason) {
   } else {
     showResult();
   }
-}
-
-// 房主：派對模式中第一個人抵達時，宣布最後衝刺
-function onAnyFinish(id, info) {
-  const g = state.game;
-  if (!g || g.mode !== 'party' || info.reason !== 'win' || g.lastCallSent) return;
-  g.lastCallSent = true;
-  net.send({ t: 'lastcall', seconds: LAST_CALL, by: id });
-  applyLastCall(LAST_CALL, id);
-}
-
-function applyLastCall(seconds, by) {
-  const g = state.game;
-  if (!g || g.lastCallEnd) return;
-  g.lastCallEnd = performance.now() + seconds * 1000;
-  if (g.finished) return;
-  const who = by === state.myId ? '你' : by ? nameOf(by) : '有人';
-  toast(`${who} 第一個抵達！剩下的人只剩 ${Math.round(seconds)} 秒`, 3500);
-  sfx.alarm();
-  haptic('warning');
-  tick();
 }
 
 function onOtherFinish(id, msg) {
@@ -1275,7 +1240,6 @@ function onOtherFinish(id, msg) {
     }
     return;
   }
-  if (net.isHost) onAnyFinish(id, msg);
   renderGoal();
   if (!g.finished) {
     refreshDanger();
@@ -1970,7 +1934,6 @@ function handleHostMessage(msg) {
           applyProgress(o, { ...p, finished: null });
           if (pending) onOtherFinish(id, pending);
         }
-        if (snap.lastCall > 0 && !g.lastCallEnd) applyLastCall(snap.lastCall / 1000, null);
         renderOppHud();
         if (g.finished) net.send({ t: 'finish', ...g.finished });
         else if (g.current) net.send({ t: 'progress', title: g.current, clicks: g.clicks, near: g.near, path: g.path });
@@ -2034,9 +1997,6 @@ function handleHostMessage(msg) {
       break;
     case 'presence':
       onPresence(msg.id, !!msg.online);
-      break;
-    case 'lastcall':
-      applyLastCall(msg.seconds || LAST_CALL, msg.by);
       break;
     case 'chat':
       if (msg.m && typeof msg.m.text === 'string') pushChat({ ...msg.m, avatar: cleanAvatar(msg.m.avatar), text: msg.m.text.slice(0, 100) });
