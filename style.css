@@ -925,3 +925,14 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .splash-note { margin: 0; display: inline-flex; align-items: center; gap: 6px; color: #fff; font-weight: 700; font-size: 14px; opacity: .9; }
 .splash-note .ic { width: 16px; height: 16px; }
 @keyframes splashPulse { 50% { transform: scale(1.07); } }
+
+/* ---------- 比步數模式 ---------- */
+.goal-pick span { display: grid; gap: 1px; line-height: 1.25; }
+.goal-pick small { font-size: 11px; font-weight: 700; opacity: .75; }
+.hud-goal {
+  margin-left: auto; flex: none; font-size: 12px; font-weight: 900; white-space: nowrap;
+  background: #fff; color: var(--yellow-ink); padding: 3px 9px; border-radius: 999px;
+}
+.hud-goal.hot { background: var(--red); color: #fff; animation: throb .6s ease-in-out infinite alternate; }
+.brief-goal { justify-self: center; font-size: 15px; font-weight: 900; padding: 4px 14px; border-radius: 999px; background: var(--blue-t); color: var(--blue-d); }
+.brief-goal.steps { background: #fff4cc; color: #a06a00; }

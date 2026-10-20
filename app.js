@@ -1,15 +1,15 @@
-import { Net } from './net.js?v=25';
-import * as wiki from './wiki.js?v=25';
-import { tw, twTree, zhReady } from './zh.js?v=25';
-import { makeShareImage } from './share.js?v=25';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=25';
+import { Net } from './net.js?v=26';
+import * as wiki from './wiki.js?v=26';
+import { tw, twTree, zhReady } from './zh.js?v=26';
+import { makeShareImage } from './share.js?v=26';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=26';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 const net = new Net();
 
 const DEFAULT_SETTINGS = {
-  lang: 'zh', timeLimit: 0, start: '', target: '',
+  lang: 'zh', goal: 'speed', timeLimit: 0, start: '', target: '',
   showOpponentPage: true, allowBack: true, trueRandom: false,
 };
 const MAX_PLAYERS = { duel: 2, party: 8 };
@@ -156,6 +156,8 @@ function fillPath(ol, path, target) {
 }
 
 const isParty = () => state.mode === 'party';
+// 比步數：抵達終點不會直接結束對手的比賽，最後比誰的步數少（一樣多再比用時）
+const isSteps = (g = state.game) => g?.settings.goal === 'steps';
 const opponents = () => [...state.players.values()].filter((p) => p.id !== state.myId);
 const nameOf = (id) => state.players.get(id)?.name || state.game?.others.get(id)?.name || '玩家';
 const personOf = (id) => {
@@ -416,6 +418,7 @@ function readForm() {
   const f = form().elements;
   return {
     lang: f.lang.value,
+    goal: f.goal.value === 'steps' ? 'steps' : 'speed',
     timeLimit: Number(f.timeLimit.value),
     start: f.start.value.trim(),
     target: f.target.value.trim(),
@@ -428,6 +431,7 @@ function readForm() {
 function writeForm(s) {
   const f = form().elements;
   f.lang.value = s.lang;
+  f.goal.value = s.goal === 'steps' ? 'steps' : 'speed';
   f.timeLimit.value = String(s.timeLimit);
   if (document.activeElement !== f.start) f.start.value = tw(s.start);
   if (document.activeElement !== f.target) f.target.value = tw(s.target);
@@ -722,6 +726,10 @@ function createGame(settings, id) {
   music.setIntensity(0);
   $('#brief-start').textContent = tw(settings.start);
   $('#brief-target').textContent = tw(settings.target);
+  const steps = settings.goal === 'steps';
+  $('#brief-goal').textContent = steps ? '👣 比步數：步數最少的贏' : '⚡ 比速度：先抵達的贏';
+  $('#brief-goal').classList.toggle('steps', steps);
+  renderGoal();
   return state.game;
 }
 
@@ -845,7 +853,8 @@ function renderOppHud() {
     $('#hud-opp-clicks').textContent = o ? o.clicks : 0;
     $('#hud-opp-clicks').parentElement.lastChild.textContent = ' 步';
     let where = '';
-    if (o?.left) where = `${o.name} 已離線`;
+    if (o?.finished?.reason === 'win') where = `${o.name} 已用 ${o.finished.clicks} 步抵達`;
+    else if (o?.left) where = `${o.name} 已離線`;
     else if (o?.offline) where = `${o.name} 斷線中，等待重新連線…`;
     else if (o && g.settings.showOpponentPage) where = `${o.name} 在《${tw(o.current)}》`;
     $('#hud-opp-page').textContent = where;
@@ -959,7 +968,10 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
 
     sendProgress({ t: 'progress', title: art.title, clicks: g.clicks, near, path: g.path });
     if (reached) finishGame('win');
-    else if (first) setTimeout(runCoach, 400);
+    else {
+      renderGoal();
+      if (!checkOutstepped() && first) setTimeout(runCoach, 400);
+    }
   } catch (e) {
     toast(`載入失敗：${e.message}`);
   } finally {
@@ -1124,6 +1136,40 @@ function onOtherProgress(id, msg) {
   }
 }
 
+// 比步數：目前抵達者中最少的步數
+function bestSteps(g) {
+  const all = [...g.others.values()].map((o) => o.finished).concat(g.finished || []);
+  const arrived = all.filter((f) => f?.reason === 'win').map((f) => f.clicks);
+  return arrived.length ? Math.min(...arrived) : null;
+}
+
+// 終點旁的小標籤：比步數時顯示目前最佳紀錄，對決時顯示還剩幾步可以贏
+function renderGoal() {
+  const g = state.game;
+  const el = $('#hud-goal');
+  if (!g || !isSteps(g)) { el.hidden = true; return; }
+  el.hidden = false;
+  const best = bestSteps(g);
+  el.classList.remove('hot');
+  if (best === null) { el.textContent = '👣 比步數'; return; }
+  if (g.mode === 'party' || g.finished) { el.textContent = `最佳 ${best} 步`; return; }
+  const left = best - 1 - g.clicks;
+  el.textContent = `${best - 1} 步內抵達才能贏 · 剩 ${Math.max(0, left)} 步`;
+  el.classList.add('hot');
+}
+
+// 對決比步數：對手已經抵達，而你再怎麼走都不會比他少，就直接結束
+function checkOutstepped() {
+  const g = state.game;
+  if (!g || g.finished || !isSteps(g) || g.mode === 'party') return false;
+  const best = bestSteps(g);
+  // 下一步就抵達也要 clicks + 1 步，一樣多步時先抵達的對手贏
+  if (best === null || g.clicks + 1 < best) return false;
+  toast(`步數已經追不上了（對手 ${best} 步）`, 3000);
+  finishGame('over');
+  return true;
+}
+
 function stopGameLoops(g) {
   clearInterval(g.timer);
   clearInterval(g.heart);
@@ -1186,6 +1232,16 @@ function onOtherFinish(id, msg) {
   o.near = false;
   renderOppHud();
   if (g.mode !== 'party') {
+    if (!g.finished && msg.reason === 'win' && isSteps(g)) {
+      // 比步數：對手抵達了，但你還有機會用更少的步數贏
+      renderGoal();
+      if (!checkOutstepped()) {
+        toast(`${o.name} 用 ${msg.clicks} 步抵達！你要在 ${msg.clicks - 1} 步內抵達才能贏`, 4000);
+        sfx.alarm();
+        haptic('warning');
+      }
+      return;
+    }
     if (!g.finished) {
       if (msg.reason === 'win') finishGame('lose');
       else if (msg.reason === 'giveup') finishGame('oppGaveUp');
@@ -1196,11 +1252,12 @@ function onOtherFinish(id, msg) {
     return;
   }
   if (net.isHost) onAnyFinish(id, msg);
+  renderGoal();
   if (!g.finished) {
     refreshDanger();
     if (msg.reason === 'win') {
       const place = ranking(g).find((e) => e.id === id)?.place;
-      feed([{ b: o.name }, ` 抵達終點！第 ${place || '?'} 名`], '抵達', o.color);
+      feed([{ b: o.name }, isSteps(g) ? ` 用 ${msg.clicks} 步抵達！目前第 ${place || '?'} 名` : ` 抵達終點！第 ${place || '?'} 名`], '抵達', o.color);
       sfx.oppMove();
     } else {
       feed([{ b: o.name }, msg.reason === 'giveup' ? ' 投降了' : ' 時間到出局'], '出局', o.color);
@@ -1246,7 +1303,17 @@ function onPresence(id, online) {
 // ---------- 結果 ----------
 function outcomeDuel(g) {
   const me = g.finished;
-  const opp = [...g.others.values()][0]?.finished;
+  const o = [...g.others.values()][0];
+  const opp = o?.finished;
+  if (isSteps(g)) {
+    if (me.reason === 'win' && opp?.reason === 'win') {
+      if (me.clicks !== opp.clicks) return me.clicks < opp.clicks ? 'win' : 'lose';
+      return me.elapsed === opp.elapsed ? 'draw' : (me.elapsed < opp.elapsed ? 'win' : 'lose');
+    }
+    // 你先抵達，對手還在走：等他走完才知道勝負
+    if (me.reason === 'win') return !opp && o && !o.left ? 'pending' : 'win';
+    if (me.reason === 'over') return 'lose';
+  }
   if (me.reason === 'win' && opp && opp.reason === 'win') {
     if (me.elapsed !== opp.elapsed) return me.elapsed < opp.elapsed ? 'win' : 'lose';
     return me.clicks === opp.clicks ? 'draw' : (me.clicks < opp.clicks ? 'win' : 'lose');
@@ -1272,7 +1339,9 @@ function ranking(g) {
     return 4;
   };
   entries.sort((a, b) => group(a) - group(b)
-    || (group(a) === 0 ? (a.finished.elapsed - b.finished.elapsed) || (a.clicks - b.clicks) : b.clicks - a.clicks));
+    || (group(a) === 0
+      ? (isSteps(g) ? (a.clicks - b.clicks) || (a.finished.elapsed - b.finished.elapsed) : (a.finished.elapsed - b.finished.elapsed) || (a.clicks - b.clicks))
+      : b.clicks - a.clicks));
   let place = 0;
   for (const e of entries) e.place = group(e) === 0 ? ++place : null;
   return entries;
@@ -1285,7 +1354,7 @@ function allDone(g) {
 function resultLabel(f) {
   if (!f) return '—';
   return {
-    win: '抵達終點', lose: '未抵達', giveup: '投降', timeout: '時間到', oppGaveUp: '對手投降', oppLeft: '對手離線', hostLeft: '房主離線',
+    win: '抵達終點', lose: '未抵達', over: '步數超過', giveup: '投降', timeout: '時間到', oppGaveUp: '對手投降', oppLeft: '對手離線', hostLeft: '房主離線',
   }[f.reason] || '—';
 }
 
@@ -1331,13 +1400,16 @@ function resultInfo(g) {
     const mine = entries.find((e) => e.me);
     const res = mine.place === 1 ? 'win' : 'lose';
     let title;
-    if (mine.place === 1) title = '第 1 名！你最快！';
+    if (mine.place === 1) title = isSteps(g) ? '第 1 名！你步數最少！' : '第 1 名！你最快！';
     else if (mine.place) title = `第 ${mine.place} 名！`;
     else title = g.finished.reason === 'giveup' ? '你投降了' : g.finished.reason === 'hostLeft' ? '房主離線了' : '沒能在時限內抵達…';
     return { res, kicker: mine.place ? String(mine.place) : '–', title, tone: mine.place === 1 ? 'win' : mine.place ? 'place' : 'lose', entries };
   }
   const res = outcomeDuel(g);
-  const map = { win: ['勝', '你贏了！'], lose: ['敗', '對手搶先一步…'], draw: ['和', '平手！'] };
+  if (res === 'pending') return { res, kicker: '…', title: `你用 ${g.finished.clicks} 步抵達！等待對手…`, tone: 'place' };
+  const map = isSteps(g)
+    ? { win: ['勝', '步數最少，你贏了！'], lose: ['敗', g.finished.reason === 'over' ? '步數追不上對手…' : '對手的步數更少…'], draw: ['和', '平手！'] }
+    : { win: ['勝', '你贏了！'], lose: ['敗', '對手搶先一步…'], draw: ['和', '平手！'] };
   return { res, kicker: map[res][0], title: map[res][1], tone: res };
 }
 
@@ -1360,12 +1432,15 @@ function showResult(update = false) {
   if (g.finished.reason === 'oppLeft') sub += '（對手離線）';
   if (g.finished.reason === 'timeout') sub += '（時間到）';
   if (party && !allDone(g)) sub += '　等待其他玩家…';
+  if (isSteps(g)) sub = `👣 比步數　${sub}`;
+  $('#btn-share').disabled = res === 'pending';
   $('#result-sub').textContent = sub;
   $('#btn-rematch').disabled = !net.connected;
   $('#btn-rematch').textContent = net.connected ? '再來一局' : (party ? '其他人都離線了' : '對手已離線');
 
   // 結果可能因為幾乎同時抵達而更正，戰績也跟著更正
-  if (!g.recorded) { recordResult(res); g.recorded = res; }
+  if (res === 'pending') { /* 勝負未定，先不記戰績 */ }
+  else if (!g.recorded) { recordResult(res); g.recorded = res; }
   else if (g.recorded !== res) { unrecordResult(g.recorded); recordResult(res); g.recorded = res; }
 
   const hero = $('#result-hero');
@@ -1374,7 +1449,7 @@ function showResult(update = false) {
   if (state.view !== 'result') show('result');
   if (!changed) return;
   if (res === 'win') { sfx.win(); confetti(); haptic('success'); }
-  else if (party && g.finished.reason === 'win') { sfx.ready(); haptic('success'); }
+  else if (res === 'pending' || (party && g.finished.reason === 'win')) { sfx.ready(); haptic('success'); }
   else { sfx.lose(); shake(hero.querySelector('.medal')); haptic('error'); }
   // 結算音效播完後回到大廳音樂
   setTimeout(() => { if (state.view === 'result') music.play('lobby'); }, 3500);

@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -106,7 +106,7 @@
         <li><span class="howto-n">壹</span><b>建立房間</b><span>把代碼或邀請連結傳給朋友</span></li>
         <li><span class="howto-n">貳</span><b>決定路線</b><span>房主設定起點與終點，也能隨機</span></li>
         <li><span class="howto-n">參</span><b>開始競速</b><span>只能點條目內文裡的連結</span></li>
-        <li><span class="howto-n">肆</span><b>抵達終點</b><span>先到者勝，同時抵達比用時</span></li>
+        <li><span class="howto-n">肆</span><b>抵達終點</b><span>比速度先到者勝；比步數則步數最少者勝</span></li>
       </ol>
 
       <section class="tip-card">
@@ -185,6 +185,13 @@
 
       <h2 class="section-title">規則</h2>
       <div class="card group">
+        <div class="row stack">
+          <span class="row-label">勝負方式</span>
+          <div class="segmented goal-pick" role="radiogroup" aria-label="勝負方式">
+            <label><input type="radio" name="goal" value="speed" checked><span>⚡ 比速度<small>先抵達的贏</small></span></label>
+            <label><input type="radio" name="goal" value="steps"><span>👣 比步數<small>步數最少的贏</small></span></label>
+          </div>
+        </div>
         <div class="row">
           <span class="row-label">語言</span>
           <div class="segmented" role="radiogroup" aria-label="語言">
@@ -240,6 +247,7 @@
         <svg class="ic"><use href="#i-target"/></svg>
         <span class="hud-target-label">目標</span>
         <b id="hud-target">—</b>
+        <span id="hud-goal" class="hud-goal" hidden></span>
       </div>
       <div id="hud-opp-page" class="opp-where"></div>
       <ul id="hud-strip" class="hud-strip" hidden></ul>
@@ -397,7 +405,7 @@
             <span class="mini-mode party"><b>2–8 人</b>派對模式</span>
           </div>
           <h2>找朋友一起比！</h2>
-          <p>選好模式後按<b>建立房間</b>，再按<b>邀請</b>把連結傳給朋友。派對模式第一個人抵達後，其他人只剩 60 秒！</p>
+          <p>選好模式後按<b>建立房間</b>，再按<b>邀請</b>把連結傳給朋友。房主還能選<b>比步數</b>：不比快，看誰用最少步抵達！</p>
         </section>
       </div>
       <div class="tut-dots-nav" id="tut-dots"></div>
@@ -416,6 +424,7 @@
   <div id="countdown" class="overlay" hidden>
     <div class="brief">
       <div class="eyebrow">對局即將開始</div>
+      <div id="brief-goal" class="brief-goal"></div>
       <div class="brief-route">
         <div class="brief-stop"><span class="stop-dot start"></span><b id="brief-start"></b></div>
         <div class="brief-stop"><span class="stop-dot goal"></span><b id="brief-target"></b></div>
@@ -430,6 +439,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=25"></script>
+  <script type="module" src="app.js?v=26"></script>
 </body>
 </html>
