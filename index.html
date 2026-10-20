@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=63">
+  <link rel="stylesheet" href="style.css?v=64">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=63"></script>
+  <script src="firebase-config.js?v=64"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -280,6 +280,7 @@
         <span class="hud-target-label">目標</span>
         <b id="hud-target">—</b>
         <span id="hud-goal" class="hud-goal" hidden></span>
+        <button id="btn-hint-open" class="hud-hint-btn" type="button" aria-haspopup="dialog" hidden>💡 提示</button>
       </div>
       <div id="hud-opp-page" class="opp-where"></div>
       <div id="fx-bar" class="fx-bar" hidden></div>
@@ -293,7 +294,6 @@
 
     <article class="paper">
       <p id="breadcrumb" class="breadcrumb"></p>
-      <details id="hint-card" class="hint-card" hidden open><summary>💡 終點提示</summary><p id="hint-text"></p></details>
       <h1 id="article-title" class="article-title"></h1>
       <div id="article" class="article"></div>
       <div id="article-loading" class="loading" hidden><div class="spinner"></div></div>
@@ -459,6 +459,14 @@
     </div>
   </div>
 
+  <div id="hint-modal" class="modal hint-modal" hidden>
+    <div class="modal-card hint-card" role="dialog" aria-modal="true" aria-labelledby="hint-title">
+      <div class="modal-head"><b id="hint-title">💡 終點提示</b><button id="hint-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <p id="hint-text" class="hint-text"></p>
+      <p class="hint-note">終點的名字會用「＿＿＿」遮起來。隨時可以按上方的「💡 提示」再打開。</p>
+    </div>
+  </div>
+
   <div id="solo-modal" class="modal" hidden>
     <div class="modal-card solo-card" role="dialog" aria-modal="true" aria-labelledby="solo-title">
       <div class="modal-head"><b id="solo-title">🎯 單人訓練</b><button id="solo-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
@@ -583,6 +591,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=63"></script>
+  <script type="module" src="app.js?v=64"></script>
 </body>
 </html>

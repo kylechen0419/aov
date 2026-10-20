@@ -1,12 +1,12 @@
-import { Net } from './net.js?v=63';
-import { initPresence } from './presence.js?v=63';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=63';
-import { initNotify, notify } from './notify.js?v=63';
-import * as wiki from './wiki.js?v=63';
-import { tw, twTree, zhReady } from './zh.js?v=63';
-import { makeShareImage } from './share.js?v=63';
-import { solve } from './solver.js?v=63';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=63';
+import { Net } from './net.js?v=64';
+import { initPresence } from './presence.js?v=64';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=64';
+import { initNotify, notify } from './notify.js?v=64';
+import * as wiki from './wiki.js?v=64';
+import { tw, twTree, zhReady } from './zh.js?v=64';
+import { makeShareImage } from './share.js?v=64';
+import { solve } from './solver.js?v=64';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=64';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -112,6 +112,7 @@ function show(view) {
   renderAnnounce();
   if (view !== 'watch') { stopWatchTimer(); $('#btn-follow').hidden = true; }
   if (view !== 'room' && view !== 'game') closePick(null);
+  if (view !== 'game') closeHint();
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
@@ -1344,7 +1345,8 @@ function createGame(settings, id) {
   $('#items-modal').hidden = true;
   $('#hud').classList.remove('compact');
   $('#hint-bar').hidden = true;
-  $('#hint-card').hidden = true;
+  $('#btn-hint-open').hidden = true;
+  closeHint();
   renderOppHud();
   $('#hud-alert-opp').hidden = true;
   $('#hud-alert-me').hidden = true;
@@ -1885,6 +1887,10 @@ function initGame() {
   };
 
   $('#btn-path').onclick = () => { $('#path-drawer').hidden = !$('#path-drawer').hidden; };
+  $('#btn-hint-open').onclick = () => { if ($('#hint-modal').hidden) openHint(); else closeHint(); };
+  $('#hint-close').onclick = closeHint;
+  $('#hint-modal').addEventListener('click', (e) => { if (e.target.id === 'hint-modal') closeHint(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#hint-modal').hidden) closeHint(); });
   $('#btn-path-close').onclick = () => { $('#path-drawer').hidden = true; };
 }
 
@@ -2539,12 +2545,16 @@ async function showHint() {
   g.hint.shown = true;
   $('#hint-bar').hidden = true;
   if (g.finished) return;
-  toast('💡 全體同意！提示來了', 2500);
   sfx.ready();
   haptic('success');
   $('#hint-text').textContent = '讀取提示中…';
-  $('#hint-card').hidden = false;
-  $('#hint-card').open = true;
+  // 目標列出現「💡 提示」按鈕，第一次直接打開給大家看，之後隨時可以再點開
+  const btn = $('#btn-hint-open');
+  btn.hidden = false;
+  btn.classList.remove('fresh');
+  void btn.offsetWidth;
+  btn.classList.add('fresh');
+  openHint();
   try {
     const d = await wiki.api(g.settings.lang, { action: 'query', prop: 'extracts', exintro: '1', explaintext: '1', exsentences: '4', redirects: '1', titles: g.settings.target });
     await zhReady;
@@ -2556,6 +2566,9 @@ async function showHint() {
     $('#hint-text').textContent = `提示讀取失敗（${e.message}）`;
   }
 }
+
+function openHint() { $('#hint-modal').hidden = false; }
+function closeHint() { $('#hint-modal').hidden = true; }
 
 // 把終點的名字（含去掉括號的版本）換成底線，免得提示直接說出答案
 function maskTitle(text, title, lang) {
