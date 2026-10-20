@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=30">
+  <link rel="stylesheet" href="style.css?v=31">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -279,6 +279,29 @@
   </main>
 
   <!-- 結果 -->
+  <main id="view-watch" class="view" hidden>
+    <header class="watch-bar">
+      <div class="watch-top">
+        <button id="btn-watch-back" class="icon-btn" type="button" aria-label="回到結果"><svg class="ic"><use href="#i-back"/></svg></button>
+        <span class="live-badge"><span class="live-dot"></span>觀戰中</span>
+        <span id="watch-timer" class="watch-timer">00:00</span>
+      </div>
+      <div class="watch-who">
+        <span class="avatar" id="watch-avatar">?</span>
+        <div class="watch-info"><b id="watch-name">玩家</b><span id="watch-status"></span></div>
+        <div class="watch-steps"><b id="watch-steps">0</b><span>步</span></div>
+      </div>
+      <div class="hud-target watch-target"><svg class="ic"><use href="#i-target"/></svg><span class="hud-target-label">目標</span><b id="watch-goal">—</b></div>
+      <ul id="watch-tabs" class="watch-tabs" aria-label="選擇觀戰對象"></ul>
+    </header>
+    <article class="paper watch-paper">
+      <p id="watch-path" class="breadcrumb"></p>
+      <h1 id="watch-title" class="article-title"></h1>
+      <div id="watch-article" class="article watching"></div>
+      <div id="watch-loading" class="loading" hidden><div class="spinner"></div></div>
+    </article>
+  </main>
+
   <main id="view-result" class="view" hidden>
     <section class="cover result-hero" id="result-hero">
       <div class="medal" aria-hidden="true"><span id="result-kicker">勝</span></div>
@@ -287,6 +310,7 @@
     </section>
 
     <section class="page">
+      <button id="btn-watch" class="btn blue wide watch-cta" type="button" hidden><span class="live-dot"></span><span id="watch-cta-text">觀戰</span></button>
       <div class="card ranking" id="ranking" hidden>
         <div class="ranking-head"><b>排行榜</b><span id="ranking-status"></span></div>
         <ol class="rank-list" id="rank-list"></ol>
@@ -446,6 +470,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=30"></script>
+  <script type="module" src="app.js?v=31"></script>
 </body>
 </html>

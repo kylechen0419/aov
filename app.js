@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=30';
-import * as wiki from './wiki.js?v=30';
-import { tw, twTree, zhReady } from './zh.js?v=30';
-import { makeShareImage } from './share.js?v=30';
-import { solve } from './solver.js?v=30';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=30';
+import { Net } from './net.js?v=31';
+import * as wiki from './wiki.js?v=31';
+import { tw, twTree, zhReady } from './zh.js?v=31';
+import { makeShareImage } from './share.js?v=31';
+import { solve } from './solver.js?v=31';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=31';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -33,6 +33,7 @@ const EMOTES = [...EMOJIS, ...PHRASES];
 const CHAT_MAX = 50;
 
 const state = {
+  watch: { id: null, shown: null, token: 0 },
   myName: '',
   myAvatar: null,
   myId: null,
@@ -84,9 +85,10 @@ function showError(sel, msg) {
 
 function show(view) {
   state.view = view;
-  for (const v of ['home', 'room', 'game', 'result']) $(`#view-${v}`).hidden = v !== view;
-  $('.masthead').hidden = view === 'game';
-  $('#emote-fab').hidden = !(view === 'room' || view === 'result');
+  for (const v of ['home', 'room', 'game', 'result', 'watch']) $(`#view-${v}`).hidden = v !== view;
+  $('.masthead').hidden = view === 'game' || view === 'watch';
+  $('#emote-fab').hidden = !(view === 'room' || view === 'result' || view === 'watch');
+  if (view !== 'watch') stopWatchTimer();
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
   if (view === 'home') renderStats();
@@ -1011,17 +1013,22 @@ function renderBreadcrumb(g) {
 }
 
 function renderArticle(art) {
+  fillArticle($('#article'), $('#article-title'), art, state.game.settings);
+  window.scrollTo(0, 0);
+}
+
+// 把條目內容放進畫面：比賽和觀戰共用
+function fillArticle(root, titleEl, art, settings) {
   const tmp = document.createElement('div');
   tmp.innerHTML = art.displayTitle || art.title;
-  $('#article-title').textContent = tw(tmp.textContent);
+  titleEl.textContent = tw(tmp.textContent);
 
-  const root = $('#article');
   root.innerHTML = art.html;
   // 拿掉點不了的引用標記與參考文獻，條目比較清爽
   root.querySelectorAll('.mw-editsection, .mw-empty-elt, script, sup.reference, .reflist, ol.references, .mw-references-wrap').forEach((el) => el.remove());
   root.querySelectorAll('img').forEach((img) => { img.loading = 'lazy'; img.decoding = 'async'; });
-  if (state.game.settings.lang === 'zh') twTree(root);
-  const target = state.game.settings.target;
+  if (settings.lang === 'zh') twTree(root);
+  const target = settings.target;
   root.querySelectorAll('a').forEach((a) => {
     const href = a.getAttribute('href') || '';
     if (href.startsWith('#')) return;
@@ -1035,7 +1042,6 @@ function renderArticle(art) {
     }
     a.removeAttribute('target');
   });
-  window.scrollTo(0, 0);
 }
 
 function initGame() {
@@ -1133,7 +1139,11 @@ function onOtherProgress(id, msg) {
   o.near = !!msg.near;
   o.offline = false;
   renderOppHud();
-  if (g.finished) { if (state.view === 'result') showResult(true); return; }
+  if (g.finished) {
+    if (state.view === 'result') showResult(true);
+    else if (state.view === 'watch') renderWatch(id === state.watch.id && moved);
+    return;
+  }
   refreshDanger();
   if (moved && g.startAt) {
     const racer = $('#hud-opp');
@@ -1213,6 +1223,7 @@ function onOtherFinish(id, msg) {
   const g = state.game;
   const o = g?.others.get(id);
   if (!o) return;
+  if (state.view === 'watch' && !o.finished) setTimeout(() => watchedLeft(id, msg.reason), 0);
   // 重新連線時可能收到重複的結束訊息
   if (o.finished) { if (Array.isArray(msg.path)) o.path = msg.path; return; }
   o.finished = { reason: msg.reason, elapsed: msg.elapsed, clicks: msg.clicks, path: msg.path };
@@ -1259,6 +1270,7 @@ function onOtherLeft(id) {
   const g = state.game;
   const o = g?.others.get(id);
   if (!o || o.left) return;
+  if (state.view === 'watch') setTimeout(() => watchedLeft(id, 'left'), 0);
   o.left = true;
   o.near = false;
   renderOppHud();
@@ -1376,6 +1388,11 @@ function renderRanking(g, entries) {
     fillPath(ol, e.path || [], target);
     body.append(sum, ol);
     li.append(badge, body);
+    if (g.finished && !e.me && !e.finished && !e.left) {
+      const w = Object.assign(document.createElement('button'), { type: 'button', className: 'rank-watch', textContent: '👀 觀戰' });
+      w.onclick = () => openWatch(e.id);
+      li.append(w);
+    }
     return li;
   });
   $('#rank-list').replaceChildren(...items);
@@ -1410,6 +1427,9 @@ function showResult(update = false) {
   if (party) renderRanking(g, info.entries);
   else renderDuelResult(g, res);
   renderSolution(g);
+  const racing = racers(g);
+  $('#btn-watch').hidden = !racing.length;
+  $('#watch-cta-text').textContent = `觀戰：還有 ${racing.length} 人在比`;
   $('#result-hero').className = `cover result-hero ${info.tone}`;
   $('#ranking').hidden = !party;
   $('#score-card').hidden = party;
@@ -1518,6 +1538,108 @@ async function findSolution(g) {
   if (state.game === g && state.view === 'result') renderSolution(g);
 }
 
+// ---------- 觀戰：比完的人看還在比的人 ----------
+const racers = (g) => (g?.finished ? [...g.others.values()].filter((o) => !o.finished && !o.left) : []);
+let watchTimer = null;
+const artCache = new Map();
+function stopWatchTimer() { clearInterval(watchTimer); watchTimer = null; }
+
+function openWatch(id) {
+  const g = state.game;
+  const list = racers(g);
+  if (!list.length) { toast('大家都比完了'); return; }
+  state.watch.id = list.some((o) => o.id === id) ? id : list[0].id;
+  state.watch.shown = null;
+  show('watch');
+  $('#watch-goal').textContent = tw(g.settings.target);
+  stopWatchTimer();
+  const paintTime = () => { $('#watch-timer').textContent = fmtTime(elapsed()); };
+  paintTime();
+  watchTimer = setInterval(paintTime, 500);
+  renderWatch(true);
+}
+
+function renderWatch(moved = false) {
+  const g = state.game;
+  const o = g?.others.get(state.watch.id);
+  if (!o || state.view !== 'watch') return;
+  paintAvatar($('#watch-avatar'), o);
+  $('#watch-avatar').style.setProperty('--side', o.color || '#fff');
+  $('#watch-name').textContent = o.name;
+  $('#watch-steps').textContent = o.clicks;
+  const st = $('#watch-status');
+  st.className = '';
+  if (o.finished?.reason === 'win') { st.textContent = '抵達終點！'; st.classList.add('done'); }
+  else if (o.finished) st.textContent = o.finished.reason === 'giveup' ? '投降了' : '時間到';
+  else if (o.left) st.textContent = '離線了';
+  else if (o.offline) st.textContent = '斷線中，等待重新連線…';
+  else if (o.near) { st.textContent = '終點連結就在這一頁！'; st.classList.add('near'); }
+  else st.textContent = `正在看《${tw(o.current)}》`;
+  if (moved) {
+    const box = $('#watch-steps').parentElement;
+    box.classList.remove('bump');
+    void box.offsetWidth;
+    box.classList.add('bump');
+  }
+  // 路線：只顯示最後幾站
+  const path = o.path.length ? o.path : [g.settings.start];
+  const shown = path.slice(-4).map((t) => tw(t));
+  $('#watch-path').textContent = `路線：${path.length > 4 ? '… › ' : ''}${shown.join(' › ')}`;
+  // 上方切換觀戰對象
+  const tabs = [...g.others.values()].filter((p) => !p.left).map((p) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.classList.toggle('on', p.id === o.id);
+    b.classList.toggle('near', !!p.near && !p.finished);
+    b.disabled = !!p.finished;
+    b.append(avatarEl(p, 'sm'), `${p.name} · ${p.finished?.reason === 'win' ? '抵達' : p.finished ? '出局' : `${p.clicks} 步`}`);
+    b.onclick = () => { if (p.id !== state.watch.id) { state.watch.id = p.id; renderWatch(true); } };
+    li.append(b);
+    return li;
+  });
+  $('#watch-tabs').replaceChildren(...tabs);
+  if (state.watch.shown !== o.current) loadWatchArticle(o.current);
+}
+
+async function loadWatchArticle(title) {
+  const g = state.game;
+  const token = (state.watch.token = (state.watch.token || 0) + 1);
+  state.watch.shown = title;
+  $('#watch-loading').hidden = false;
+  const key = `${g.settings.lang}:${title}`;
+  try {
+    if (!artCache.has(key)) artCache.set(key, wiki.fetchArticle(g.settings.lang, title));
+    const art = await artCache.get(key);
+    if (token !== state.watch.token || state.view !== 'watch') return;
+    fillArticle($('#watch-article'), $('#watch-title'), art, g.settings);
+    window.scrollTo(0, 0);
+  } catch (e) {
+    artCache.delete(key);
+    if (token === state.watch.token) { state.watch.shown = null; toast(`載入失敗：${e.message}`); }
+  } finally {
+    if (token === state.watch.token) $('#watch-loading').hidden = true;
+  }
+}
+
+// 正在看的人比完或離開：告訴大家，然後換看下一位，沒人可看就回到結果
+function watchedLeft(id, reason) {
+  if (state.view !== 'watch') return;
+  const g = state.game;
+  const o = g?.others.get(id);
+  if (!o) return;
+  if (id !== state.watch.id) { renderWatch(); return; }
+  const what = { win: '抵達終點了！', giveup: '投降了', timeout: '時間到了', left: '離線了' }[reason] || '比完了';
+  toast(`${o.name} ${what}`, 2500);
+  if (reason === 'win') sfx.ready();
+  renderWatch();
+  setTimeout(() => {
+    if (state.view !== 'watch' || state.watch.id !== id) return;
+    const next = racers(g)[0];
+    if (next) { state.watch.id = next.id; renderWatch(true); } else showResult(true);
+  }, 2200);
+}
+
 // ---------- 分享戰績圖 ----------
 let shareUrl = null;
 let shareFile = null;
@@ -1569,6 +1691,8 @@ function initResult() {
   $('#btn-rematch').onclick = () => enterRoom(net.code);
   $('#btn-share').onclick = openShare;
   $('#btn-solve').onclick = () => { if (state.game) findSolution(state.game); };
+  $('#btn-watch').onclick = () => openWatch();
+  $('#btn-watch-back').onclick = () => showResult(true);
   $('#share-close').onclick = () => { $('#share-modal').hidden = true; };
   $('#share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-modal') $('#share-modal').hidden = true; });
   $('#share-go').onclick = async () => {
