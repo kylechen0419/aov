@@ -1,12 +1,12 @@
-import { Net } from './net.js?v=64';
-import { initPresence } from './presence.js?v=64';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=64';
-import { initNotify, notify } from './notify.js?v=64';
-import * as wiki from './wiki.js?v=64';
-import { tw, twTree, zhReady } from './zh.js?v=64';
-import { makeShareImage } from './share.js?v=64';
-import { solve } from './solver.js?v=64';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=64';
+import { Net } from './net.js?v=65';
+import { initPresence } from './presence.js?v=65';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=65';
+import { initNotify, notify } from './notify.js?v=65';
+import * as wiki from './wiki.js?v=65';
+import { tw, twTree, zhReady } from './zh.js?v=65';
+import { makeShareImage } from './share.js?v=65';
+import { solve } from './solver.js?v=65';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=65';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -1075,7 +1075,7 @@ function migrateHost(toId, { leaving = false } = {}) {
   const wins = { ...state.roomScore.wins };
   if (wins[state.myId] !== undefined) { wins[myNewKey] = wins[state.myId]; delete wins[state.myId]; }
   state.roomScore = { games: state.roomScore.games, wins };
-  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned], score: state.roomScore });
+  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned], score: state.roomScore, started: notifiedStart === code });
   state.hostLocked = true;
   session.clear();
   for (const t of graceTimers.values()) clearTimeout(t);
@@ -1123,6 +1123,7 @@ async function takeOverHost(msg) {
   state.myReady = false;
   state.banned = new Set(Array.isArray(msg.banned) ? msg.banned.filter((k) => typeof k === 'string') : []);
   if (msg.score?.wins) state.roomScore = { games: Number(msg.score.games) || 0, wins: { ...msg.score.wins } };
+  if (msg.started) notifiedStart = msg.code;  // 舊房主已經通知過「開始比賽」，換人當房主不要再通知一次
   try {
     await net.createRoom(0, msg.code);
   } catch (e) {
@@ -1473,7 +1474,7 @@ function resumeGame(snap) {
   g.stack = g.path.slice(0, -1);
   g.spots = g.stack.map(() => null);
   if (snap.lastCall > 0) g.lastCallEnd = performance.now() + snap.lastCall;
-  if (snap.hint) setTimeout(showHint, 800);
+  if (snap.hint) setTimeout(() => showHint({ quiet: true }), 800);
   renderOppHud();
   show('game');
   $('#countdown').hidden = true;
@@ -1702,8 +1703,9 @@ function restoreSpot(spot) {
   const same = [...$('#article').querySelectorAll('a.wl')].filter((x) => x.dataset.title === spot.title);
   const a = same[spot.k] || same[0];
   if (!a) return;
-  // 盡量放回原本的高度，但不要被上方資訊列或下方按鈕擋住
-  const top = Math.min(Math.max(spot.top, innerHeight * 0.25), innerHeight * 0.6);
+  // 盡量放回原本的高度，但不要被上方資訊列（派對模式、橫向時會比較高）或下方按鈕擋住
+  const below = $('#hud').getBoundingClientRect().bottom + 16;
+  const top = Math.max(Math.min(Math.max(spot.top, innerHeight * 0.25), innerHeight * 0.6), below);
   window.scrollTo(0, Math.max(0, a.getBoundingClientRect().top + scrollY - top));
   a.classList.remove('back-here');
   void a.offsetWidth;
@@ -2539,22 +2541,25 @@ function applyHintTally(msg) {
   if (!g.finished) renderHintBar();
 }
 
-async function showHint() {
+// quiet：重新整理或斷線重連回來時，只把「💡 提示」按鈕放回去，不再跳視窗、不再響
+async function showHint({ quiet = false } = {}) {
   const g = state.game;
   if (!g || g.hint.shown) return;
   g.hint.shown = true;
   $('#hint-bar').hidden = true;
   if (g.finished) return;
-  sfx.ready();
-  haptic('success');
   $('#hint-text').textContent = '讀取提示中…';
   // 目標列出現「💡 提示」按鈕，第一次直接打開給大家看，之後隨時可以再點開
   const btn = $('#btn-hint-open');
   btn.hidden = false;
-  btn.classList.remove('fresh');
-  void btn.offsetWidth;
-  btn.classList.add('fresh');
-  openHint();
+  if (!quiet) {
+    sfx.ready();
+    haptic('success');
+    btn.classList.remove('fresh');
+    void btn.offsetWidth;
+    btn.classList.add('fresh');
+    openHint();
+  }
   try {
     const d = await wiki.api(g.settings.lang, { action: 'query', prop: 'extracts', exintro: '1', explaintext: '1', exsentences: '4', redirects: '1', titles: g.settings.target });
     await zhReady;
@@ -3535,7 +3540,7 @@ function handleHostMessage(msg) {
           if (pending) onOtherFinish(id, pending);
         }
         if (snap.lastCall > 0 && !g.lastCallEnd) applyLastCall(snap.lastCall / 1000, null);
-        if (snap.hint && !g.hint.shown) showHint();
+        if (snap.hint && !g.hint.shown) showHint({ quiet: true });
         renderOppHud();
         if (g.finished) net.send({ t: 'finish', ...g.finished });
         else if (g.current) net.send({ t: 'progress', title: g.current, clicks: g.clicks, near: g.near, path: g.path });

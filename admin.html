@@ -162,7 +162,7 @@
     <div id="rooms" class="rooms"></div>
   </main>
 
-  <script src="firebase-config.js?v=64"></script>
+  <script src="firebase-config.js?v=65"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -248,9 +248,14 @@
     document.querySelectorAll('[data-nt]').forEach((x) => { x.checked = !!c[x.dataset.nt]; });
   }
   function wireNotify() {
+    // 跟遊戲端 notify.js 的判斷一致：只有存成 '1' 才算「不要通知我」。
+    // 這支手機還沒設定過就預設幫它存成 '1'，畫面打勾＝真的不會通知
     let self = null;
-    try { self = localStorage.getItem('wikirace-notify-self'); } catch (e) {}
-    $('#nt-self').checked = self !== '0';
+    try {
+      self = localStorage.getItem('wikirace-notify-self');
+      if (self == null) { localStorage.setItem('wikirace-notify-self', '1'); self = '1'; }
+    } catch (e) {}
+    $('#nt-self').checked = self === '1';
     $('#nt-self').onchange = () => { try { localStorage.setItem('wikirace-notify-self', $('#nt-self').checked ? '1' : '0'); } catch (e) {} };
     $('#nt-on').onclick = () => {
       // 預設不通知製作者自己玩的局
@@ -273,7 +278,7 @@
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=64');
+      const { sendNtfy } = await import('./notify.js?v=65');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };

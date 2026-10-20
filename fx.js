@@ -200,9 +200,9 @@ export function unlockAudio() {
     a.muted = true;
     try {
       const p = a.play();
+      if (p) p.catch(() => {});
       a.pause();
       a.currentTime = 0;
-      if (p) p.catch(() => {});
     } catch { /* 忽略 */ }
     a.muted = false;
   }
