@@ -65,6 +65,8 @@ export function setSfxOn(v) { savePref('sfx', v); }
 export function setMusicOn(v) { savePref('music', v); music.apply(); }
 
 // ---------- 背景音樂 ----------
+const notify = (name) => document.dispatchEvent(new CustomEvent(name));
+
 const RATES = [1, 1.12, 1.25];
 
 export const music = {
@@ -98,9 +100,10 @@ export const music = {
     for (const t of Object.values(tracks)) if (t !== a) t.pause();
     if (!a) return;
     if (!prefs.music) { a.pause(); return; }
-    if (!unlocked) return;
+    // 還沒點過畫面也先試著播放；被瀏覽器擋下就通知畫面顯示提示，等第一次點擊再播
     const p = a.play();
-    if (p) p.catch(() => {});
+    if (p) p.then(() => notify('music-playing'), () => { if (!unlocked) notify('music-blocked'); });
+    else notify('music-playing');
   },
 };
 
