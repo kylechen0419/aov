@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=33';
-import * as wiki from './wiki.js?v=33';
-import { tw, twTree, zhReady } from './zh.js?v=33';
-import { makeShareImage } from './share.js?v=33';
-import { solve } from './solver.js?v=33';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=33';
+import { Net } from './net.js?v=34';
+import * as wiki from './wiki.js?v=34';
+import { tw, twTree, zhReady } from './zh.js?v=34';
+import { makeShareImage } from './share.js?v=34';
+import { solve } from './solver.js?v=34';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=34';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -26,8 +26,8 @@ const AVATARS = [
   ['rabbit', '兔兔'], ['dino', '小恐龍'], ['robot', '機器人'], ['shiba', '柴犬'], ['lion', '獅子'], ['chick', '小雞'],
 ];
 const AVATAR_IDS = new Set(AVATARS.map(([id]) => id));
-const EMOJIS = ['👍', '😂', '😱', '🔥', '😭', '🤯', '😎', '👋'];
-const PHRASES = ['我快到了！', '迷路了…', '等等我啦！', 'GG FXXING EZ'];
+const EMOJIS = ['👍', '😂', '😱', '🔥', '😭', '🤯', '😎', '👋', '🥀'];
+const PHRASES = ['我快到了！', '迷路了…', '等等我啦！', '懂你意思', '有感覺嗎', '何意味', '完全憤怒誘餌', 'GG FXXING EZ'];
 const EMOTES = [...EMOJIS, ...PHRASES];
 const CHAT_MAX = 50;
 
