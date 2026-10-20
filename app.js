@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=40';
-import * as wiki from './wiki.js?v=40';
-import { tw, twTree, zhReady } from './zh.js?v=40';
-import { makeShareImage } from './share.js?v=40';
-import { solve } from './solver.js?v=40';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=40';
+import { Net } from './net.js?v=41';
+import * as wiki from './wiki.js?v=41';
+import { tw, twTree, zhReady } from './zh.js?v=41';
+import { makeShareImage } from './share.js?v=41';
+import { solve } from './solver.js?v=41';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=41';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -1376,16 +1376,32 @@ function queueLiveView() {
 
 function initGame() {
   const root = $('#article');
-  // 往下捲動閱讀時把上方資訊收小，往上捲或回到頂端就展開
-  let lastY = 0;
+  // 往下捲動閱讀時把上方資訊收小，往上捲或回到頂端就展開。
+  // 收合會改變版面高度，剛切換完的一小段時間不理會捲動，避免收、放來回抖動
+  // 展開時記住捲到最上面的位置、收合時記住最下面的位置，跟它比才知道是往下讀還是往回找
+  let turnY = 0;
+  let settleUntil = 0;
+  const setCompact = (on) => {
+    const hud = $('#hud');
+    if (hud.classList.contains('compact') === on) return;
+    hud.classList.toggle('compact', on);
+    settleUntil = performance.now() + 350;
+    turnY = scrollY;
+  };
   window.addEventListener('scroll', () => {
     if (state.view !== 'game') return;
     queueLiveView();
     const y = scrollY;
-    if (y < 80) $('#hud').classList.remove('compact');
-    else if (y > lastY + 10) $('#hud').classList.add('compact');
-    else if (y < lastY - 30) $('#hud').classList.remove('compact');
-    if (Math.abs(y - lastY) > 10 || y < 80) lastY = y;
+    const compact = $('#hud').classList.contains('compact');
+    if (performance.now() < settleUntil) { turnY = y; return; }
+    if (y < 80) { setCompact(false); turnY = y; return; }
+    if (compact) {
+      turnY = Math.max(turnY, y);
+      if (y < turnY - 50) setCompact(false);
+    } else {
+      turnY = Math.min(turnY, y);
+      if (y > turnY + 20) setCompact(true);
+    }
   }, { passive: true });
   // 點了哪個連結馬上告訴觀戰的人，新頁面載入前就看得到他點了什麼
   root.addEventListener('click', (e) => {

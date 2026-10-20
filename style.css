@@ -1137,3 +1137,6 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .item-slot[hidden] { display: none; }
 .item-slot:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--yellow-d); }
 .item-timer { border: 0; cursor: pointer; font: inherit; font-family: var(--font-num); font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(43, 33, 96, .78); color: #fff; white-space: nowrap; }
+/* 上方資訊收合時不讓瀏覽器自動補捲動位置（會跟收合互相觸發而抖動） */
+html:has(#view-game:not([hidden])) { overflow-anchor: none; }
+#view-game { overflow-anchor: none; }
