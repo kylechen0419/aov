@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=52';
-import * as wiki from './wiki.js?v=52';
-import { tw, twTree, zhReady } from './zh.js?v=52';
-import { makeShareImage } from './share.js?v=52';
-import { solve } from './solver.js?v=52';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=52';
+import { Net } from './net.js?v=53';
+import * as wiki from './wiki.js?v=53';
+import { tw, twTree, zhReady } from './zh.js?v=53';
+import { makeShareImage } from './share.js?v=53';
+import { solve } from './solver.js?v=53';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=53';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -318,7 +318,8 @@ function renderClickOpts() {
   $('#click-opts').replaceChildren(...Object.entries(CLICK_SOUNDS).map(([id, c]) => {
     const label = document.createElement('label');
     const input = Object.assign(document.createElement('input'), { type: 'radio', name: 'clickSound', value: id, checked: getClickSound() === id });
-    input.onchange = () => {
+    // 用 click：已經選到的那個再點一次也能試聽
+    input.onclick = () => {
       setClickSound(id);
       if (!isSfxOn()) { setSfxOn(true); $('#sfx-on').checked = true; musicPaint(); }
       sfx.tap();

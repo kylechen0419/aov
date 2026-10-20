@@ -23,13 +23,13 @@ function makeAudio(src, loop = false) {
 }
 
 // 每個音效準備幾個播放器，讓連續觸發時可以重疊
-// 點擊音效可以自己選：蘋果風（預設）、鍵盤、泡泡
+// 點擊音效可以自己選：泡泡（預設，比較清楚）、蘋果風、鍵盤
 export const CLICK_SOUNDS = {
+  pop: { name: '🫧 泡泡', file: 'sfx-click-pop' },
   tock: { name: '🍎 蘋果風', file: 'sfx-click-tock' },
   key: { name: '⌨️ 鍵盤', file: 'sfx-click' },
-  pop: { name: '🫧 泡泡', file: 'sfx-click-pop' },
 };
-let clickChoice = 'tock';
+let clickChoice = 'pop';
 try { const c = localStorage.getItem('wikirace-click'); if (CLICK_SOUNDS[c]) clickChoice = c; } catch { /* 忽略 */ }
 export const getClickSound = () => clickChoice;
 export function setClickSound(c) {
