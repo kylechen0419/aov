@@ -324,48 +324,49 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .view.game { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
 .hud {
   position: sticky; top: 0; z-index: 20;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) var(--gutter-r) 12px var(--gutter-l);
+  padding: calc(8px + env(safe-area-inset-top, 0px)) var(--gutter-r) 10px var(--gutter-l);
   background: linear-gradient(180deg, var(--sky-1), var(--sky-2));
   box-shadow: 0 6px 20px rgba(30, 20, 90, .3);
-  border-radius: 0 0 24px 24px;
-  display: grid; gap: 10px;
+  border-radius: 0 0 20px 20px;
+  display: grid; gap: 7px;
 }
 .hud > * { max-width: 828px; width: 100%; margin: 0 auto; }
-.hud.danger { animation: dangerPulse .9s ease-in-out infinite; }
+.hud.danger { animation: dangerGlow 1s ease-in-out infinite; }
 .hud-race { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
 .racer { display: flex; align-items: center; gap: 8px; min-width: 0; color: #fff; }
 .racer.opp-side { justify-content: flex-end; text-align: right; }
-.racer .avatar { width: 42px; height: 42px; font-size: 18px; box-shadow: 0 0 0 3px #fff; }
+.racer .avatar { width: 34px; height: 34px; font-size: 15px; box-shadow: 0 0 0 2px #fff; }
 .racer-info { display: grid; line-height: 1.15; min-width: 0; }
-.racer-name { font-size: 12px; font-weight: 700; opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.racer-steps { font-size: 13px; font-weight: 700; }
-.racer-steps b { font-family: var(--font-num); font-size: 28px; font-weight: 800; line-height: 1; }
+.racer-name { font-size: 11px; font-weight: 700; opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.racer-steps { font-size: 12px; font-weight: 700; }
+.racer-steps b { font-family: var(--font-num); font-size: 22px; font-weight: 800; line-height: 1; }
 .racer.bump .avatar { animation: bump .5s ease-out; }
 .hud-timer {
-  width: 82px; height: 82px; border-radius: 50%; display: grid; place-items: center;
+  min-width: 74px; padding: 5px 12px; border-radius: 999px; display: flex; align-items: baseline; justify-content: center; gap: 4px;
   background: #fff; color: var(--ink);
-  font-family: var(--font-num); font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 5px rgba(255, 255, 255, .35), 0 5px 0 rgba(20, 10, 80, .25);
+  font-family: var(--font-num); font-weight: 800; font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .3), 0 3px 0 rgba(20, 10, 80, .25);
 }
+/* 派對最後衝刺：倒數直接顯示在計時器上，不另外佔一行 */
 .hud-timer.warn { background: var(--yellow); color: var(--yellow-ink); }
 .hud-timer.crit { background: var(--red); color: #fff; animation: throb .5s ease-in-out infinite alternate; }
+.hud-timer.sprint { background: var(--red); color: #fff; animation: throb .5s ease-in-out infinite alternate; }
+.hud-timer.sprint::before { content: "衝刺"; font-family: var(--font); font-size: 11px; font-weight: 900; white-space: nowrap; }
 .hud-target {
-  display: flex; align-items: center; gap: 8px; min-width: 0;
-  padding: 8px 14px; border-radius: 16px; background: var(--yellow); color: var(--yellow-ink);
-  box-shadow: 0 4px 0 var(--yellow-d);
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 5px 12px; border-radius: 12px; background: var(--yellow); color: var(--yellow-ink);
+  box-shadow: 0 3px 0 var(--yellow-d);
 }
-.hud-target .ic { width: 22px; height: 22px; }
-.hud-target-label { font-size: 13px; font-weight: 900; flex: none; }
-.hud-target b { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-target .ic { width: 18px; height: 18px; flex: none; }
+.hud-target-label { font-size: 12px; font-weight: 900; flex: none; }
+.hud-target b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opp-where { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, .9); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -4px; }
 .opp-where:empty { display: none; }
 
-.banner { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 8px 12px; border-radius: 14px; font-size: 15px; font-weight: 900; }
-.banner.danger { background: var(--red); color: #fff; box-shadow: 0 4px 0 var(--red-d); animation: throb .6s ease-in-out infinite alternate; }
+.banner { display: flex; align-items: center; gap: 6px; justify-content: center; padding: 4px 10px; border-radius: 10px; font-size: 13px; font-weight: 900; line-height: 1.35; }
+.banner.danger { background: var(--red); color: #fff; box-shadow: 0 2px 0 var(--red-d); }
 .banner.danger::before { content: "⚠"; }
-.banner.lastcall { background: #fff; color: var(--red-d); box-shadow: 0 4px 0 rgba(0, 0, 0, .12); animation: throb .5s ease-in-out infinite alternate; }
-.banner.lastcall::before { content: "⏱"; }
-.banner.notice { background: #fff; color: #a06a00; box-shadow: 0 4px 0 rgba(0, 0, 0, .12); }
+.banner.notice { background: #fff; color: #a06a00; box-shadow: 0 2px 0 rgba(0, 0, 0, .12); }
 .banner.notice::before { content: "★"; color: var(--yellow-d); }
 
 .feed { position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; pointer-events: none; width: min(92vw, 420px); }
@@ -556,7 +557,7 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 @keyframes twinkle { 50% { opacity: .4; transform: scale(.8); } }
 @keyframes throb { from { transform: scale(1); } to { transform: scale(1.04); } }
 @keyframes bump { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
-@keyframes dangerPulse { 50% { background: linear-gradient(180deg, #d22d4f, #ff4d6d); } }
+@keyframes dangerGlow { 50% { box-shadow: 0 6px 20px rgba(30, 20, 90, .3), inset 0 -4px 0 var(--red); } }
 @keyframes targetGlow { to { transform: scale(1.06); } }
 @keyframes feedIn { from { opacity: 0; transform: translateY(-14px) scale(.9); } }
 @keyframes feedOut { to { opacity: 0; transform: translateY(-6px); } }
@@ -584,8 +585,8 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
   .result-grid { grid-template-columns: 1fr; }
   .room-code { font-size: 34px; }
   .segmented span { padding: 7px 3px; font-size: 13px; }
-  .hud-timer { width: 72px; height: 72px; font-size: 19px; }
-  .racer-steps b { font-size: 24px; }
+  .hud-timer { font-size: 18px; min-width: 66px; }
+  .racer-steps b { font-size: 20px; }
 }
 
 /* ---------- 模式選擇 ---------- */
@@ -625,17 +626,17 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .hud-strip { margin: 0; padding: 0 0 2px; list-style: none; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .hud-strip::-webkit-scrollbar { display: none; }
 .strip-chip {
-  flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 99px;
-  background: rgba(255, 255, 255, .18); color: #fff; max-width: 170px;
+  flex: none; display: flex; align-items: center; gap: 5px; padding: 2px 9px 2px 2px; border-radius: 99px;
+  background: rgba(255, 255, 255, .18); color: #fff; max-width: 150px;
 }
-.strip-chip .avatar.sm { width: 26px; height: 26px; font-size: 12px; box-shadow: 0 0 0 2px #fff; }
-.strip-info { display: grid; line-height: 1.15; min-width: 0; }
-.strip-info b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.strip-info span { font-family: var(--font-num); font-weight: 800; font-size: 13px; }
-.strip-info small { font-size: 10px; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-chip .avatar.sm { width: 22px; height: 22px; font-size: 10px; box-shadow: 0 0 0 2px #fff; }
+.strip-info { display: flex; align-items: baseline; gap: 5px; line-height: 1.2; min-width: 0; }
+.strip-info b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.strip-info span { flex: none; font-family: var(--font-num); font-weight: 800; font-size: 12px; }
+.strip-info small { display: none; }
 .strip-chip.done { background: var(--yellow); color: var(--yellow-ink); }
 .strip-chip.out { opacity: .5; }
-.strip-chip.near { background: var(--red); animation: throb .6s ease-in-out infinite alternate; }
+.strip-chip.near { background: var(--red); }
 
 /* ---------- 派對排行榜 ---------- */
 .ranking { gap: 10px; }
@@ -1051,9 +1052,6 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .stats-label.items { color: var(--pink-d); }
 
 /* ---------- 道具賽 ---------- */
-.article a.wl.itembox { position: relative; background: #fff4cc; border-radius: 6px; padding: 0 3px; box-shadow: inset 0 -2px 0 var(--yellow); }
-.article a.wl.itembox::after { content: "🎁"; display: inline-block; margin-left: 2px; font-size: .9em; animation: boxBob 1s ease-in-out infinite; }
-@keyframes boxBob { 50% { transform: translateY(-3px) rotate(-8deg); } }
 .article a.wl.crystal { background: #efe4ff; box-shadow: 0 0 0 2px var(--purple); border-radius: 6px; padding: 0 3px; animation: targetGlow .7s ease-in-out infinite alternate; }
 .item-dock {
   position: fixed; z-index: 26; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(86px + env(safe-area-inset-bottom, 0px));
@@ -1065,10 +1063,7 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
   background: rgba(43, 33, 96, .35); font-size: 30px; line-height: 1; display: grid; place-items: center; color: #fff;
   box-shadow: 0 6px 16px rgba(30, 20, 90, .25); backdrop-filter: blur(4px);
 }
-.item-slot.full { border: 0; background: linear-gradient(160deg, #fff, #ffe9a8); box-shadow: 0 4px 0 var(--yellow-d), 0 8px 18px rgba(30, 20, 90, .3); animation: slotIn .4s cubic-bezier(.2, 1.6, .4, 1); }
-.item-slot.full:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--yellow-d); }
 @keyframes slotIn { from { transform: scale(.3) rotate(-30deg); } }
-.item-help { width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .9); color: var(--ink); font-weight: 900; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, .2); }
 .fx-bar { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .fx-bar[hidden] { display: none; }
 .fx-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 900; padding: 3px 10px; border-radius: 999px; background: #fff; color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, .12); }
@@ -1127,3 +1122,18 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .hint-card { margin: 0 0 12px; background: #fff8db; border: 2px solid var(--yellow); border-radius: 16px; padding: 8px 12px; }
 .hint-card summary { cursor: pointer; font-weight: 900; color: var(--yellow-ink); font-size: 15px; }
 .hint-card p { margin: 6px 0 2px; font-size: 15px; line-height: 1.7; color: var(--paper-text); }
+
+/* 往下捲動閱讀時把上方資訊收小，往上捲再展開 */
+.hud.compact { gap: 5px; padding-bottom: 7px; }
+.hud.compact .racer .avatar, .hud.compact .racer-name, .hud.compact .hud-strip, .hud.compact .opp-where { display: none; }
+.hud.compact .racer-steps b { font-size: 18px; }
+.hud.compact .hud-timer { font-size: 17px; padding: 3px 10px; min-width: 64px; }
+.hud.compact .hud-target { padding: 3px 10px; }
+.hud.compact .hud-target b { font-size: 14px; }
+
+/* 道具欄：只顯示手上的道具，旁邊是下一個道具的倒數 */
+.item-dock { gap: 8px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+.item-slot { width: 48px; height: 48px; border-radius: 15px; font-size: 26px; border: 0; background: linear-gradient(160deg, #fff, #ffe9a8); color: inherit; box-shadow: 0 3px 0 var(--yellow-d), 0 6px 14px rgba(30, 20, 90, .3); backdrop-filter: none; animation: slotIn .4s cubic-bezier(.2, 1.6, .4, 1); }
+.item-slot[hidden] { display: none; }
+.item-slot:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--yellow-d); }
+.item-timer { border: 0; cursor: pointer; font: inherit; font-family: var(--font-num); font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(43, 33, 96, .78); color: #fff; white-space: nowrap; }

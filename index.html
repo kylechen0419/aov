@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=38">
+  <link rel="stylesheet" href="style.css?v=39">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -264,7 +264,6 @@
       <div id="fx-bar" class="fx-bar" hidden></div>
       <div id="hint-bar" class="hint-bar" hidden><span id="hint-ask-text"></span><button id="btn-hint-vote" class="btn small primary" type="button">💡 我要提示</button></div>
       <ul id="hud-strip" class="hud-strip" hidden></ul>
-      <div id="hud-lastcall" class="banner lastcall" hidden></div>
       <div id="hud-alert-opp" class="banner danger" hidden></div>
       <div id="hud-alert-me" class="banner notice" hidden></div>
     </div>
@@ -401,14 +400,14 @@
   <div id="item-dock" class="item-dock" hidden>
     <button class="item-slot" type="button" data-slot="0" aria-label="道具欄 1"></button>
     <button class="item-slot" type="button" data-slot="1" aria-label="道具欄 2"></button>
-    <button id="btn-item-help" class="item-help" type="button" aria-label="道具說明">?</button>
+    <button id="item-timer" class="item-timer" type="button" aria-label="下一個道具（點一下看說明）">🎁</button>
   </div>
   <div id="item-hit" class="item-hit" hidden><span id="item-hit-icon"></span><b id="item-hit-text"></b></div>
 
   <div id="items-modal" class="modal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="items-title">
       <div class="modal-head"><b id="items-title">🎁 道具說明</b><button id="items-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
-      <p class="pick-sub">點條目裡有 🎁 的連結就能撿到道具，最多帶 2 個。落後的人比較容易拿到強力道具！</p>
+      <p class="pick-sub">每 40 秒自動發一個道具，最多帶 2 個。離終點越遠的人拿到越強的道具（閃電、冰凍、香蕉皮…），領先的人只拿得到比較弱的。</p>
       <ul id="items-list" class="items-list"></ul>
     </div>
   </div>
@@ -523,6 +522,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=38"></script>
+  <script type="module" src="app.js?v=39"></script>
 </body>
 </html>

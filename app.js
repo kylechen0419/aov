@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=38';
-import * as wiki from './wiki.js?v=38';
-import { tw, twTree, zhReady } from './zh.js?v=38';
-import { makeShareImage } from './share.js?v=38';
-import { solve } from './solver.js?v=38';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic } from './fx.js?v=38';
+import { Net } from './net.js?v=39';
+import * as wiki from './wiki.js?v=39';
+import { tw, twTree, zhReady } from './zh.js?v=39';
+import { makeShareImage } from './share.js?v=39';
+import { solve } from './solver.js?v=39';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic } from './fx.js?v=39';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -169,7 +169,7 @@ const isItems = (g = state.game) => g?.settings.goal === 'items';
 const GOALS = {
   speed: { icon: '⚡', name: '比速度', brief: '先抵達的贏' },
   steps: { icon: '👣', name: '比步數', brief: '步數最少的贏' },
-  items: { icon: '🎁', name: '道具賽', brief: '點 🎁 連結撿道具整對手，先抵達的贏' },
+  items: { icon: '🎁', name: '道具賽', brief: '每 40 秒發一個道具，落後的人拿到比較強的' },
 };
 const cleanGoal = (g) => (GOALS[g] ? g : 'speed');
 const opponents = () => [...state.players.values()].filter((p) => p.id !== state.myId);
@@ -957,7 +957,8 @@ function createGame(settings, id) {
   paintAvatar($('#hud-me-avatar'), { name: state.myName, avatar: state.myAvatar });
   $('#hud-me-avatar').style.setProperty('--side', party && me ? me.color : '');
   $('#hud-strip').hidden = !party;
-  $('#hud-lastcall').hidden = true;
+  $('#hud-timer').classList.remove('sprint');
+  $('#hud').classList.remove('compact');
   $('#hint-bar').hidden = true;
   $('#hint-card').hidden = true;
   renderOppHud();
@@ -1160,12 +1161,12 @@ function tick() {
   let left = limit ? limit - ms : Infinity;
   timer.textContent = limit ? fmtTime(left) : fmtTime(ms);
 
-  // 派對模式的最後衝刺倒數
+  // 派對模式的最後衝刺：計時器直接改成衝刺倒數
   if (g.lastCallEnd) {
     const lc = g.lastCallEnd - performance.now();
     left = Math.min(left, lc);
-    $('#hud-lastcall').hidden = false;
-    $('#hud-lastcall').textContent = `最後衝刺！剩 ${Math.max(0, Math.ceil(lc / 1000))} 秒`;
+    timer.textContent = fmtTime(Math.max(0, lc));
+    timer.classList.add('sprint');
   }
 
   if (left !== Infinity) {
@@ -1177,6 +1178,7 @@ function tick() {
   }
   updateIntensity(left);
   if (g.fx) applyFx();
+  if (isItems(g)) itemClock(g);
   if (ms >= HINT_AFTER && !g.hint.offered && !g.hint.shown) offerHint();
   if (left <= 0) finishGame('timeout');
 }
@@ -1226,7 +1228,8 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
     $('#hud-alert-me').hidden = !near;
     $('#hud-alert-me').textContent = '終點連結就在這一頁！快找！';
 
-    sendProgress({ t: 'progress', title: art.title, clicks: g.clicks, near, path: g.path });
+    if (isItems(g)) g.dist = distanceHere(g);
+    sendProgress({ t: 'progress', title: art.title, clicks: g.clicks, near, path: g.path, d: g.dist ?? undefined });
     if (reached) finishGame('win');
     else {
       renderGoal();
@@ -1261,7 +1264,6 @@ function renderBreadcrumb(g) {
 
 function renderArticle(art) {
   fillArticle($('#article'), $('#article-title'), art, state.game.settings);
-  if (isItems()) placeBoxes($('#article'));
   window.scrollTo(0, 0);
 }
 
@@ -1358,7 +1360,17 @@ function queueLiveView() {
 
 function initGame() {
   const root = $('#article');
-  window.addEventListener('scroll', () => { if (state.view === 'game') queueLiveView(); }, { passive: true });
+  // 往下捲動閱讀時把上方資訊收小，往上捲或回到頂端就展開
+  let lastY = 0;
+  window.addEventListener('scroll', () => {
+    if (state.view !== 'game') return;
+    queueLiveView();
+    const y = scrollY;
+    if (y < 80) $('#hud').classList.remove('compact');
+    else if (y > lastY + 10) $('#hud').classList.add('compact');
+    else if (y < lastY - 30) $('#hud').classList.remove('compact');
+    if (Math.abs(y - lastY) > 10 || y < 80) lastY = y;
+  }, { passive: true });
   // 點了哪個連結馬上告訴觀戰的人，新頁面載入前就看得到他點了什麼
   root.addEventListener('click', (e) => {
     const a = e.target.closest('a.wl');
@@ -1392,7 +1404,6 @@ function initGame() {
         goTo(slip.dataset.title);
         return;
       }
-      if (a.classList.contains('itembox')) { a.classList.remove('itembox'); pickUpItem(); }
     }
     goTo(a.dataset.title);
   });
@@ -1474,6 +1485,7 @@ function onOtherProgress(id, msg) {
   if (Array.isArray(msg.path)) o.path = msg.path.slice(0, 200);
   else if (moved) o.path.push(msg.title);
   o.near = !!msg.near;
+  if (msg.d >= 1 && msg.d <= 3) o.dist = msg.d;
   o.offline = false;
   renderOppHud();
   if (g.finished) {
@@ -2009,7 +2021,7 @@ function maskTitle(text, title, lang) {
 }
 
 // ---------- 道具賽 ----------
-// 條目裡隨機幾個連結會帶著 🎁，點下去就撿到道具（最多帶 2 個）
+// 每 40 秒自動發一個道具（最多帶 2 個）；離終點越遠的人拿到越強的道具
 const ITEMS = {
   fog: { icon: '🌫️', name: '迷霧', desc: '對手的條目變得模糊 8 秒', kind: 'attack', ms: 8000 },
   flip: { icon: '🙃', name: '天旋地轉', desc: '對手的條目上下顛倒 8 秒', kind: 'attack', ms: 8000 },
@@ -2026,7 +2038,14 @@ const FX = {
   banana: { icon: '🍌', bad: true }, snail: { icon: '🐌', bad: true }, shield: { icon: '🛡️', bad: false },
 };
 const MAX_ITEMS = 2;
-const BOXES_PER_PAGE = 3;
+const ITEM_EVERY = 40000;
+// 依照離終點的遠近發道具：落後的人拿強的，領先的人拿弱的
+const ITEM_TIERS = {
+  behind: { bolt: 3, freeze: 3, banana: 3, crystal: 3, snail: 2 },
+  even: { fog: 3, flip: 2, snail: 2, freeze: 1, banana: 1, shield: 2, crystal: 2 },
+  lead: { fog: 3, flip: 3, shield: 3, snail: 1 },
+};
+const TIER_NOTE = { behind: '落後補給', even: '', lead: '領先者' };
 
 function resetItems() {
   const g = state.game;
@@ -2034,7 +2053,17 @@ function resetItems() {
   g.items = [];
   g.fx = {};
   g.backSet = null;
+  g.dist = null;
+  g.nextItemAt = 0;
   $('#item-dock').hidden = !isItems(g);
+  // 先在背景查好「哪些條目會連到終點」，用來判斷大家離終點多遠
+  if (isItems(g)) {
+    loadBackSet(g).then(() => {
+      if (state.game !== g || g.finished || !g.current) return;
+      g.dist = distanceHere(g);
+      sendProgress({ t: 'progress', title: g.current, clicks: g.clicks, near: g.near, path: g.path, d: g.dist });
+    }, () => {});
+  }
   renderItems();
   applyFx();
 }
@@ -2044,42 +2073,64 @@ function renderItems() {
   $$('.item-slot').forEach((b, i) => {
     const it = g?.items?.[i];
     b.textContent = it ? ITEMS[it].icon : '';
-    b.classList.toggle('full', !!it);
+    b.hidden = !it;
     b.setAttribute('aria-label', it ? `使用${ITEMS[it].name}` : `道具欄 ${i + 1}（空）`);
   });
+  renderItemTimer();
 }
 
-// 每一頁隨機挑幾個連結放道具箱（終點連結不放）
-function placeBoxes(root) {
+// 下一個道具的倒數（點一下看道具說明）
+function renderItemTimer() {
   const g = state.game;
-  const links = [...root.querySelectorAll('a.wl')].filter((a) => a.dataset.title !== g.settings.target && a.dataset.title !== g.current);
-  for (let i = 0; i < BOXES_PER_PAGE && links.length; i++) {
-    const a = links.splice(Math.floor(Math.random() * links.length), 1)[0];
-    a.classList.add('itembox');
-  }
+  if (!g || !isItems(g)) return;
+  const el = $('#item-timer');
+  if (!g.nextItemAt) { el.textContent = '🎁 準備中'; return; }
+  el.textContent = g.items.length >= MAX_ITEMS ? '🎁 滿了' : `🎁 ${Math.max(0, Math.ceil((g.nextItemAt - performance.now()) / 1000))}s`;
 }
 
-// 抽道具：有對手快到終點、自己還沒的時候，比較容易抽到強力道具
-function rollItem() {
-  const g = state.game;
-  const behind = [...g.others.values()].some((o) => o.near && !o.finished) && !g.near;
-  const w = behind
-    ? { fog: 2, flip: 2, freeze: 4, banana: 4, snail: 2, bolt: 3, shield: 1, crystal: 3 }
-    : { fog: 3, flip: 3, freeze: 2, banana: 2, snail: 3, bolt: 1, shield: 2, crystal: 2 };
+// 離終點幾步：這頁有終點連結＝1，有連到「會連到終點的條目」＝2，其他＝3
+function distanceHere(g) {
+  if ($('#article a.is-target')) return 1;
+  const bs = g.backReady;
+  if (bs && [...$('#article').querySelectorAll('a.wl')].some((a) => bs.set.has(bs.key(a.dataset.title)))) return 2;
+  return 3;
+}
+
+// 跟其他還在比的人比遠近，決定這次發哪一級的道具
+function itemTier(g) {
+  const mine = g.dist ?? 3;
+  const others = [...g.others.values()].filter((o) => !o.left).map((o) => (o.finished?.reason === 'win' ? 0 : o.finished ? null : o.dist ?? 3)).filter((d) => d !== null);
+  if (!others.length) return 'even';
+  const best = Math.min(...others);
+  if (mine > best) return 'behind';
+  if (mine < best) return 'lead';
+  return 'even';
+}
+
+function rollItem(tier) {
+  const w = ITEM_TIERS[tier];
   let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0);
   for (const [k, v] of Object.entries(w)) { r -= v; if (r < 0) return k; }
   return 'fog';
 }
 
-function pickUpItem() {
-  const g = state.game;
-  if (g.items.length >= MAX_ITEMS) { toast('道具欄滿了，先用掉一個吧！', 1600); return; }
-  const it = rollItem();
-  g.items.push(it);
-  renderItems();
-  sfx.ready();
-  haptic('success');
-  toast(`🎁 撿到 ${ITEMS[it].icon} ${ITEMS[it].name}！`, 1800);
+// 計時器每次跑都檢查：時間到就發一個道具
+function itemClock(g) {
+  if (!g.startAt) return;
+  if (!g.nextItemAt) g.nextItemAt = g.startAt + ITEM_EVERY;
+  if (performance.now() >= g.nextItemAt) {
+    g.nextItemAt += ITEM_EVERY;
+    if (g.items.length < MAX_ITEMS) {
+      const tier = itemTier(g);
+      const it = rollItem(tier);
+      g.items.push(it);
+      renderItems();
+      sfx.ready();
+      haptic('success');
+      toast(`🎁 拿到 ${ITEMS[it].icon} ${ITEMS[it].name}！${TIER_NOTE[tier] ? `（${TIER_NOTE[tier]}）` : ''}`, 2200);
+    }
+  }
+  renderItemTimer();
 }
 
 const fxOn = (g, k) => (g?.fx?.[k] || 0) > performance.now();
@@ -2195,26 +2246,34 @@ function showHit(icon, text, good = false) {
   hitTimer = setTimeout(() => { el.hidden = true; }, 1600);
 }
 
+// 「會連到終點的條目」名單：水晶球和判斷遠近共用，一局只查一次
+function loadBackSet(g) {
+  g.backSet ||= (async () => {
+    await zhReady;
+    const key = g.settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
+    const set = new Set();
+    let cont = {};
+    for (let i = 0; i < 4 && cont; i++) {
+      const d = await wiki.api(g.settings.lang, { action: 'query', list: 'backlinks', bltitle: g.settings.target, blnamespace: '0', bllimit: 'max', blredirect: '1', ...cont });
+      for (const b of d.query?.backlinks || []) {
+        if (!b.redirect) set.add(key(b.title));
+        for (const r of b.redirlinks || []) set.add(key(r.title));
+      }
+      cont = d.continue || null;
+    }
+    g.backReady = { set, key };
+    return g.backReady;
+  })();
+  g.backSet.catch(() => { g.backSet = null; });
+  return g.backSet;
+}
+
 // 水晶球：找出這一頁裡「會連到終點」的條目，下一步就能到
 async function runCrystal() {
   const g = state.game;
   toast('🔮 水晶球占卜中…', 1500);
   try {
-    g.backSet ||= (async () => {
-      const key = g.settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
-      const set = new Set();
-      let cont = {};
-      for (let i = 0; i < 4 && cont; i++) {
-        const d = await wiki.api(g.settings.lang, { action: 'query', list: 'backlinks', bltitle: g.settings.target, blnamespace: '0', bllimit: 'max', blredirect: '1', ...cont });
-        for (const b of d.query?.backlinks || []) {
-          if (!b.redirect) set.add(key(b.title));
-          for (const r of b.redirlinks || []) set.add(key(r.title));
-        }
-        cont = d.continue || null;
-      }
-      return { set, key };
-    })();
-    const { set, key } = await g.backSet;
+    const { set, key } = await loadBackSet(g);
     if (state.game !== g || g.finished) return;
     const hits = [...$('#article').querySelectorAll('a.wl')].filter((a) => a.dataset.title === g.settings.target || set.has(key(a.dataset.title)));
     hits.forEach((a) => a.classList.add('crystal'));
@@ -2241,7 +2300,7 @@ function initItems() {
     li.append(d);
     return li;
   }));
-  $('#btn-item-help').onclick = () => { $('#items-modal').hidden = false; };
+  $('#item-timer').onclick = () => { $('#items-modal').hidden = false; };
   $('#items-close').onclick = () => { $('#items-modal').hidden = true; };
   $('#items-modal').addEventListener('click', (e) => { if (e.target.id === 'items-modal') $('#items-modal').hidden = true; });
 }
@@ -2826,7 +2885,7 @@ function handleGuestMessage(msg, from, cid) {
       if (msg.t === 'item') {
         const to = msg.to === 'all' ? 'all' : String(msg.to || '');
         if (to !== 'all' && to !== state.myId && !g.others.has(to)) return;
-        if (tooFast(`item:${from}`, 400)) return;
+        if (tooFast(`item:${from}:${msg.item}`, 400)) return;
         net.send({ t: 'item', item: msg.item, to, from }, null, from);
         onItem(from, msg.item, to);
       } else {
