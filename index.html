@@ -37,6 +37,8 @@
     <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M8 14.5s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="10" r="1.2" class="fill"/><circle cx="15" cy="10" r="1.2" class="fill"/></symbol>
     <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-5 4 4 3-3 4 4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></symbol>
     <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
   </svg>
 
@@ -99,7 +101,7 @@
         <p id="home-error" class="error" hidden></p>
       </div>
 
-      <h2 class="section-title">怎麼玩</h2>
+      <h2 class="section-title">怎麼玩 <button type="button" id="btn-tutorial" class="link-btn"><svg class="ic"><use href="#i-play"/></svg>看教學</button></h2>
       <ol class="howto">
         <li><span class="howto-n">壹</span><b>建立房間</b><span>把代碼或邀請連結傳給朋友</span></li>
         <li><span class="howto-n">貳</span><b>決定路線</b><span>房主設定起點與終點，也能隨機</span></li>
@@ -251,6 +253,16 @@
     <article class="paper">
       <p id="breadcrumb" class="breadcrumb"></p>
       <h1 id="article-title" class="article-title"></h1>
+      <div class="view-switch">
+        <div class="segmented" role="radiogroup" aria-label="條目顯示方式">
+          <label><input type="radio" name="artview" value="full" checked><span>全文</span></label>
+          <label><input type="radio" name="artview" value="links"><span>只看連結 <b id="link-count">0</b></span></label>
+        </div>
+      </div>
+      <div id="link-view" class="link-view" hidden>
+        <label class="link-search"><svg class="ic"><use href="#i-search"/></svg><input id="link-filter" type="search" placeholder="搜尋這一頁的連結…" autocomplete="off" enterkeyhint="search"></label>
+        <div id="link-groups"></div>
+      </div>
       <div id="article" class="article"></div>
       <div id="article-loading" class="loading" hidden><div class="spinner"></div></div>
     </article>
@@ -337,6 +349,66 @@
         <a id="share-save" class="btn primary" download="維基競速戰績.png">儲存圖片</a>
       </div>
     </div>
+  </div>
+
+  <div id="tutorial" class="modal tutorial" hidden>
+    <div class="modal-card tut-card" role="dialog" aria-modal="true" aria-labelledby="tut-title">
+      <button id="tut-skip" class="tut-skip" type="button">略過</button>
+      <div class="tut-track" id="tut-track">
+        <section class="tut-slide">
+          <div class="tut-art art-route">
+            <span class="tut-node start">珍珠奶茶</span>
+            <span class="tut-dots"></span>
+            <span class="tut-node mid">臺灣</span>
+            <span class="tut-dots"></span>
+            <span class="tut-node goal">★ 富士山</span>
+          </div>
+          <h2 id="tut-title">從起點連到終點</h2>
+          <p>每一局都有一個<b class="c-blue">起點條目</b>和一個<b class="c-gold">終點條目</b>。從起點出發，先抵達終點的人就贏了！</p>
+        </section>
+        <section class="tut-slide">
+          <div class="tut-art art-article">
+            <p>珍珠奶茶是源自<span class="tut-link pulse">臺灣</span>的茶飲，常見於<span class="tut-link">日本</span>、<span class="tut-link gold">富士山</span>附近的…</p>
+            <span class="tut-finger" aria-hidden="true">👆</span>
+          </div>
+          <h2>只能點藍色連結</h2>
+          <p>點條目裡的<b class="c-blue">藍色連結</b>前往下一個條目，每點一次算一步。看到<b class="c-gold">金色的連結</b>，那就是終點，快點下去！</p>
+        </section>
+        <section class="tut-slide">
+          <div class="tut-art art-hud">
+            <div class="mini-hud"><span class="mini-av me">你</span><b>2 步</b><span class="mini-timer">01:24</span><b>3 步</b><span class="mini-av opp">敵</span></div>
+            <div class="mini-alert">⚠ 小明 只差一步就到終點！</div>
+          </div>
+          <h2>隨時盯著對手</h2>
+          <p>畫面上方會即時顯示對手走了幾步、在哪個條目。對手快到終點時會響<b class="c-red">警報</b>，這時候要加快腳步了！</p>
+        </section>
+        <section class="tut-slide">
+          <div class="tut-art art-tabs">
+            <div class="mini-tabs"><span><i>‹</i>上一頁</span><span><i>☰</i>只看連結</span><span><i>☺</i>表情</span><span><i>⚑</i>投降</span></div>
+          </div>
+          <h2>好用的小工具</h2>
+          <p>走錯路可以按<b>上一頁</b>（也算一步）。條目太長找不到連結？切換到<b>「只看連結」</b>，還能搜尋。比賽中也能丟<b>表情</b>給對手。</p>
+        </section>
+        <section class="tut-slide">
+          <div class="tut-art art-modes">
+            <span class="mini-mode duel"><b>1 對 1</b>對決模式</span>
+            <span class="mini-mode party"><b>2–8 人</b>派對模式</span>
+          </div>
+          <h2>找朋友一起比！</h2>
+          <p>選好模式後按<b>建立房間</b>，再按<b>邀請</b>把連結傳給朋友。派對模式第一個人抵達後，其他人只剩 60 秒！</p>
+        </section>
+      </div>
+      <div class="tut-dots-nav" id="tut-dots"></div>
+      <div class="tut-actions">
+        <button id="tut-prev" class="btn" type="button">上一步</button>
+        <button id="tut-next" class="btn primary" type="button">下一步</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="coach" class="coach" hidden>
+    <div class="coach-ring" id="coach-ring"></div>
+    <div class="coach-bubble" id="coach-bubble"><b id="coach-title"></b><span id="coach-text"></span><small id="coach-step"></small></div>
   </div>
 
   <div id="countdown" class="overlay" hidden>

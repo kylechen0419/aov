@@ -43,6 +43,7 @@ const state = {
   game: null,
   chat: [],
   hostLocked: false,
+  artView: 'full',
 };
 
 // 房主用：斷線玩家的保留計時、聊天與表情的頻率限制
@@ -180,7 +181,7 @@ function initSound() {
     if (!e.isTrusted || e.target.closest('[data-haptic]')) return;
     const el = e.target.closest('button, input[type=checkbox], input[type=radio], .article a');
     if (!el || el.disabled) return;
-    if (el.matches('.article a')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }
+    if (el.matches('.article a, .lchip')) { haptic(el.dataset.title ? 'medium' : 'light'); return; }
     haptic('light');
     sfx.tap();
   }, true);
@@ -919,6 +920,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
 
     sendProgress({ t: 'progress', title: art.title, clicks: g.clicks, near, path: g.path });
     if (reached) finishGame('win');
+    else if (first) setTimeout(runCoach, 400);
   } catch (e) {
     toast(`載入失敗：${e.message}`);
   } finally {
@@ -953,7 +955,9 @@ function renderArticle(art) {
 
   const root = $('#article');
   root.innerHTML = art.html;
-  root.querySelectorAll('.mw-editsection, .mw-empty-elt, script').forEach((el) => el.remove());
+  // 拿掉點不了的引用標記與參考文獻，條目比較清爽
+  root.querySelectorAll('.mw-editsection, .mw-empty-elt, script, sup.reference, .reflist, ol.references, .mw-references-wrap').forEach((el) => el.remove());
+  root.querySelectorAll('img').forEach((img) => { img.loading = 'lazy'; img.decoding = 'async'; });
   if (state.game.settings.lang === 'zh') twTree(root);
   const target = state.game.settings.target;
   root.querySelectorAll('a').forEach((a) => {
@@ -969,7 +973,74 @@ function renderArticle(art) {
     }
     a.removeAttribute('target');
   });
+  buildLinkIndex(root, art.title);
   window.scrollTo(0, 0);
+}
+
+// ---------- 只看連結 ----------
+// 依條目段落整理這一頁所有可以點的連結
+function buildLinkIndex(root, current) {
+  const g = state.game;
+  const groups = new Map();
+  const seen = new Set();
+  const target = g.settings.target;
+  let label = '開頭';
+  for (const el of root.querySelectorAll('h2, h3, a.wl')) {
+    if (el.tagName !== 'A') {
+      const text = el.textContent.replace(/\[.*?\]/g, '').trim();
+      if (text) label = text;
+      continue;
+    }
+    const t = el.dataset.title;
+    if (!t || t === current || seen.has(t)) continue;
+    seen.add(t);
+    let group = label;
+    if (t === target) group = '★ 終點就在這裡！';
+    else if (el.closest('.infobox')) group = '資訊框';
+    else if (el.closest('.navbox, .vertical-navbox')) group = '相關主題';
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push({ title: t, text: el.textContent.trim() || tw(t) });
+  }
+  // 終點連結永遠排在最上面
+  const sorted = [...groups.entries()].sort(([a], [b]) => (b.startsWith('★') ? 1 : 0) - (a.startsWith('★') ? 1 : 0));
+  g.links = sorted;
+  $('#link-count').textContent = seen.size;
+  $('#link-filter').value = '';
+  renderLinkGroups();
+}
+
+function renderLinkGroups() {
+  const g = state.game;
+  if (!g?.links) return;
+  const q = $('#link-filter').value.trim().toLowerCase();
+  const out = [];
+  for (const [label, items] of g.links) {
+    const hits = q ? items.filter((it) => it.text.toLowerCase().includes(q) || tw(it.title).toLowerCase().includes(q)) : items;
+    if (!hits.length) continue;
+    const box = document.createElement('section');
+    box.className = 'lgroup';
+    if (label.startsWith('★')) box.classList.add('goal');
+    box.append(Object.assign(document.createElement('h3'), { textContent: label }));
+    const wrap = document.createElement('div');
+    wrap.className = 'lchips';
+    for (const it of hits) {
+      const b = Object.assign(document.createElement('button'), { type: 'button', className: 'lchip', textContent: it.text, title: tw(it.title) });
+      b.dataset.title = it.title;
+      wrap.append(b);
+    }
+    box.append(wrap);
+    out.push(box);
+  }
+  if (!out.length) out.push(Object.assign(document.createElement('p'), { className: 'lempty', textContent: q ? '這一頁沒有符合的連結' : '這一頁沒有可以點的連結，試試上一頁' }));
+  $('#link-groups').replaceChildren(...out);
+}
+
+function setArtView(v) {
+  state.artView = v === 'links' ? 'links' : 'full';
+  store.set('wikirace-view', state.artView);
+  document.querySelector(`input[name="artview"][value="${state.artView}"]`).checked = true;
+  $('#article').hidden = state.artView === 'links';
+  $('#link-view').hidden = state.artView !== 'links';
 }
 
 function initGame() {
@@ -1004,6 +1075,14 @@ function initGame() {
     const msg = isParty() ? '確定要投降嗎？這一局你就不會有名次了。' : '確定要投降嗎？對手會直接獲勝。';
     if (confirm(msg)) finishGame('giveup');
   };
+
+  setArtView(store.get('wikirace-view'));
+  document.querySelectorAll('input[name="artview"]').forEach((r) => r.addEventListener('change', () => setArtView(r.value)));
+  $('#link-filter').addEventListener('input', renderLinkGroups);
+  $('#link-groups').addEventListener('click', (e) => {
+    const b = e.target.closest('.lchip');
+    if (b) goTo(b.dataset.title);
+  });
 
   $('#btn-path').onclick = () => { $('#path-drawer').hidden = !$('#path-drawer').hidden; };
   $('#btn-path-close').onclick = () => { $('#path-drawer').hidden = true; };
@@ -1097,6 +1176,7 @@ function finishGame(reason) {
   if (net.isHost) onAnyFinish(state.myId, g.finished);
   $('#countdown').hidden = true;
   $('#path-drawer').hidden = true;
+  $('#coach').hidden = true;
   $('#hud').classList.remove('danger');
   if (reason === 'win') {
     flash('#ffc53d');
@@ -1546,6 +1626,92 @@ function initEmotes() {
   });
 }
 
+// ---------- 新手教學 ----------
+let openTutorial = () => {};
+function initTutorial() {
+  const track = $('#tut-track');
+  const slides = [...track.children];
+  const dots = $('#tut-dots');
+  dots.replaceChildren(...slides.map((_, n) => {
+    const d = Object.assign(document.createElement('button'), { type: 'button', className: 'tut-dot' });
+    d.setAttribute('aria-label', `第 ${n + 1} 頁`);
+    d.onclick = () => go(n);
+    return d;
+  }));
+  let i = 0;
+  const go = (n) => {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    track.style.transform = `translateX(-${i * 100}%)`;
+    dots.querySelectorAll('.tut-dot').forEach((d, k) => d.classList.toggle('on', k === i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    $('#tut-prev').disabled = i === 0;
+    $('#tut-next').textContent = i === slides.length - 1 ? '開始玩！' : '下一步';
+  };
+  const close = () => {
+    $('#tutorial').hidden = true;
+    store.set('wikirace-tutorial-done', '1');
+  };
+  $('#tut-next').onclick = () => (i === slides.length - 1 ? close() : go(i + 1));
+  $('#tut-prev').onclick = () => go(i - 1);
+  $('#tut-skip').onclick = close;
+  // 左右滑動換頁
+  let sx = null;
+  track.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
+  track.addEventListener('touchend', (e) => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx;
+    sx = null;
+    if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1));
+  });
+  openTutorial = () => { go(0); $('#tutorial').hidden = false; };
+  $('#btn-tutorial').onclick = openTutorial;
+}
+
+// 第一次比賽時，指出畫面上的重點
+const COACH = [
+  { sel: ['.hud-target'], title: '這是你的終點', text: '抵達這個條目就贏了！計時已經開始囉。' },
+  { sel: ['#article a.wl', '.lchip', '.view-switch'], title: '點藍色連結前進', text: '每點一次算一步。找不到連結時，切換到「只看連結」還能搜尋。' },
+  { sel: ['.tabbar'], title: '下方的小工具', text: '走錯了按「上一頁」，也能看路線、丟表情或投降。' },
+];
+
+function runCoach() {
+  if (store.get('wikirace-coach-done') || state.view !== 'game' || state.game?.finished) return;
+  const coach = $('#coach');
+  let step = 0;
+  const place = () => {
+    const s = COACH[step];
+    const el = s.sel.flatMap((q) => [...document.querySelectorAll(q)]).find((e) => {
+      const r = e.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.top < innerHeight && r.bottom > 0;
+    });
+    if (!el) { next(); return; }
+    const r = el.getBoundingClientRect();
+    const pad = 6;
+    const ring = $('#coach-ring');
+    Object.assign(ring.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
+    $('#coach-title').textContent = s.title;
+    $('#coach-text').textContent = s.text;
+    $('#coach-step').textContent = `${step + 1} / ${COACH.length}　點一下繼續`;
+    const bubble = $('#coach-bubble');
+    const below = r.bottom + 160 < innerHeight;
+    bubble.style.top = below ? `${r.bottom + 14}px` : '';
+    bubble.style.bottom = below ? '' : `${innerHeight - r.top + 14}px`;
+    bubble.classList.toggle('above', !below);
+  };
+  const next = () => {
+    step++;
+    if (step >= COACH.length || state.view !== 'game' || state.game?.finished) {
+      coach.hidden = true;
+      store.set('wikirace-coach-done', '1');
+      return;
+    }
+    place();
+  };
+  coach.onclick = next;
+  coach.hidden = false;
+  place();
+}
+
 // ---------- 連線：房主這一側 ----------
 function removePlayer(pid) {
   const p = state.players.get(pid);
@@ -1824,4 +1990,7 @@ initGame();
 initResult();
 initChat();
 initEmotes();
+initTutorial();
 show('home');
+// 第一次來的人先看教學（重新整理回房間時不打擾）
+if (!store.get('wikirace-tutorial-done') && !session.load()) openTutorial();
