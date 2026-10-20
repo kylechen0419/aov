@@ -25,7 +25,7 @@ const POPULAR = {
 
 const nsCache = {};
 
-function api(lang, params) {
+export function api(lang, params) {
   const { host, variant } = LANGS[lang];
   const url = new URL(`https://${host}/w/api.php`);
   const all = { format: 'json', formatversion: '2', origin: '*', ...params };

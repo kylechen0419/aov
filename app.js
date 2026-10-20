@@ -1,8 +1,9 @@
-import { Net } from './net.js?v=28';
-import * as wiki from './wiki.js?v=28';
-import { tw, twTree, zhReady } from './zh.js?v=28';
-import { makeShareImage } from './share.js?v=28';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=28';
+import { Net } from './net.js?v=29';
+import * as wiki from './wiki.js?v=29';
+import { tw, twTree, zhReady } from './zh.js?v=29';
+import { makeShareImage } from './share.js?v=29';
+import { solve } from './solver.js?v=29';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=29';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -1444,6 +1445,7 @@ function showResult(update = false) {
   const { res } = info;
   if (party) renderRanking(g, info.entries);
   else renderDuelResult(g, res);
+  renderSolution(g);
   $('#result-hero').className = `cover result-hero ${info.tone}`;
   $('#ranking').hidden = !party;
   $('#score-card').hidden = party;
@@ -1499,6 +1501,59 @@ function renderDuelResult(g, res) {
   fillPath($('#res-opp-path'), o.path, g.settings.target);
 }
 
+// ---------- 正確解答：最短路線 ----------
+// 結果畫面顯示解答區；沒有人抵達終點時自動開始找，有人抵達就按按鈕再找
+function renderSolution(g) {
+  const sol = g.solution;
+  const nobody = ![g.finished, ...[...g.others.values()].map((o) => o.finished)].some((f) => f?.reason === 'win');
+  const done = g.mode === 'party' ? allDone(g) : true;
+  $('#btn-solve').hidden = !!sol;
+  $('#solution-progress').hidden = !(sol && sol.running);
+  $('#solution-path').hidden = !(sol && sol.path);
+  if (!sol) {
+    $('#solution-note').textContent = nobody ? '沒有人抵達，看看可以怎麼走' : '';
+    if (nobody && done) findSolution(g);
+    return;
+  }
+  if (sol.running) {
+    const stage = { start: '讀取起點的連結…', two: '找兩步可以到的路線…', back: '整理會連到終點的條目…', three: '找三步可以到的路線…', four: '往更遠的地方找…' }[sol.stage] || '搜尋中…';
+    $('#solution-status').textContent = `${stage}${sol.checked ? `（已看過 ${sol.checked} 個條目）` : ''}`;
+    $('#solution-note').textContent = '';
+    return;
+  }
+  if (sol.path) {
+    fillPath($('#solution-path'), sol.path, g.settings.target);
+    const steps = sol.path.length - 1;
+    $('#solution-note').textContent = sol.exact ? `最短 ${steps} 步` : `可行路線 ${steps} 步（不一定最短）`;
+  } else {
+    $('#btn-solve').hidden = false;
+    $('#btn-solve').lastChild.textContent = '再找一次';
+    $('#solution-note').textContent = sol.error ? `找不到：${sol.error}` : '找了很久還是沒找到，這題真的很難！';
+  }
+}
+
+async function findSolution(g) {
+  if (g.solution?.running) return;
+  g.solution = { running: true, stage: 'start', checked: 0 };
+  renderSolution(g);
+  const key = g.settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
+  try {
+    await zhReady;
+    const res = await solve(g.settings.lang, g.settings.start, g.settings.target, {
+      key,
+      onProgress: ({ stage, checked }) => {
+        if (state.game !== g) return;
+        Object.assign(g.solution, { stage, checked });
+        renderSolution(g);
+      },
+    });
+    g.solution = res ? { path: res.path, exact: res.exact } : { path: null };
+  } catch (e) {
+    g.solution = { path: null, error: e.message };
+  }
+  if (state.game === g && state.view === 'result') renderSolution(g);
+}
+
 // ---------- 分享戰績圖 ----------
 let shareUrl = null;
 let shareFile = null;
@@ -1549,6 +1604,7 @@ async function openShare() {
 function initResult() {
   $('#btn-rematch').onclick = () => enterRoom(net.code);
   $('#btn-share').onclick = openShare;
+  $('#btn-solve').onclick = () => { if (state.game) findSolution(state.game); };
   $('#share-close').onclick = () => { $('#share-modal').hidden = true; };
   $('#share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-modal') $('#share-modal').hidden = true; });
   $('#share-go').onclick = async () => {

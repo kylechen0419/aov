@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=29">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -313,6 +313,15 @@
           <ol id="res-opp-path" class="metro"></ol>
         </div>
       </div>
+      <div class="card solution" id="solution">
+        <div class="solution-head">
+          <h2 class="card-title"><svg class="ic"><use href="#i-bulb"/></svg>正確解答</h2>
+          <small id="solution-note"></small>
+        </div>
+        <button id="btn-solve" class="btn blue wide" type="button"><svg class="ic"><use href="#i-route"/></svg>看最短路線</button>
+        <div id="solution-progress" class="solution-progress" hidden><span class="spinner sm"></span><span id="solution-status">搜尋中…</span></div>
+        <ol id="solution-path" class="metro" hidden></ol>
+      </div>
       <div class="result-actions">
         <button id="btn-share" class="btn pink"><svg class="ic"><use href="#i-image"/></svg>分享戰績</button>
         <button id="btn-rematch" class="btn primary">再來一局</button>
@@ -438,6 +447,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=28"></script>
+  <script type="module" src="app.js?v=29"></script>
 </body>
 </html>

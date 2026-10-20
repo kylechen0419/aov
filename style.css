@@ -958,3 +958,14 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .brief-goal.steps { background: #fff4cc; color: #a06a00; }
 .stats-label { margin: 0 0 -6px; font-size: 12px; font-weight: 900; color: #0b7fa8; letter-spacing: .04em; }
 .stats-label.steps { color: #a06a00; }
+
+/* ---------- 正確解答 ---------- */
+.solution { gap: 10px; }
+.solution-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.solution-head .card-title { display: flex; align-items: center; gap: 6px; }
+.solution-head .ic { width: 20px; height: 20px; color: var(--yellow-d); }
+.solution-head small { font-size: 12px; font-weight: 800; color: var(--muted); text-align: right; }
+.solution-progress { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.solution-progress[hidden] { display: none; }
+.spinner.sm { width: 20px; height: 20px; border-width: 3px; position: static; flex: none; }
+.solution .metro { --side: var(--green); }
