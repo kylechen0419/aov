@@ -1,11 +1,11 @@
-import { Net } from './net.js?v=59';
-import { initPresence } from './presence.js?v=59';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=59';
-import * as wiki from './wiki.js?v=59';
-import { tw, twTree, zhReady } from './zh.js?v=59';
-import { makeShareImage } from './share.js?v=59';
-import { solve } from './solver.js?v=59';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=59';
+import { Net } from './net.js?v=60';
+import { initPresence } from './presence.js?v=60';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=60';
+import * as wiki from './wiki.js?v=60';
+import { tw, twTree, zhReady } from './zh.js?v=60';
+import { makeShareImage } from './share.js?v=60';
+import { solve } from './solver.js?v=60';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=60';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -108,6 +108,7 @@ function show(view) {
   $('#emote-fab').hidden = !fabOn;
   document.body.classList.toggle('has-fab', fabOn);  // 有浮動表情鈕時，聊天室底下留空間，送出鈕才不會被壓到
   document.body.classList.toggle('solo', state.solo);  // 單人訓練：隱藏對手欄、聊天室等多人元素
+  renderAnnounce();
   if (view !== 'watch') { stopWatchTimer(); $('#btn-follow').hidden = true; }
   if (view !== 'room' && view !== 'game') closePick(null);
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
@@ -368,14 +369,32 @@ function initMusicSettings() {
 
 // ---------- 全站公告（製作者從後台發） ----------
 let announceId = '';
-function initAnnounce() {
-  $('#announce-close').onclick = () => { store.set('wikirace-bcast', announceId); $('#announce').hidden = true; };
-  watchBroadcast((b) => {
-    if (!b || !b.text) { $('#announce').hidden = true; return; }
-    announceId = String(b.id || b.at || b.text);
-    if (announceId === store.get('wikirace-bcast')) { $('#announce').hidden = true; return; }
-    $('#announce-text').textContent = String(b.text).slice(0, 200);
+let announceOn = false;  // 有公告、而且這位玩家還沒按 ✕ 關掉
+let announcePeek = null;
+const racingView = () => state.view === 'game' || state.view === 'watch';
+// 比賽中公告會蓋住上方的時間和步數：新公告只亮 8 秒就收起來，回大廳或結算畫面再顯示
+function renderAnnounce(fresh = false) {
+  const stopPeek = () => { clearTimeout(announcePeek); announcePeek = null; };
+  if (!announceOn) { stopPeek(); $('#announce').hidden = true; return; }
+  if (!racingView()) { stopPeek(); $('#announce').hidden = false; return; }
+  if (fresh) {
+    stopPeek();
     $('#announce').hidden = false;
+    announcePeek = setTimeout(() => { announcePeek = null; if (racingView()) $('#announce').hidden = true; }, 8000);
+    return;
+  }
+  if (!announcePeek) $('#announce').hidden = true;  // 正在亮的 8 秒就讓它亮完
+}
+function initAnnounce() {
+  $('#announce-close').onclick = () => { store.set('wikirace-bcast', announceId); announceOn = false; renderAnnounce(); };
+  watchBroadcast((b) => {
+    // 重新連線時 Firebase 會再送一次同一則公告，只有換了新公告才算「新」的（比賽中才會再亮）
+    const id = b && b.text ? String(b.id || b.at || b.text) : '';
+    const fresh = !!id && id !== announceId;
+    announceId = id;
+    announceOn = !!id && id !== store.get('wikirace-bcast');
+    if (id) $('#announce-text').textContent = String(b.text).slice(0, 200);
+    renderAnnounce(fresh);
   });
 }
 
