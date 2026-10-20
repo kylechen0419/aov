@@ -1014,3 +1014,17 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
   background: var(--blue); color: #fff; padding: 6px 10px; border-radius: 999px; box-shadow: 0 3px 0 var(--blue-d);
 }
 .rank-watch:active { transform: translateY(2px); box-shadow: none; }
+.watch-info span.tap { color: #9cd2ff; }
+.article.watching a.peek {
+  position: relative; background: rgba(47, 123, 255, .2); border-radius: 6px;
+  box-shadow: 0 0 0 3px var(--blue); animation: peekPulse .5s ease-in-out 3 alternate;
+}
+.article.watching a.peek::after { content: "👆"; position: absolute; left: 50%; top: 70%; font-size: 26px; transform: translateX(-30%); pointer-events: none; animation: tutTap .5s ease-in-out 3 alternate; }
+@keyframes peekPulse { to { box-shadow: 0 0 0 7px rgba(47, 123, 255, .35); } }
+.follow-btn {
+  position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 8px; white-space: nowrap; padding: 12px 20px;
+}
+.follow-btn[hidden] { display: none; }
+.follow-btn .live-dot { background: #fff; box-shadow: none; }
+.follow-btn:active { transform: translateX(-50%) translateY(3px); }

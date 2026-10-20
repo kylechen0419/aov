@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=32';
-import * as wiki from './wiki.js?v=32';
-import { tw, twTree, zhReady } from './zh.js?v=32';
-import { makeShareImage } from './share.js?v=32';
-import { solve } from './solver.js?v=32';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=32';
+import { Net } from './net.js?v=33';
+import * as wiki from './wiki.js?v=33';
+import { tw, twTree, zhReady } from './zh.js?v=33';
+import { makeShareImage } from './share.js?v=33';
+import { solve } from './solver.js?v=33';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti } from './fx.js?v=33';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -32,7 +32,7 @@ const EMOTES = [...EMOJIS, ...PHRASES];
 const CHAT_MAX = 50;
 
 const state = {
-  watch: { id: null, shown: null, token: 0 },
+  watch: { id: null, shown: null, token: 0, follow: true, ready: false, live: {} },
   myName: '',
   myAvatar: null,
   myId: null,
@@ -1060,8 +1060,80 @@ function fillArticle(root, titleEl, art, settings) {
   });
 }
 
+// ---------- 觀戰的即時畫面：比賽中的人把捲動位置和點擊送給已經比完的人 ----------
+// 有人比完（可能在觀戰）才送，避免比賽時浪費流量
+const hasSpectators = (g) => !!g && [...g.others.values()].some((o) => o.finished && !o.left);
+
+function sendLive(msg) {
+  const g = state.game;
+  if (!g || g.finished || !g.current || !hasSpectators(g)) return;
+  const full = { ...msg, p: g.current };
+  if (net.isHost) sendToSpectators({ ...full, id: state.myId }, null);
+  else net.send(full);
+}
+
+// 房主：只轉給已經比完的人
+function sendToSpectators(msg, except) {
+  const g = state.game;
+  if (!g) return;
+  for (const o of g.others.values()) {
+    if (o.finished && !o.left && o.id !== except) net.send(msg, o.id);
+  }
+}
+
+function cleanLive(msg) {
+  if (typeof msg.p !== 'string') return null;
+  if (msg.t === 'view') {
+    const i = Math.floor(Number(msg.i));
+    const f = Number(msg.f);
+    if (!(i >= 0 && i < 5000) || !(f >= 0 && f <= 1)) return null;
+    return { t: 'view', p: msg.p, i, f };
+  }
+  const n = Math.floor(Number(msg.n));
+  if (!(n >= 0 && n < 20000)) return null;
+  return { t: 'tap', p: msg.p, n };
+}
+
+// 條目裡的段落：用「第幾段＋段內位置」對齊，手機寬度不同也能對到同一個地方
+function blocksOf(root) {
+  const box = root.querySelector('.mw-parser-output') || root;
+  return [...box.children].filter((el) => el.getBoundingClientRect().height > 0);
+}
+
+function readView(root, line) {
+  const blocks = blocksOf(root);
+  for (let i = 0; i < blocks.length; i++) {
+    const r = blocks[i].getBoundingClientRect();
+    if (r.bottom > line) return { i, f: Math.min(1, Math.max(0, (line - r.top) / (r.height || 1))) };
+  }
+  return { i: Math.max(0, blocks.length - 1), f: 1 };
+}
+
+let liveTimer = null;
+let lastLive = '';
+function queueLiveView() {
+  if (liveTimer) return;
+  liveTimer = setTimeout(() => {
+    liveTimer = null;
+    if (state.view !== 'game') return;
+    const v = readView($('#article'), $('#hud').getBoundingClientRect().bottom + 10);
+    const sig = `${state.game?.current}|${v.i}|${v.f.toFixed(2)}`;
+    if (sig === lastLive) return;
+    lastLive = sig;
+    sendLive({ t: 'view', i: v.i, f: Number(v.f.toFixed(3)) });
+  }, 200);
+}
+
 function initGame() {
   const root = $('#article');
+  window.addEventListener('scroll', () => { if (state.view === 'game') queueLiveView(); }, { passive: true });
+  // 點了哪個連結馬上告訴觀戰的人，新頁面載入前就看得到他點了什麼
+  root.addEventListener('click', (e) => {
+    const a = e.target.closest('a.wl');
+    if (!a) return;
+    const n = [...root.querySelectorAll('a.wl')].indexOf(a);
+    if (n >= 0) sendLive({ t: 'tap', n });
+  });
   root.addEventListener('click', (e) => {
     const a = e.target.closest('a');
     if (!a) return;
@@ -1592,6 +1664,7 @@ function openWatch(id) {
   if (!list.length) { toast('大家都比完了'); return; }
   state.watch.id = list.some((o) => o.id === id) ? id : list[0].id;
   state.watch.shown = null;
+  setFollow(true);
   show('watch');
   $('#watch-goal').textContent = tw(g.settings.target);
   stopWatchTimer();
@@ -1636,7 +1709,7 @@ function renderWatch(moved = false) {
     b.classList.toggle('near', !!p.near && !p.finished);
     b.disabled = !!p.finished;
     b.append(avatarEl(p, 'sm'), `${p.name} · ${p.finished?.reason === 'win' ? '抵達' : p.finished ? '出局' : `${p.clicks} 步`}`);
-    b.onclick = () => { if (p.id !== state.watch.id) { state.watch.id = p.id; renderWatch(true); } };
+    b.onclick = () => { if (p.id !== state.watch.id) { state.watch.id = p.id; setFollow(true); renderWatch(true); } };
     li.append(b);
     return li;
   });
@@ -1648,6 +1721,7 @@ async function loadWatchArticle(title) {
   const g = state.game;
   const token = (state.watch.token = (state.watch.token || 0) + 1);
   state.watch.shown = title;
+  state.watch.ready = false;
   $('#watch-loading').hidden = false;
   const key = `${g.settings.lang}:${title}`;
   try {
@@ -1655,13 +1729,62 @@ async function loadWatchArticle(title) {
     const art = await artCache.get(key);
     if (token !== state.watch.token || state.view !== 'watch') return;
     fillArticle($('#watch-article'), $('#watch-title'), art, g.settings);
+    state.watch.ready = true;
     window.scrollTo(0, 0);
+    applyLiveView();
   } catch (e) {
     artCache.delete(key);
     if (token === state.watch.token) { state.watch.shown = null; toast(`載入失敗：${e.message}`); }
   } finally {
     if (token === state.watch.token) $('#watch-loading').hidden = true;
   }
+}
+
+// 收到比賽中玩家的即時畫面
+function onLive(id, live) {
+  const w = state.watch;
+  w.live ||= {};
+  if (live.t === 'view') w.live[id] = live;
+  if (state.view !== 'watch' || id !== w.id || live.p !== w.shown || !w.ready) return;
+  if (live.t === 'view') applyLiveView();
+  else showTap(live.n);
+}
+
+function applyLiveView() {
+  const w = state.watch;
+  const v = w.live?.[w.id];
+  if (!w.follow || !v || v.p !== w.shown || !w.ready) return;
+  const blocks = blocksOf($('#watch-article'));
+  const el = blocks[Math.min(v.i, blocks.length - 1)];
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const line = $('.watch-bar').getBoundingClientRect().bottom + 10;
+  const top = Math.max(0, scrollY + r.top + v.f * r.height - line);
+  // 距離很遠就直接跳過去，近的才用滑的，才不會跟不上
+  window.scrollTo({ top, behavior: Math.abs(top - scrollY) > innerHeight * 1.5 ? 'auto' : 'smooth' });
+}
+
+function showTap(n) {
+  const a = $('#watch-article').querySelectorAll('a.wl')[n];
+  if (!a) return;
+  $('#watch-article').querySelectorAll('a.peek').forEach((x) => x.classList.remove('peek'));
+  a.classList.add('peek');
+  setTimeout(() => a.classList.remove('peek'), 1600);
+  const st = $('#watch-status');
+  st.textContent = `👆 點了《${a.textContent.trim() || tw(a.dataset.title)}》`;
+  st.className = 'tap';
+  const r = a.getBoundingClientRect();
+  const top = $('.watch-bar').getBoundingClientRect().bottom;
+  if (state.watch.follow && (r.top < top || r.bottom > innerHeight)) {
+    a.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+// 自己動手捲動就先不跟著他，按按鈕再跟回去
+function setFollow(on) {
+  state.watch.follow = on;
+  $('#btn-follow').hidden = on;
+  if (on) applyLiveView();
 }
 
 // 正在看的人比完或離開：告訴大家，然後換看下一位，沒人可看就回到結果
@@ -1735,6 +1858,11 @@ function initResult() {
   $('#btn-solve').onclick = () => { if (state.game) findSolution(state.game); };
   $('#btn-watch').onclick = () => openWatch();
   $('#btn-watch-back').onclick = () => showResult(true);
+  $('#btn-follow').onclick = () => setFollow(true);
+  // 只有真的用手指或滑鼠捲動才算「自己在看」
+  for (const ev of ['touchmove', 'wheel']) {
+    window.addEventListener(ev, () => { if (state.view === 'watch' && state.watch.follow) setFollow(false); }, { passive: true });
+  }
   $('#share-close').onclick = () => { $('#share-modal').hidden = true; };
   $('#share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-modal') $('#share-modal').hidden = true; });
   $('#share-go').onclick = async () => {
@@ -2079,6 +2207,14 @@ function handleGuestMessage(msg, from, cid) {
       net.send({ t: 'emote', id: from, e: msg.e }, null, from);
       showEmote(from, msg.e);
       break;
+    case 'view':
+    case 'tap': {
+      const live = cleanLive(msg);
+      if (!live || !state.game?.others.has(from)) return;
+      sendToSpectators({ ...live, id: from }, from);
+      onLive(from, live);
+      break;
+    }
   }
 }
 
@@ -2174,6 +2310,12 @@ function handleHostMessage(msg) {
     case 'emote':
       if (EMOTES.includes(msg.e) && msg.id) showEmote(msg.id, msg.e);
       break;
+    case 'view':
+    case 'tap': {
+      const live = cleanLive(msg);
+      if (live && msg.id) onLive(msg.id, live);
+      break;
+    }
   }
 }
 
