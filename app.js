@@ -176,9 +176,18 @@ function initSound() {
   $('#btn-music-game').onclick = toggleMusic;
   // 瀏覽器要求使用者先操作過才能出聲
   for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
-  // 瀏覽器不讓網站一打開就出聲：被擋下時提示玩家點一下，開始播放後就收起來
-  document.addEventListener('music-blocked', () => { $('#music-hint').hidden = false; });
-  document.addEventListener('music-playing', () => { $('#music-hint').hidden = true; });
+  // 手機瀏覽器不讓網站一打開就出聲，所以先顯示「點一下開始」，那一下就讓音樂響起；
+  // 瀏覽器允許自動播放的話，音樂一開始就把這個畫面收起來
+  const splash = $('#splash');
+  const closeSplash = () => {
+    if (splash.hidden || splash.classList.contains('out')) return;
+    splash.classList.add('out');
+    setTimeout(() => { splash.hidden = true; }, 350);
+  };
+  if (isMusicOn()) splash.hidden = false;
+  // 用 click 而不是 touchend 收起，避免同一下點擊穿透到底下的按鈕
+  splash.addEventListener('click', closeSplash);
+  document.addEventListener('music-playing', closeSplash);
   // 每次點擊按鈕、選項都給一下觸覺與聲音回饋
   document.addEventListener('click', (e) => {
     // 只回應真人的點擊；程式觸發的點擊（例如 iPhone 震動用的隱藏開關）一律略過，否則會無限循環
