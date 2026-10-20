@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=43">
+  <link rel="stylesheet" href="style.css?v=46">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -400,8 +400,10 @@
   <div id="item-dock" class="item-dock" hidden>
     <button class="item-slot" type="button" data-slot="0" aria-label="道具欄 1"></button>
     <button class="item-slot" type="button" data-slot="1" aria-label="道具欄 2"></button>
-    <button id="item-timer" class="item-timer" type="button" aria-label="下一個道具（點一下看說明）">🎁</button>
-    <button id="item-guide" class="item-guide-btn" type="button">📖 道具說明</button>
+    <div class="item-meta">
+      <button id="item-timer" class="item-timer" type="button" aria-label="下一個道具（點一下看說明）">🎁</button>
+      <button id="item-guide" class="item-guide-btn" type="button" aria-label="道具說明">📖 說明</button>
+    </div>
   </div>
   <div id="item-hit" class="item-hit" hidden><span id="item-hit-icon"></span><b id="item-hit-text"></b></div>
 
@@ -532,6 +534,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=43"></script>
+  <script type="module" src="app.js?v=46"></script>
 </body>
 </html>

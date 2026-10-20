@@ -1141,7 +1141,8 @@ input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0;
 .hud.compact .hud-target b { font-size: 14px; }
 
 /* 道具欄：只顯示手上的道具，旁邊是下一個道具的倒數 */
-.item-dock { gap: 8px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+.item-dock { gap: 8px; justify-items: end; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+.item-meta { display: flex; gap: 4px; align-items: center; }
 .item-slot { width: 48px; height: 48px; border-radius: 15px; font-size: 26px; border: 0; background: linear-gradient(160deg, #fff, #ffe9a8); color: inherit; box-shadow: 0 3px 0 var(--yellow-d), 0 6px 14px rgba(30, 20, 90, .3); backdrop-filter: none; animation: slotIn .4s cubic-bezier(.2, 1.6, .4, 1); }
 .item-slot[hidden] { display: none; }
 .item-slot:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--yellow-d); }

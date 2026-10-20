@@ -1,9 +1,9 @@
-import { Net } from './net.js?v=43';
-import * as wiki from './wiki.js?v=43';
-import { tw, twTree, zhReady } from './zh.js?v=43';
-import { makeShareImage } from './share.js?v=43';
-import { solve } from './solver.js?v=43';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=43';
+import { Net } from './net.js?v=46';
+import * as wiki from './wiki.js?v=46';
+import { tw, twTree, zhReady } from './zh.js?v=46';
+import { makeShareImage } from './share.js?v=46';
+import { solve } from './solver.js?v=46';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=46';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -92,6 +92,7 @@ function show(view) {
   $('.masthead').hidden = view === 'game' || view === 'watch';
   $('#emote-fab').hidden = !(view === 'room' || view === 'result' || view === 'watch');
   if (view !== 'watch') { stopWatchTimer(); $('#btn-follow').hidden = true; }
+  if (view !== 'room' && view !== 'game') closePick(null);
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
@@ -588,7 +589,7 @@ function renderDuelSlots() {
   $('#slot-guest').classList.toggle('empty', !guest);
   $('#slot-guest').classList.toggle('offline', guest?.online === false);
   $('#slot-guest .kick-btn')?.remove();
-  if (iAmHost && guest) $('#slot-guest').append(kickButton(guest));
+  if (iAmHost && guest && !stillRacing(guest.id)) $('#slot-guest').append(kickButton(guest));
   $('#slot-host').classList.toggle('offline', host?.online === false);
   $('#slot-host').classList.toggle('is-me', iAmHost);
   $('#slot-guest').classList.toggle('is-me', !iAmHost);
@@ -613,7 +614,7 @@ function renderPartyBoard() {
     const name = Object.assign(document.createElement('b'), { textContent: p.name });
     const tag = Object.assign(document.createElement('span'), { className: 'party-tag', textContent: playerTag(p) });
     li.append(name, tag);
-    if (net.isHost && !p.host) li.append(kickButton(p));
+    if (net.isHost && !p.host && !stillRacing(p.id)) li.append(kickButton(p));
     return li;
   });
   for (let i = list.length; i < max; i++) {
@@ -702,6 +703,7 @@ let suggestTimer;
 function initRoom() {
   form().addEventListener('input', (e) => {
     if (!net.isHost) return;
+    e.target.diceToken = null;
     broadcastSettings();
     const name = e.target.name;
     if (name === 'start' || name === 'target') {
@@ -721,6 +723,10 @@ function initRoom() {
   form().querySelectorAll('[data-random]').forEach((btn) => {
     btn.onclick = async () => {
       const key = btn.dataset.random;
+      const field = form().elements[key];
+      // 抽籤時如果自己先打了字、或已經開始比賽，就不要拿晚到的結果蓋掉
+      const token = {};
+      field.diceToken = token;
       btn.disabled = true;
       btn.classList.add('busy');
       try {
@@ -728,7 +734,8 @@ function initRoom() {
         let t;
         do { t = await wiki.randomTitle(s.lang, s.trueRandom); } while (t === s[key === 'start' ? 'target' : 'start']);
         await zhReady;
-        form().elements[key].value = tw(t);
+        if (field.diceToken !== token || state.view !== 'room') return;
+        field.value = tw(t);
         sfx.click();
         haptic('light');
         broadcastSettings();
@@ -791,6 +798,18 @@ function initRoom() {
   $('#btn-start').onclick = hostStart;
 }
 
+// 不再參加這一局（被請出、回不了房間、接手當房主）：停掉計時器並收起比賽中的畫面
+function abandonGame() {
+  const g = state.game;
+  if (g) {
+    stopGameLoops(g);
+    if (!g.finished) g.finished = { reason: 'hostLeft', elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
+  }
+  for (const id of ['#countdown', '#coach', '#item-dock', '#path-drawer', '#hint-bar']) $(id).hidden = true;
+  closePick(null);
+  music.stop();
+}
+
 // ---------- 踢出玩家 ----------
 // 房主可以把人請出房間；被踢的人這個房間用同一個身分回不來
 function kickButton(p) {
@@ -802,7 +821,7 @@ function kickButton(p) {
 
 function kickPlayer(pid) {
   const p = state.players.get(pid);
-  if (!p || !net.isHost || p.host || state.view !== 'room') return;
+  if (!p || !net.isHost || p.host || state.view !== 'room' || stillRacing(pid)) return;
   if (!confirm(`要把 ${p.name} 請出房間嗎？`)) return;
   state.banned.add(pid);
   net.kick(pid, { t: 'kicked' });
@@ -812,7 +831,9 @@ function kickPlayer(pid) {
 
 // ---------- 轉移房主 ----------
 // 房間代碼就是房主的連線位址：舊房主放掉代碼，新房主接手同一個代碼，其他人照常自動重連
-const onlineGuests = () => [...state.players.values()].filter((p) => !p.host && p.online !== false);
+// 上一局還沒比完的人不算（房主先回到房間時，他們還在比賽中）
+const stillRacing = (id) => { const o = state.game?.others.get(id); return !!o && !o.finished && !o.left; };
+const onlineGuests = () => [...state.players.values()].filter((p) => !p.host && p.online !== false && !stillRacing(p.id));
 
 function migrateHost(toId, { leaving = false } = {}) {
   const to = state.players.get(toId);
@@ -827,7 +848,7 @@ function migrateHost(toId, { leaving = false } = {}) {
       return { ...p };
     });
   sysChat(leaving ? `${state.myName} 離開了，房主交給 ${to.name}` : `${state.myName} 把房主交給 ${to.name}`);
-  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30) });
+  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned] });
   state.hostLocked = true;
   session.clear();
   for (const t of graceTimers.values()) clearTimeout(t);
@@ -867,11 +888,13 @@ async function rejoinAfterMigrate(code, tries = 0) {
 async function takeOverHost(msg) {
   netBanner('你成為新房主，正在接手房間…');
   net.destroy();
+  if (state.game && !state.game.finished) abandonGame();
   state.mode = msg.mode === 'party' ? 'party' : 'duel';
   state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
   if (Array.isArray(msg.chat)) state.chat = msg.chat.slice(-CHAT_MAX);
   state.players = new Map((msg.players || []).map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar), online: p.id === state.myId, migrating: p.id !== state.myId }]));
   state.myReady = false;
+  state.banned = new Set(Array.isArray(msg.banned) ? msg.banned.filter((k) => typeof k === 'string') : []);
   try {
     await net.createRoom(0, msg.code);
   } catch (e) {
@@ -1065,7 +1088,7 @@ function startGame(settings, id) {
   haptic('countdown');
   const g = state.game;
   const iv = setInterval(() => {
-    if (state.game !== g) { clearInterval(iv); return; }
+    if (state.game !== g || g.finished) { clearInterval(iv); return; }
     n--;
     if (n > 0) { showNum(n); sfx.count(); haptic('countdown'); return; }
     clearInterval(iv);
@@ -1118,8 +1141,12 @@ function resumeGame(snap) {
   state.mode = snap.mode === 'party' ? 'party' : 'duel';
   state.players = new Map((snap.players || []).map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
   const g = createGame({ ...DEFAULT_SETTINGS, ...snap.settings }, snap.id);
+  // 已經比完的人先記下來，等比賽接回去之後再處理（對決時對手已經抵達就要直接判輸）
+  const done = [];
   for (const [id, p] of Object.entries(snap.progress || {})) {
-    if (id !== state.myId) applyProgress(g.others.get(id), p);
+    if (id === state.myId || !g.others.get(id)) continue;
+    applyProgress(g.others.get(id), { ...p, finished: null });
+    if (p.finished) done.push([id, p.finished]);
   }
   const mine = snap.progress?.[state.myId] || {};
   g.startAt = performance.now() - (snap.elapsed || 0);
@@ -1133,6 +1160,9 @@ function resumeGame(snap) {
   $('#countdown').hidden = true;
   if (mine.finished) {
     g.finished = mine.finished;
+    for (const [id, f] of done) applyProgress(g.others.get(id), { finished: f, clicks: f.clicks, path: f.path });
+    // 這一局的戰績在重新整理前已經記過了
+    g.restored = true;
     showResult();
     return;
   }
@@ -1140,6 +1170,7 @@ function resumeGame(snap) {
   music.play('race');
   g.timer = setInterval(tick, 200);
   goTo(mine.current || g.settings.start, { restore: true });
+  for (const [id, f] of done) onOtherFinish(id, f);
 }
 
 // 右上角：對決模式顯示對手；派對模式顯示抵達人數，並在下方列出每個人
@@ -1621,6 +1652,7 @@ function finishGame(reason) {
   $('#path-drawer').hidden = true;
   $('#coach').hidden = true;
   $('#item-dock').hidden = true;
+  closePick(null);
   applyFx();
   $('#hud').classList.remove('danger');
   if (reason === 'win') {
@@ -1891,6 +1923,7 @@ function showResult(update = false) {
 
   // 結果可能因為幾乎同時抵達而更正，戰績也跟著更正
   if (res === 'pending') { /* 勝負未定，先不記戰績 */ }
+  else if (!g.recorded && g.restored) g.recorded = res;
   else if (!g.recorded) { recordResult(g.settings.goal, res); g.recorded = res; }
   else if (g.recorded !== res) { unrecordResult(g.settings.goal, g.recorded); recordResult(g.settings.goal, res); g.recorded = res; }
 
@@ -2179,7 +2212,8 @@ function rollItem(tier) {
 // 計時器每次跑都檢查：時間到就發一個道具
 function itemClock(g) {
   if (!g.startAt) return;
-  if (!g.nextItemAt) g.nextItemAt = g.startAt + ITEM_EVERY;
+  // 下一次發道具的時間（重新整理接回來時，不補發錯過的道具）
+  if (!g.nextItemAt) g.nextItemAt = g.startAt + Math.max(1, Math.ceil(elapsed() / ITEM_EVERY)) * ITEM_EVERY;
   if (performance.now() >= g.nextItemAt) {
     g.nextItemAt += ITEM_EVERY;
     if (g.items.length < MAX_ITEMS) {
@@ -2765,6 +2799,8 @@ function initTutorial() {
   const close = () => {
     $('#tutorial').hidden = true;
     store.set('wikirace-tutorial-done', '1');
+    // 從邀請連結進來的人看完教學，直接接著填暱稱
+    if (state.view === 'home' && $('#join-code').value) ($('#nickname').value ? $('#btn-join') : $('#nickname')).focus();
   };
   $('#tut-next').onclick = () => (i === slides.length - 1 ? close() : go(i + 1));
   $('#tut-prev').onclick = () => go(i - 1);
@@ -2849,9 +2885,11 @@ function markOffline(pid) {
   net.send({ t: 'presence', id: pid, online: false });
   onPresence(pid, false);
   broadcastLobby();
-  const inRace = state.game && state.view !== 'room' && !state.game.others.get(pid)?.finished;
+  // 還在比賽中的人多給一點時間回來（就算房主已經回到房間也一樣）
+  const inRace = stillRacing(pid);
   clearTimeout(graceTimers.get(pid));
   graceTimers.set(pid, setTimeout(() => removePlayer(pid), inRace ? GRACE_GAME : GRACE_ROOM));
+  if (state.game) checkHintVotes();
 }
 
 net.onPeerLeave = (pid) => {
@@ -2861,6 +2899,21 @@ net.onPeerLeave = (pid) => {
   if (p.leaving) removePlayer(pid);
   else markOffline(pid);
 };
+
+// 玩家送來的進度與結果先整理過，格式不對就丟掉，免得轉給大家後讓別人的畫面出錯
+const cleanPath = (p) => (Array.isArray(p) ? p.filter((t) => typeof t === 'string').slice(0, 200).map((t) => t.slice(0, 200)) : []);
+const cleanNum = (n) => (Number.isFinite(Number(n)) && Number(n) >= 0 ? Number(n) : 0);
+function cleanProgress(msg) {
+  if (typeof msg.title !== 'string' || !msg.title) return null;
+  const out = { t: 'progress', title: msg.title.slice(0, 200), clicks: Math.floor(cleanNum(msg.clicks)), near: !!msg.near, path: cleanPath(msg.path) };
+  if (msg.d >= 1 && msg.d <= 3) out.d = Math.floor(msg.d);
+  return out;
+}
+function cleanFinish(msg) {
+  const reasons = ['win', 'lose', 'giveup', 'timeout', 'over', 'oppGaveUp', 'oppLeft', 'hostLeft'];
+  if (!reasons.includes(msg.reason)) return null;
+  return { t: 'finish', reason: msg.reason, elapsed: cleanNum(msg.elapsed), clicks: Math.floor(cleanNum(msg.clicks)), path: cleanPath(msg.path) };
+}
 
 function handleGuestMessage(msg, from, cid) {
   // 還沒報上名字的連線只接受 join
@@ -2882,8 +2935,9 @@ function handleGuestMessage(msg, from, cid) {
         existing.name = name;
         existing.avatar = avatar;
         existing.leaving = false;
-        const snap = state.game && state.view !== 'room' ? gameSnapshot() : null;
-        net.send({ t: 'welcome', you: key, game: snap, chat: state.chat.slice(-30) }, key);
+        // 房主已經回到房間，但這個人還在比上一局：一樣把比賽狀態給他，重新整理才接得回去
+        const snap = state.game && (state.view !== 'room' || stillRacing(key)) ? gameSnapshot() : null;
+        net.send({ t: 'welcome', you: key, game: snap, gameId: state.game?.id || null, chat: state.chat.slice(-30) }, key);
         net.send({ t: 'presence', id: key, online: true }, null, key);
         if (wasOffline) {
           onPresence(key, true);
@@ -2924,12 +2978,17 @@ function handleGuestMessage(msg, from, cid) {
       broadcastLobby();
       break;
     }
-    case 'progress':
+    case 'progress': {
       if (!state.game || state.game.others.get(from)?.finished) return;
-      net.send({ ...msg, id: from }, null, from);
-      onOtherProgress(from, msg);
+      const clean = cleanProgress(msg);
+      if (!clean) return;
+      net.send({ ...clean, id: from }, null, from);
+      onOtherProgress(from, clean);
       break;
+    }
     case 'finish': {
+      msg = cleanFinish(msg);
+      if (!msg) return;
       const already = state.game?.others.get(from)?.finished;
       if (!already) net.send({ ...msg, id: from }, null, from);
       onOtherFinish(from, msg);
@@ -3003,6 +3062,10 @@ function handleHostMessage(msg) {
         if (state.view === 'result') showResult(true);
       } else if (snap) {
         resumeGame(snap);
+      } else if (g && msg.gameId === g.id) {
+        // 房主已經回到房間，但這一局還算數：把自己的結果或進度補給房主
+        if (g.finished) net.send({ t: 'finish', ...g.finished });
+        else if (g.current) net.send({ t: 'progress', title: g.current, clicks: g.clicks, near: g.near, path: g.path });
       }
       break;
     }
@@ -3019,6 +3082,8 @@ function handleHostMessage(msg) {
     case 'full':
       session.clear();
       net.destroy();
+      state.migrating = null;
+      abandonGame();
       show('home');
       setConn('');
       showError('#home-error', msg.kicked ? '你已經被房主請出這個房間了' : msg.started ? '這個房間正在比賽中，請等這局結束再加入' : '這個房間已經滿了');
@@ -3026,6 +3091,8 @@ function handleHostMessage(msg) {
     case 'kicked':
       session.clear();
       net.destroy();
+      state.migrating = null;
+      abandonGame();
       netBanner('');
       show('home');
       setConn('');
@@ -3042,6 +3109,7 @@ function handleHostMessage(msg) {
         showResult(true);
         toast('房主關閉了房間', 3000);
       } else {
+        abandonGame();
         show('home');
         setConn('');
         showError('#home-error', '房主關閉了房間');
@@ -3128,6 +3196,7 @@ net.onHostBack = () => {
 function giveUpHost() {
   net.stopRetry();
   session.clear();
+  state.migrating = null;
   netBanner('');
   setConn('房主已離線');
   toast('連不回房主，房間已解散', 4000);
