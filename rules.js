@@ -125,6 +125,16 @@ export function rulesFor(adminUid) {
             },
           },
         },
+        // 每天的公開計數（每晚的摘要通知用）：只能一次加一點點、不能減少、不能刪
+        dayCount: {
+          '.read': true,
+          $date: {
+            $k: {
+              '.write': `auth != null && newData.exists() && ${ok}`,
+              '.validate': "($k === 'games' || $k === 'players' || $k === 'errors') && newData.isNumber() && newData.val() > (data.exists() ? data.val() : 0) && newData.val() <= (data.exists() ? data.val() : 0) + 8",
+            },
+          },
+        },
         // 史上尖峰只能往上加、不能刪（只是一個數字，公開讀；更新用 transaction 要先讀得到）。管理員可以重設
         peakOnline: {
           '.read': true,

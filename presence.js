@@ -18,6 +18,10 @@ let withV = true;  // Firebase 上還是舊規則（不認得 v）就不帶
 // 管理員要看我的畫面時通知 app.js（on=true 開始、false 結束）
 export function onSpy(cb) { spyCb = cb; }
 
+// 管理員觀戰時傳來的一句話（{ text, id }）
+let msgCb = () => {};
+export function onAdminMsg(cb) { msgCb = cb; }
+
 // 被管理員踢出伺服器時通知 app.js（{ until }；解除了就是 null）
 let banCb = () => {};
 export function onBan(cb) { banCb = cb; }
@@ -115,6 +119,8 @@ export async function initPresence(onCount) {
       if (spying) return;
       spying = true;
       spyRef.on('value', (snap) => {
+        const m = snap.val()?.msg;
+        if (m && typeof m.text === 'string' && m.text.trim()) msgCb({ text: m.text.trim().slice(0, 100), id: String(m.id || m.text) });
         const at = snap.val()?.at ?? null;
         if (at !== spyMark) { spyMark = at; spySeen = Date.now(); }
         checkSpy();

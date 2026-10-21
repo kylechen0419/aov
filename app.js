@@ -1,5 +1,5 @@
 import { Net } from './net.js?v=83';
-import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=83';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=83';
 import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=83';
 import { initNotify, notify } from './notify.js?v=83';
 import { getDb, getUid, authOff, onAuth } from './fb.js?v=83';
@@ -2485,9 +2485,25 @@ function applyBan(b) {
 }
 onBan(applyBan);
 
+// 管理員觀戰時傳來的話：跳一個小視窗（同一則只顯示一次，重新整理也不會再跳）
+onAdminMsg(({ text, id }) => {
+  let seen = [];
+  try { seen = (sessionStorage.getItem('wikirace-admin-msg') || '').split('\n'); } catch { /* 忽略 */ }
+  if (seen.includes(id)) return;
+  try { sessionStorage.setItem('wikirace-admin-msg', [...seen.slice(-20), id].join('\n')); } catch { /* 忽略 */ }
+  $('#admin-msg-text').textContent = text;
+  $('#admin-msg-pop').hidden = false;
+  sfx.ready();
+  haptic('medium');
+});
+$('#admin-msg-ok').onclick = () => { $('#admin-msg-pop').hidden = true; };
+
 // 管理員那一邊（後台按「觀戰」打開 ?adminwatch=<key>）：用觀戰畫面顯示那位玩家
 async function startAdminWatch(firstKey) {
   document.body.classList.add('admin-watching');
+  // 後台的多人觀戰把這一頁嵌在格子裡：只顯示畫面
+  const embed = new URLSearchParams(location.search).has('embed');
+  document.body.classList.toggle('admin-embed', embed);
   state.adminWatch = true;
   const o = { id: 'p', name: '玩家', avatar: '', color: COLORS[1], clicks: 0, current: '', path: [], near: false, finished: null, left: false, offline: false };
   const g = { id: null, finished: { reason: 'watch' }, others: new Map([['p', o]]), settings: { ...DEFAULT_SETTINGS }, startAt: performance.now(), mode: 'duel' };
@@ -2504,7 +2520,21 @@ async function startAdminWatch(firstKey) {
   const denied = () => status('沒有權限：請先在後台用 Google 登入，並更新資料庫規則');
   let cur = null;  // 正在看的玩家：{ key, spy, whoRef, liveRef, whoCb, liveCb }
   // 每 20 秒告訴玩家「管理員還在看」；關掉分頁或換人時收掉
-  const beat = () => { if (cur) cur.spy.set({ at: window.firebase.database.ServerValue.TIMESTAMP }).catch(denied); };
+  // 用 update：不要蓋掉剛傳給玩家的訊息
+  const beat = () => { if (cur) cur.spy.update({ at: window.firebase.database.ServerValue.TIMESTAMP }).catch(denied); };
+  // 傳一句話給正在看的玩家（他的畫面會跳出來）
+  $('#admin-say').hidden = embed;
+  $('#admin-say').onsubmit = (e) => {
+    e.preventDefault();
+    const text = $('#admin-say-text').value.replace(/\s+/g, ' ').trim().slice(0, 100);
+    if (!text || !cur) return;
+    const who = o.name;
+    cur.spy.update({ msg: { text, id: Date.now() }, at: window.firebase.database.ServerValue.TIMESTAMP }).then(() => {
+      $('#admin-say-text').value = '';
+      toast(`已傳給 ${who}`);
+      db.ref('audit').push({ at: Date.now(), a: '傳訊息給玩家', d: `${who}：${text}`.slice(0, 200) }).catch(() => {});
+    }, denied);
+  };
   setInterval(beat, 20000);
   window.addEventListener('pagehide', () => { try { cur?.spy.remove(); } catch { /* 忽略 */ } });
   setInterval(() => { if (!o.current) $('#watch-timer').textContent = '--:--'; else if (!o.finished) $('#watch-timer').textContent = fmtTime(elapsed()); }, 500);
@@ -2569,7 +2599,7 @@ async function startAdminWatch(firstKey) {
       if (v.tapAt && v.tapAt !== lastTapAt) { lastTapAt = v.tapAt; if (state.watch.shown === v.p && state.watch.ready) showTap(Number(v.n)); }
     }, denied);
     beat();
-    try { history.replaceState(null, '', `${location.pathname}?adminwatch=${encodeURIComponent(key)}`); } catch { /* 忽略 */ }
+    try { history.replaceState(null, '', `${location.pathname}?adminwatch=${encodeURIComponent(key)}${embed ? '&embed=1' : ''}`); } catch { /* 忽略 */ }
     renderTabs();
   };
 
@@ -3126,6 +3156,7 @@ function renderRanking(g, entries) {
     ol.style.setProperty('--side', e.color);
     fillPath(ol, e.path || [], target);
     body.append(sum, ol);
+    if (e.finished || e.left) body.append(routeReplayButton(e.me ? '你' : e.name, e.path || [], g.settings, e.finished?.reason === 'win'));
     li.append(badge, body);
     if (g.finished && !e.me && !e.finished && !e.left) {
       if (e.offline && net.isHost) {
@@ -3264,6 +3295,7 @@ function showSoloResult(g) {
   const meCard = $('#res-me-path').closest('.card');
   meCard.querySelector('.card-title').textContent = '你走過的路線';
   fillPath($('#res-me-path'), g.finished.path, g.settings.target);
+  $('#res-me-replay').replaceWith(Object.assign(routeReplayButton('你', g.finished.path, g.settings, win), { id: 'res-me-replay' }));
   // 最短解答（訓練最有用的部分）
   renderSolution(g);
   // 按鈕：再練一題 / 回首頁，藏掉分享
@@ -3297,6 +3329,10 @@ function renderDuelResult(g, res) {
   $('#res-opp-time').textContent = opp ? fmtTime(opp.elapsed) : '—';
   fillPath($('#res-me-path'), me.path, g.settings.target);
   fillPath($('#res-opp-path'), o.path, g.settings.target);
+  // 對手還在比的時候不給重播（看得到他的路線，但影片等他結束再看）
+  $('#res-me-replay').replaceWith(Object.assign(routeReplayButton('你', me.path, g.settings, me.reason === 'win'), { id: 'res-me-replay' }));
+  const oppDone = !!opp || o.left;
+  $('#res-opp-replay').replaceWith(Object.assign(routeReplayButton(o.name, oppDone ? o.path : [], g.settings, opp?.reason === 'win'), { id: 'res-opp-replay' }));
 }
 
 // ---------- 正確解答：最短路線 ----------
@@ -3481,15 +3517,29 @@ function receiveSolution(m) {
 
 // ---------- 解答影片：一步一步播放「在哪一頁點哪個連結」，可以暫停、上一步、下一步、調速度 ----------
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const player = { g: null, i: 0, playing: true, speed: 1, token: 0, arts: [] };
+// 也用來重播任何人走過的路線（結算畫面、後台的對局紀錄）：r = { path, via?, settings, who? }
+const player = { r: null, i: 0, playing: true, speed: 1, token: 0, arts: [], backs: [] };
 function playReplay(g) {
-  const sol = g.solution;
-  if (!sol?.path || sol.path.length < 2) return;
-  const n = sol.path.length - 1;
-  Object.assign(player, { g, i: 0, playing: true, arts: sol.path.map((t) => getArticle(g.settings.lang, t).catch(() => null)) });
+  if (g.solution?.path) playRoute({ path: g.solution.path, via: g.solution.via, settings: g.settings });
+}
+// 哪幾步是按「上一頁」：照遊戲的規則模擬一次（往前走把目前這頁放進堆疊，上一頁從堆疊拿出來）
+function backSteps(path) {
+  const stack = [];
+  return path.slice(0, -1).map((t, i) => {
+    if (stack.length && stack[stack.length - 1] === path[i + 1]) { stack.pop(); return true; }
+    stack.push(t);
+    return false;
+  });
+}
+function playRoute(r) {
+  const path = (r.path || []).filter(Boolean);
+  if (path.length < 2) return;
+  const n = path.length - 1;
+  const sol = { ...r, path };
+  Object.assign(player, { r: sol, i: 0, playing: true, backs: backSteps(path), arts: path.map((t) => getArticle(r.settings.lang, t).catch(() => null)) });
   $('#replay').hidden = false;
   document.body.classList.add('replaying');
-  $('#replay-dots').replaceChildren(...sol.path.map((t, i) => {
+  $('#replay-dots').replaceChildren(...path.map((t, i) => {
     const li = Object.assign(document.createElement('li'), { textContent: tw(t), className: i === 0 ? 'start' : i === n ? 'goal' : '' });
     li.onclick = () => replayGo(i);
     return li;
@@ -3500,8 +3550,7 @@ function playReplay(g) {
 
 // 跳到第 i 頁：顯示那一頁、捲到要點的連結、手指點一下；播放中就接著下一頁
 async function replayGo(i) {
-  const { g } = player;
-  const sol = g?.solution;
+  const sol = player.r;
   if (!sol?.path) return;
   const { path } = sol;
   const n = path.length - 1;
@@ -3510,13 +3559,16 @@ async function replayGo(i) {
   const token = ++player.token;
   const alive = () => token === player.token && !$('#replay').hidden;
   const slow = (ms) => wait(ms / player.speed);
-  const settings = { ...g.settings };
+  const settings = { ...sol.settings };
   const key = settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
   $('#replay-finger').hidden = true;
+  $('#replay-backtap').hidden = true;
   $('#replay-dots').querySelectorAll('li').forEach((li, k) => { li.classList.toggle('on', k === i); li.classList.toggle('past', k < i); });
   $('#replay-dots').children[i]?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  $('#replay-step').textContent = i < n ? `第 ${i + 1} 步 / 共 ${n} 步` : '🎉 抵達終點！';
-  $('#replay-hint').textContent = i < n ? `在《${tw(path[i])}》找到「${tw(path[i + 1])}」` : `《${tw(path[i])}》`;
+  const won = sol.reached ?? true;
+  $('#replay-step').textContent = (sol.who ? `${sol.who}・` : '') + (i < n ? `第 ${i + 1} 步 / 共 ${n} 步` : won ? '🎉 抵達終點！' : '走到這裡為止');
+  const back = i < n && player.backs[i];
+  $('#replay-hint').textContent = i < n ? (back ? `按「上一頁」回到《${tw(path[i + 1])}》` : `在《${tw(path[i])}》找到「${tw(path[i + 1])}」`) : `《${tw(path[i])}》`;
   $('#replay-prev').disabled = i === 0;
   $('#replay-next').disabled = i === n;
   paintPlay();
@@ -3527,9 +3579,20 @@ async function replayGo(i) {
   if (art) fillArticle($('#replay-article'), $('#replay-title'), art, settings);
   else { $('#replay-title').textContent = tw(path[i]); $('#replay-article').replaceChildren(); }
   $('#replay-scroll').scrollTo(0, 0);
-  if (i === n) { player.playing = false; paintPlay(); confetti(); return; }
+  if (i === n) { player.playing = false; paintPlay(); if (won) confetti(); return; }
   await slow(700);
   if (!alive()) return;
+  if (back) {
+    // 按上一頁：沒有連結可以點，顯示「↩️ 上一頁」被按了一下
+    const b = $('#replay-backtap');
+    b.hidden = false;
+    b.classList.remove('tap');
+    void b.offsetWidth;
+    b.classList.add('tap');
+    await slow(1400);
+    if (alive() && player.playing) replayGo(i + 1);
+    return;
+  }
   // 要點的連結：驗證時記下的那一個，或任何連到下一站（含重新導向名稱）的連結
   const links = [...$('#replay-article').querySelectorAll('a.wl')];
   let a = sol.via?.[i] ? links.find((x) => x.dataset.title === sol.via[i]) : null;
@@ -3560,7 +3623,7 @@ async function replayGo(i) {
 }
 
 function paintPlay() {
-  const end = player.g?.solution?.path && player.i >= player.g.solution.path.length - 1;
+  const end = player.r?.path && player.i >= player.r.path.length - 1;
   const b = $('#replay-play');
   const label = player.playing ? ['⏸', '暫停'] : end ? ['⟲', '重播'] : ['▶', '播放'];
   b.firstChild.textContent = label[0];
@@ -3571,7 +3634,7 @@ function paintSpeed() {
   $('#replay-speed').firstChild.textContent = `${player.speed}×`;
 }
 function replayToggle() {
-  const n = (player.g?.solution?.path.length || 1) - 1;
+  const n = (player.r?.path.length || 1) - 1;
   if (!player.playing && player.i >= n) { player.playing = true; replayGo(0); return; }  // 播完了：從頭再播
   player.playing = !player.playing;
   paintPlay();
@@ -3581,6 +3644,28 @@ function closeReplay() {
   player.token++;
   $('#replay').hidden = true;
   document.body.classList.remove('replaying');
+  // 從連結直接打開的重播（#replay=…）：關掉後把網址清乾淨
+  if (location.hash.startsWith('#replay=')) { try { history.replaceState(null, '', location.pathname + location.search); } catch { /* 忽略 */ } }
+}
+
+// 結算畫面「🎬 重播」：重播某個人走過的路線
+function routeReplayButton(name, path, settings, reached) {
+  const b = Object.assign(document.createElement('button'), { type: 'button', className: 'route-replay', textContent: '🎬 重播' });
+  b.hidden = !path || path.length < 2;
+  b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); playRoute({ path, settings, who: name, reached }); };
+  return b;
+}
+
+// 網址帶 #replay=<資料>：直接播放一段路線（後台「所有對局」的重播用）
+function openReplayFromHash() {
+  if (!location.hash.startsWith('#replay=')) return false;
+  try {
+    const d = JSON.parse(decodeURIComponent(location.hash.slice(8)));
+    const path = (Array.isArray(d.p) ? d.p : []).map((t) => String(t).slice(0, 200)).slice(0, 60);
+    if (path.length < 2) return false;
+    playRoute({ path, settings: { ...DEFAULT_SETTINGS, lang: d.l === 'en' ? 'en' : 'zh', start: path[0], target: String(d.t || path[path.length - 1]) }, who: String(d.n || '').slice(0, 16), reached: d.r === 'win' });
+    return true;
+  } catch { return false; }
 }
 
 // ---------- 全體投票拿提示 ----------
@@ -4960,13 +5045,15 @@ initAnnounce();
 initNotify();
 show('home');
 if (adminWatchKey && /^[-\w]{4,40}$/.test(adminWatchKey)) startAdminWatch(adminWatchKey);
+const fromReplay = !adminWatchKey && openReplayFromHash();
+window.addEventListener('hashchange', () => { if (state.view === 'home') openReplayFromHash(); });
 // 之前被踢出、期限還沒到：一打開就擋住
 try { const b = JSON.parse(store.get('wikirace-ban') || 'null'); if (b && b.until > Date.now() && !adminWatchKey) applyBan(b); } catch { /* 忽略 */ }
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 // 第一次來的人先看教學；從邀請連結來的人只顯示提示，不擋住加入（重新整理回房間時都不打擾）
 // 朋友分享的每日挑戰連結（?daily）：直接打開今天的題目，新玩家也不被教學擋住
 const fromDaily = new URLSearchParams(location.search).has('daily');
-if (!store.get('wikirace-tutorial-done') && !session.load() && !adminWatchKey) {
+if (!store.get('wikirace-tutorial-done') && !session.load() && !adminWatchKey && !fromReplay) {
   if (new URLSearchParams(location.search).get('room') || fromDaily) $('#tut-hint').hidden = false;
   else openTutorial();
 }

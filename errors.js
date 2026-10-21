@@ -18,6 +18,7 @@ export async function reportError(where, err) {
     const u = db && (await getUid());
     if (!u) return;
     const st = String(err?.stack || '').split('\n').slice(0, 5).map((x) => x.trim()).join(' | ').slice(0, 600);
+    import('./rooms.js?v=83').then((m) => m.countToday('errors', 1)).catch(() => {});
     await db.ref('errors').push({ at: Date.now(), v: VERSION, msg, where: String(where).slice(0, 40), ua: navigator.userAgent.slice(0, 200), u, ...(st ? { st } : {}) });
   } catch { /* 回報失敗就算了 */ }
 }

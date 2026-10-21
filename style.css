@@ -1418,3 +1418,21 @@ body.replaying { overflow: hidden; }
 .replay-ctrl button.main { background: var(--yellow); color: #3a2a00; min-width: 80px; }
 .replay-ctrl button:disabled { opacity: .35; cursor: default; }
 .replay-ctrl button:active:not(:disabled) { transform: scale(.94); }
+/* 結算畫面：重播某個人走過的路線 */
+.route-replay { display: block; margin: 10px 0 0 auto; border: 0; font: inherit; font-size: 13px; font-weight: 900; color: #4a3200; background: var(--yellow); padding: 6px 12px; border-radius: 999px; box-shadow: 0 2px 0 var(--yellow-d); cursor: pointer; white-space: nowrap; }
+.route-replay:active { transform: translateY(2px); box-shadow: none; }
+.route-replay[hidden] { display: none; }
+/* 重播時「按上一頁」那一步 */
+.replay-backtap { position: fixed; z-index: 130; left: 50%; top: 42%; transform: translate(-50%, -50%); background: rgba(20, 16, 46, .92); color: #fff; font-weight: 900; font-size: 18px; padding: 12px 20px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); pointer-events: none; }
+.replay-backtap.tap { animation: backTap 1.2s ease-in-out; }
+@keyframes backTap { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.9); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 45% { transform: translate(-50%, -50%) scale(.92); } 60%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+/* 管理員傳來的一句話（比賽中也看得到，按「知道了」關掉） */
+.admin-msg-pop { z-index: 190; background: rgba(18, 12, 48, .55); backdrop-filter: blur(3px); }
+.admin-msg-pop #admin-msg-text { font-size: 17px; font-weight: 900; overflow-wrap: anywhere; margin: 4px 0 16px; }
+/* 管理員觀戰：傳訊息給正在看的玩家 */
+.admin-say { display: flex; gap: 6px; margin-top: 8px; }
+.admin-say[hidden] { display: none; }
+.admin-say input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 8px 12px; border-radius: 999px; border: 2px solid var(--line, #e3e0f5); background: var(--card, #fff); color: inherit; }
+.admin-say .btn { flex: none; padding: 8px 14px; font-size: 14px; }
+/* 後台的多人觀戰（嵌在格子裡）：只留畫面，切換玩家和返回交給後台 */
+.admin-embed #watch-tabs, .admin-embed #btn-watch-back, .admin-embed .admin-say { display: none !important; }

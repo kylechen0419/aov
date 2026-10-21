@@ -114,6 +114,7 @@
   .gm-p .h span { color: var(--muted); font-weight: 500; }
   .gm-p .path { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
   .gm-p .h { flex-wrap: wrap; }
+  .gm-rp { order: 9; margin-left: auto; font-size: 12px; font-weight: 800; color: #4a3200; background: var(--yellow); padding: 2px 10px; border-radius: 999px; text-decoration: none; }
   .gl-more { width: 100%; margin-top: 8px; border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 8px; border-radius: 10px; background: var(--line); color: var(--ink); cursor: pointer; }
   .who-watch { margin-left: auto; font-size: 12px; font-weight: 800; color: #fff; background: var(--blue); padding: 4px 10px; border-radius: 999px; text-decoration: none; }
   .tag.solo { background: #5b2bbf; }
@@ -199,6 +200,26 @@
   .dc-day .m { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
   .dc-edit { display: grid; gap: 6px; margin-top: 8px; }
   .dc-edit input { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); min-width: 0; }
+  .multi-tools { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+  .multi-tools .gl-btn { padding: 6px 12px; }
+  .multi-tools .gl-btn.on { background: var(--blue); color: #fff; }
+  .multi-tools .go { margin-left: auto; background: var(--blue); color: #fff; }
+  .multi-tools .go[disabled] { opacity: .5; }
+  .who-pick { font-size: 12px; font-weight: 800; border: 2px solid var(--blue); background: none; color: var(--ink); padding: 3px 10px; border-radius: 999px; cursor: pointer; font-family: inherit; margin-left: auto; }
+  .who-pick.on { background: var(--blue); color: #fff; }
+  .multi { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; }
+  .multi-bar { display: flex; gap: 10px; align-items: center; padding: max(10px, env(safe-area-inset-top)) 12px 10px; border-bottom: 1px solid var(--line); }
+  .multi-bar span { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .multi-bar button { border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 7px 12px; border-radius: 999px; background: var(--line); color: var(--ink); cursor: pointer; }
+  .multi-grid { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; align-content: start; }
+  .multi-grid.one { grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .multi-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .mcell { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; min-width: 0; }
+  .mcell-h { display: flex; gap: 6px; align-items: center; padding: 6px 8px; font-size: 12px; font-weight: 800; }
+  .mcell-h b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mcell-h a { color: #fff; background: var(--blue); padding: 2px 8px; border-radius: 999px; text-decoration: none; flex: none; }
+  .mframe { position: relative; width: 100%; aspect-ratio: 390 / 700; overflow: hidden; background: #fff; }
+  .mframe iframe { position: absolute; top: 0; left: 0; width: 390px; height: 700px; border: 0; transform-origin: 0 0; }
   .bw-try { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; }
   .bw-try input { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink); }
 </style>
@@ -230,7 +251,9 @@
     <!-- 每一塊都可以收合（記在這支手機）；標題列右邊是一行摘要，收起來也看得到重點 -->
     <details class="sec" data-sec="who" open>
       <summary><span class="sec-t">👥 在線玩家</span><span class="sec-s" id="who-sum">讀取中…</span></summary>
-      <div class="sec-b"><p class="ver" id="who-ver" hidden></p><div id="who" class="who"><p class="empty">讀取中…</p></div></div>
+      <div class="sec-b"><p class="ver" id="who-ver" hidden></p>
+        <div class="multi-tools"><button id="multi-mode" class="gl-btn" type="button">🔲 多人觀戰</button><span id="multi-hint" hidden>選 2～4 位比賽中的玩家</span><button id="multi-go" class="gl-btn go" type="button" hidden>開始觀戰</button></div>
+        <div id="who" class="who"><p class="empty">讀取中…</p></div></div>
     </details>
 
     <details class="sec" data-sec="rooms" open>
@@ -438,6 +461,11 @@
     </details>
   </main>
 
+  <div id="multi" class="multi" hidden>
+    <div class="multi-bar"><b>👀 多人觀戰</b><span id="multi-sum"></span><button id="multi-close" type="button">✕ 關閉</button></div>
+    <div id="multi-grid" class="multi-grid"></div>
+  </div>
+
   <script src="firebase-config.js?v=83"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
@@ -470,6 +498,7 @@
   let lastBcast = null;
   let lastWho = null;
   let kickOpen = null, kickName = '';
+  let multiMode = false, multiSel = new Set();
   let bans = {};
   let db = null, lastRooms = null, games = [], sortBy = 'new', filterBy = 'all', period = 'today';
 
@@ -742,6 +771,44 @@
     $('#bw-res').textContent = !v || !names ? '' : names.badName(v) ? '🚫 會被擋下' : '✅ 可以用';
   }
 
+  // ---------- 多人觀戰：把 2～4 個觀戰畫面排成格子（每格是一個縮小的觀戰頁） ----------
+  $('#multi-mode').onclick = () => {
+    multiMode = !multiMode;
+    $('#multi-mode').classList.toggle('on', multiMode);
+    $('#multi-mode').textContent = multiMode ? '取消' : '🔲 多人觀戰';
+    $('#multi-hint').hidden = $('#multi-go').hidden = !multiMode;
+    if (!multiMode) multiSel.clear();
+    renderWho();
+  };
+  let multiRO = null;
+  function openMulti() {
+    const keys = [...multiSel];
+    if (!keys.length) return;
+    const grid = $('#multi-grid');
+    grid.className = 'multi-grid' + (keys.length === 1 ? ' one' : keys.length >= 3 ? ' four' : '');
+    grid.innerHTML = keys.map((k) => {
+      const w = (lastWho || {})[k] || {};
+      return `<div class="mcell"><div class="mcell-h"><b>${esc(w.n || '玩家')}</b><a href="index.html?adminwatch=${encodeURIComponent(k)}" target="_blank" rel="noopener">放大</a></div>`
+        + `<div class="mframe"><iframe title="${esc(w.n || '玩家')} 的畫面" src="index.html?adminwatch=${encodeURIComponent(k)}&embed=1"></iframe></div></div>`;
+    }).join('');
+    $('#multi-sum').textContent = keys.map((k) => ((lastWho || {})[k] || {}).n || '玩家').join('、');
+    $('#multi').hidden = false;
+    document.body.style.overflow = 'hidden';
+    const fit = () => grid.querySelectorAll('.mframe').forEach((f) => { const ifr = f.firstElementChild; ifr.style.transform = `scale(${f.clientWidth / 390})`; });
+    fit();
+    multiRO = new ResizeObserver(fit);
+    grid.querySelectorAll('.mframe').forEach((f) => multiRO.observe(f));
+    audit('多人觀戰', $('#multi-sum').textContent);
+  }
+  function closeMulti() {
+    $('#multi').hidden = true;
+    $('#multi-grid').innerHTML = '';  // 拿掉格子：每格的觀戰頁關掉，玩家的「管理員正在觀戰」也會消失
+    document.body.style.overflow = '';
+    if (multiRO) { multiRO.disconnect(); multiRO = null; }
+  }
+  $('#multi-go').onclick = openMulti;
+  $('#multi-close').onclick = closeMulti;
+
   // 在線玩家：每個打開遊戲的分頁一筆（同一個人開兩個分頁會出現兩次）
   const WHO = {
     home: ['', '🏠 在首頁'], room: ['room', '🚪 在房間'], game: ['game', '🏁 比賽中'], result: ['result', '🏆 看結算'],
@@ -777,13 +844,17 @@
       }
       // 比賽中（含單人、每日）可以觀戰；玩家畫面上會顯示「管理員正在觀戰」
       const canWatch = w.st && ['game', 'result', 'watch', 'solo', 'daily'].includes(w.s);
-      const watch = canWatch ? `<a class="who-watch" href="index.html?adminwatch=${encodeURIComponent(w.key)}" target="_blank" rel="noopener">👀 觀戰</a>` : '';
+      const watch = !canWatch ? '' : multiMode ? `<button class="who-pick ${multiSel.has(w.key) ? 'on' : ''}" type="button" data-key="${esc(w.key)}">${multiSel.has(w.key) ? '✓ 已選' : '選擇'}</button>` : `<a class="who-watch" href="index.html?adminwatch=${encodeURIComponent(w.key)}" target="_blank" rel="noopener">👀 觀戰</a>`;
       const me = firebase.auth && firebase.auth().currentUser && firebase.auth().currentUser.uid === w.u;
       const kick = w.u && !me ? `<button class="who-kick" type="button" data-uid="${esc(w.u)}" data-name="${esc(w.n || '')}">🚫 踢出</button>` : '';
       const pick = kickOpen === w.u ? `<div class="kick-pick">踢出 ${esc(w.n || '這位玩家')}：<button class="go" data-min="10">10 分鐘</button><button class="go" data-min="1440">1 天</button><button class="go" data-min="0">永久</button><button class="no">取消</button></div>` : '';
       return `<div class="who-row ${w.s === 'home' ? 'home' : ''}"><span class="nm">${esc(w.n || '（還沒取暱稱）')}</span><span class="tm">${w.since ? '已 ' + ago(w.since) : ''}</span>`
         + `<div class="st">${tags.join('')}${watch}${kick}</div>${detail ? `<div class="dt">${detail}</div>` : ''}${pick}</div>`;
     }).join('');
+    $('#who').querySelectorAll('.who-pick').forEach((b) => { b.onclick = () => { const k = b.dataset.key; if (multiSel.has(k)) multiSel.delete(k); else if (multiSel.size < 4) multiSel.add(k); renderWho(); }; });
+    for (const k of [...multiSel]) if (!lastWho[k]) multiSel.delete(k);  // 已經離開的人
+    $('#multi-go').disabled = multiSel.size < 1;
+    $('#multi-go').textContent = `開始觀戰（${multiSel.size}）`;
     $('#who').querySelectorAll('.who-kick').forEach((b) => { b.onclick = () => { kickOpen = kickOpen === b.dataset.uid ? null : b.dataset.uid; kickName = b.dataset.name; renderWho(); }; });
     const kp = $('#who').querySelector('.kick-pick');
     if (kp) {
@@ -908,13 +979,14 @@
       const detail = open && ps.length ? `<div class="gm-detail">${ps.map((p) => {
         const path = (Array.isArray(p.p) ? p.p : Object.values(p.p || {}));
         const why = sus(p);
-        return `<div class="gm-p"><div class="h">${esc(p.n)} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${esc(RES[p.r] || p.r || '還沒結束')} · ${p.k || 0} 步${p.t ? ' · ' + dur(p.t) : ''}</span></div>${why ? `<div class="sus">⚠️ 可疑：${esc(why)}</div>` : ''}${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
+        const rp = path.length >= 2 ? `<a class="gm-rp" target="_blank" rel="noopener" href="index.html#replay=${encodeURIComponent(JSON.stringify({ p: path, l: x.lang || 'zh', n: p.n, t: x.target, r: p.r }))}">🎬 重播</a>` : '';
+        return `<div class="gm-p"><div class="h">${esc(p.n)}${rp} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${esc(RES[p.r] || p.r || '還沒結束')} · ${p.k || 0} 步${p.t ? ' · ' + dur(p.t) : ''}</span></div>${why ? `<div class="sus">⚠️ 可疑：${esc(why)}</div>` : ''}${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
       }).join('')}</div>` : '';
       const when = new Date(x.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       return `<div class="gm" data-id="${esc(id)}"><div class="gm-top"><span class="when">${when}</span><span class="tag">${MODE[x.mode] || esc(x.mode)}</span><span class="tag">${GOAL[x.goal] || ''}</span>${x.win ? '' : '<span class="tag" style="color:var(--red)">沒人抵達</span>'}${ps.some(sus) ? '<span class="tag sus">⚠️ 可疑</span>' : ''}${x.hint ? '<span class="tag">💡 提示</span>' : ''}${x.lang === 'en' ? '<span class="tag">EN</span>' : ''}</div>`
         + `<div class="gm-route">《${esc(x.start)}》→《${esc(x.target)}》</div><div class="gm-who">${esc(who)}</div>${detail}</div>`;
     }).join('') : '<p class="empty">沒有符合的對局</p>';
-    $('#glist').querySelectorAll('.gm').forEach((el) => { el.onclick = () => { const id = el.dataset.id; if (glOpen.has(id)) glOpen.delete(id); else glOpen.add(id); renderStats(); }; });
+    $('#glist').querySelectorAll('.gm').forEach((el) => { el.onclick = (e) => { if (e.target.closest('a')) return; const id = el.dataset.id; if (glOpen.has(id)) glOpen.delete(id); else glOpen.add(id); renderStats(); }; });
   }
   $('#gl-q').addEventListener('input', () => { glShow = 30; renderStats(); });
 

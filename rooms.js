@@ -74,6 +74,16 @@ export async function recordGame(record) {
   const db = await getDb();
   if (!db) return;
   try { await db.ref('stats/games').push({ ...record, at: Date.now() }); } catch { /* 忽略 */ }
+  countToday('games', 1);
+  countToday('players', Math.min(8, Number(record.players) || 1));
+}
+
+// 今天（台灣時間）的公開計數：每晚的摘要通知讀這個（只有數字，不含是誰）
+export async function countToday(k, n = 1) {
+  const db = await getDb();
+  if (!db) return;
+  const day = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+  try { db.ref(`stats/dayCount/${day}/${k}`).transaction((cur) => (Number(cur) || 0) + n)?.catch?.(() => {}); } catch { /* 忽略 */ }
 }
 
 // 更新「史上最多同時在線」（用 transaction 避免多人同時寫互相蓋掉）

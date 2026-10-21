@@ -361,11 +361,20 @@
       </article>
     </div>
     <div id="replay-finger" class="replay-finger" aria-hidden="true" hidden>👆</div>
+    <div id="replay-backtap" class="replay-backtap" aria-hidden="true" hidden>↩️ 上一頁</div>
     <div class="replay-ctrl">
       <button id="replay-prev" type="button" aria-label="上一步">⏮<small>上一步</small></button>
       <button id="replay-play" class="main" type="button" aria-label="暫停">⏸<small>暫停</small></button>
       <button id="replay-next" type="button" aria-label="下一步">⏭<small>下一步</small></button>
       <button id="replay-speed" type="button" aria-label="播放速度">1×<small>速度</small></button>
+    </div>
+  </div>
+  <div id="admin-msg-pop" class="ban-screen admin-msg-pop" role="alertdialog" aria-labelledby="admin-msg-title" hidden>
+    <div class="ban-card">
+      <div class="ban-icon" aria-hidden="true">📢</div>
+      <h2 id="admin-msg-title">管理員傳給你一句話</h2>
+      <p id="admin-msg-text"></p>
+      <button id="admin-msg-ok" class="btn blue wide" type="button">知道了</button>
     </div>
   </div>
   <div id="ban-screen" class="ban-screen" role="alertdialog" aria-labelledby="ban-title" hidden>
@@ -391,6 +400,10 @@
       </div>
       <div class="hud-target watch-target"><svg class="ic"><use href="#i-target"/></svg><span class="hud-target-label">目標</span><b id="watch-goal">—</b></div>
       <ul id="watch-tabs" class="watch-tabs" aria-label="選擇觀戰對象"></ul>
+      <form id="admin-say" class="admin-say" autocomplete="off" hidden>
+        <input id="admin-say-text" maxlength="100" placeholder="💬 傳一句話給這位玩家…" enterkeyhint="send" aria-label="傳訊息給玩家">
+        <button class="btn blue" type="submit">送出</button>
+      </form>
     </header>
     <article class="paper watch-paper">
       <p id="watch-path" class="breadcrumb"></p>
@@ -436,10 +449,12 @@
         <div class="card me-side">
           <h2 class="card-title">你的路線</h2>
           <ol id="res-me-path" class="metro"></ol>
+          <button id="res-me-replay" class="route-replay" type="button" hidden>🎬 重播</button>
         </div>
         <div class="card opp-side">
           <h2 class="card-title" id="res-opp-path-head">對手的路線</h2>
           <ol id="res-opp-path" class="metro"></ol>
+          <button id="res-opp-replay" class="route-replay" type="button" hidden>🎬 重播</button>
         </div>
       </div>
       <div class="card solution" id="solution">
