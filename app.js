@@ -1,13 +1,13 @@
-import { Net } from './net.js?v=67';
-import { initPresence } from './presence.js?v=67';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=67';
-import { initNotify, notify } from './notify.js?v=67';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=67';
-import * as wiki from './wiki.js?v=67';
-import { tw, twTree, zhReady } from './zh.js?v=67';
-import { makeShareImage } from './share.js?v=67';
-import { solve } from './solver.js?v=67';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=67';
+import { Net } from './net.js?v=68';
+import { initPresence } from './presence.js?v=68';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=68';
+import { initNotify, notify } from './notify.js?v=68';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=68';
+import * as wiki from './wiki.js?v=68';
+import { tw, twTree, zhReady } from './zh.js?v=68';
+import { makeShareImage } from './share.js?v=68';
+import { solve } from './solver.js?v=68';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=68';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -532,7 +532,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=67').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=68').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -673,6 +673,17 @@ function readForm() {
   };
 }
 
+// 「對手位置」三個選項各自的說明，跟著選到的那個換
+const OPP_VIEW_DESC = {
+  dist: '只看得到對手走了幾步、離終點多遠，看不到他在哪個條目',
+  hint: '看得到對手所在條目的簡介，但名稱會遮起來，沒辦法照抄路線',
+  full: '直接看得到對手在哪個條目，比較容易照著別人的路線走',
+};
+function paintOppViewDesc() {
+  const v = form().elements.oppView.value;
+  $('#opp-view-desc').textContent = OPP_VIEW_DESC[v] || OPP_VIEW_DESC.hint;
+}
+
 function writeForm(s) {
   const f = form().elements;
   f.lang.value = s.lang;
@@ -681,6 +692,7 @@ function writeForm(s) {
   if (document.activeElement !== f.start) f.start.value = tw(s.start);
   if (document.activeElement !== f.target) f.target.value = tw(s.target);
   f.oppView.value = oppViewOf(s);
+  paintOppViewDesc();
   f.allowBack.checked = s.allowBack;
   f.trueRandom.checked = s.trueRandom;
   paintRoomGoal();
@@ -941,7 +953,7 @@ function initRoom() {
       }, 250);
     }
   });
-  form().addEventListener('change', () => { if (net.isHost) broadcastSettings(); });
+  form().addEventListener('change', () => { paintOppViewDesc(); if (net.isHost) broadcastSettings(); });
   form().addEventListener('submit', (e) => e.preventDefault());
 
   form().querySelectorAll('[data-random]').forEach((btn) => {

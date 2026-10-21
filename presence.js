@@ -1,7 +1,7 @@
 // 線上人數：統計現在有多少人打開這個網站（只是一個總數，不會記下是誰、也看不到任何人的畫面）。
 // 沒有在 firebase-config.js 填設定的話，整個功能會安靜地關閉，不影響遊戲其他部分。
-import { getDb } from './fb.js?v=67';
-import { bumpPeak } from './rooms.js?v=67';
+import { getDb } from './fb.js?v=68';
+import { bumpPeak } from './rooms.js?v=68';
 
 let started = false;
 

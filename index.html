@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=67">
+  <link rel="stylesheet" href="style.css?v=68">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=67"></script>
+  <script src="firebase-config.js?v=68"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -238,7 +238,7 @@
           </div>
         </div>
         <div class="row stack">
-          <span class="row-label">對手位置<small>模糊位置：只看得到條目的簡介，沒辦法照抄路線</small></span>
+          <span class="row-label">對手位置<small id="opp-view-desc">看得到對手所在條目的簡介，但名稱會遮起來，沒辦法照抄路線</small></span>
           <div class="segmented" role="radiogroup" aria-label="對手位置">
             <label><input type="radio" name="oppView" value="dist"><span>只看遠近</span></label>
             <label><input type="radio" name="oppView" value="hint" checked><span>模糊位置</span></label>
@@ -625,6 +625,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=67"></script>
+  <script type="module" src="app.js?v=68"></script>
 </body>
 </html>
