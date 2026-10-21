@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=72';
-import { initPresence } from './presence.js?v=72';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=72';
-import { initNotify, notify } from './notify.js?v=72';
-import { getUid } from './fb.js?v=72';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=72';
-import * as wiki from './wiki.js?v=72';
-import { tw, twTree, zhReady } from './zh.js?v=72';
-import { makeShareImage } from './share.js?v=72';
-import { solve } from './solver.js?v=72';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=72';
+import { Net } from './net.js?v=73';
+import { initPresence } from './presence.js?v=73';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=73';
+import { initNotify, notify } from './notify.js?v=73';
+import { getUid, authOff } from './fb.js?v=73';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=73';
+import * as wiki from './wiki.js?v=73';
+import { tw, twTree, zhReady } from './zh.js?v=73';
+import { makeShareImage } from './share.js?v=73';
+import { solve } from './solver.js?v=73';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=73';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -84,12 +84,13 @@ const session = {
 // 不能用走過的路線（path）去推：按上一頁回到的條目也會記進路線，推出來會回錯地方。
 const NAV_KEY = 'wikirace-nav';
 function saveNav(g) {
-  try { sessionStorage.setItem(NAV_KEY, JSON.stringify({ id: g.id, stack: g.stack, spots: g.spots })); } catch { /* 忽略 */ }
+  try { sessionStorage.setItem(NAV_KEY, JSON.stringify({ id: g.id, cur: g.current, stack: g.stack, spots: g.spots })); } catch { /* 忽略 */ }
 }
-function loadNav(id) {
+// cur：存的時候所在的條目。跟房主那邊記的目前位置對不上（例如斷線時又點了幾下才重新整理）就不用，改用路線推回去
+function loadNav(id, cur, path) {
   try {
     const v = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null');
-    if (!v || v.id !== id || !Array.isArray(v.stack) || !v.stack.every((t) => typeof t === 'string')) return null;
+    if (!v || v.id !== id || v.cur !== cur || !Array.isArray(v.stack) || !v.stack.every((t) => typeof t === 'string' && path.includes(t))) return null;
     const spots = Array.isArray(v.spots) && v.spots.length === v.stack.length ? v.spots : v.stack.map(() => null);
     return { stack: v.stack.slice(-200), spots: spots.slice(-200) };
   } catch { return null; }
@@ -558,7 +559,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=72').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=73').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -839,7 +840,7 @@ function ensureControlWatch() {
   if (controlCode === net.code) return;
   if (controlUnsub) controlUnsub();
   controlCode = net.code;
-  watchControl(net.code, onControlCmd).then((off) => { controlUnsub = off; });
+  controlUnsub = watchControl(net.code, onControlCmd);
 }
 function stopControlWatch() {
   if (controlUnsub) { controlUnsub(); controlUnsub = null; }
@@ -1123,13 +1124,15 @@ async function migrateHost(toId, { leaving = false } = {}) {
       if (p.id === toId) return { ...p, host: true, ready: true };
       return { ...p };
     });
+  // 從這裡開始已經不是房主了：別讓接下來的斷線、名單變動又把房間發布回去（會變成新房主改不動的幽靈房間）
+  leavingRoom = true;
   clearRoom(code);
   stopControlWatch();
   sysChat(leaving ? `${state.myName} 離開了，房主交給 ${to.name}` : `${state.myName} 把房主交給 ${to.name}`);
   const wins = { ...state.roomScore.wins };
   if (wins[state.myId] !== undefined) { wins[myNewId] = wins[state.myId]; delete wins[state.myId]; }
   state.roomScore = { games: state.roomScore.games, wins };
-  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned], score: state.roomScore, started: notifiedStart === code });
+  net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned], score: state.roomScore, started: notifiedStart === code, scored: state.game?.scored ? state.game.id : null });
   state.hostLocked = true;
   session.clear();
   for (const t of graceTimers.values()) clearTimeout(t);
@@ -1138,6 +1141,7 @@ async function migrateHost(toId, { leaving = false } = {}) {
     net.destroy();
     if (leaving) { location.href = location.pathname; return; }
     // 自己改用一般玩家的身分回到同一個房間
+    leavingRoom = false;
     state.myKey = myNewKey;
     state.myId = myNewId;
     state.myReady = false;
@@ -1178,6 +1182,9 @@ async function takeOverHost(msg) {
   state.banned = new Set(Array.isArray(msg.banned) ? msg.banned.filter((k) => typeof k === 'string') : []);
   if (msg.score?.wins) state.roomScore = { games: Number(msg.score.games) || 0, wins: { ...msg.score.wins } };
   if (msg.started) notifiedStart = msg.code;  // 舊房主已經通知過「開始比賽」，換人當房主不要再通知一次
+  // 上一局舊房主已經算過分、記過統計了：新房主不要再算一次
+  if (msg.scored && state.game?.id === msg.scored) state.game.scored = true;
+  leavingRoom = false;
   try {
     await net.createRoom(0, msg.code);
   } catch (e) {
@@ -1390,8 +1397,9 @@ function openDaily() {
 }
 
 // 排行榜上「我」是哪一筆：登入身分（資料庫規則只准本人交、不能覆蓋）；沒有登入時用手機代號
+// 登入還沒好（網路慢）就先回傳 null，等之後再送，不要用錯的身分送出去被規則擋掉
 let boardId = null;
-const myBoardId = async () => (boardId ||= (await getUid()) || deviceId);
+const myBoardId = async () => boardId || (boardId = await getUid()) || (authOff() ? deviceId : null);
 
 // 第一次完成時網路不通、成績沒送出去：之後打開時再補送
 let resending = null;
@@ -1400,7 +1408,7 @@ function resendDaily(key) {
   if (!m?.win || m.sent) return Promise.resolve();
   const rec = { n: m.n || $('#nickname').value.trim() || '玩家', a: m.a || '', s: m.s, t: m.t, h: m.h ? 1 : 0 };
   resending ||= myBoardId()
-    .then((id) => submit(key, id, rec))
+    .then((id) => id && submit(key, id, rec))
     .then((ok) => { if (ok) saveDay(key, { ...myDay(key), sent: true }); })
     .finally(() => { resending = null; });
   return resending;
@@ -1426,7 +1434,7 @@ async function renderDailyBoard(key) {
   $('#daily-count').textContent = rows.length;
   $('#daily-best').textContent = rows.length ? rows[0].s : '–';
   if (!rows.length) { msg('還沒有人完成，搶第一個！'); return; }
-  const me = rows.findIndex((r) => r.id === myId);
+  const me = rows.findIndex((r) => r.id === myId || r.id === deviceId);
   const m = myDay(key);
   if (me >= 0 && m?.win && (m.rank !== me + 1 || m.of !== rows.length)) { saveDay(key, { ...m, rank: me + 1, of: rows.length }); renderDailyMine(key); }
   const medal = ['🥇', '🥈', '🥉'];
@@ -1529,7 +1537,7 @@ async function refreshDailyRank(d) {
   const m = myDay(d.key);
   if (!m?.win) { $('#dres-rank').textContent = ''; return; }
   if (!rows) { $('#dres-rank').textContent = '排行榜暫時連不上'; return; }
-  const i = rows.findIndex((r) => r.id === myId);
+  const i = rows.findIndex((r) => r.id === myId || r.id === deviceId);
   if (i < 0) { $('#dres-rank').textContent = ''; return; }
   saveDay(d.key, { ...m, rank: i + 1, of: rows.length });
   if (state.daily === d) $('#dres-rank').textContent = `🏆 第 ${i + 1} 名 / ${rows.length} 人`;
@@ -1755,7 +1763,7 @@ function resumeGame(snap) {
   g.startAt = performance.now() - (snap.elapsed || 0);
   g.clicks = mine.clicks || 0;
   g.path = Array.isArray(mine.path) ? mine.path.slice() : [];
-  const nav = loadNav(g.id);
+  const nav = loadNav(g.id, mine.current || g.settings.start, g.path);
   if (nav) { g.stack = nav.stack; g.spots = nav.spots; } else { g.stack = g.path.slice(0, -1); g.spots = g.stack.map(() => null); }
   if (snap.lastCall > 0) g.lastCallEnd = performance.now() + snap.lastCall;
   if (snap.hint) setTimeout(() => showHint({ quiet: true }), 800);
@@ -3715,7 +3723,8 @@ function cleanFinish(msg) {
 // 房主：處理玩家加入或重新連線。用玩家私密 key 算出的公開 id 認人（見 publicId）
 async function hostJoin(msg, cid) {
   const secret = cleanKey(msg.key);
-  const key = secret ? await publicId(secret) : cid;  // 以下的 key 都是公開 id
+  // 以下的 key 都是公開 id。沒帶私密 key 的舊版連線用連線代號算一個，加前綴才不會撞到別人的 id 或 'host'
+  const key = secret ? await publicId(secret) : `c:${await publicId(cid)}`;
   if (!net.isHost || !net.conns.has(cid)) return;  // 算 id 的這一下連線斷了，或已經不是房主
   const bound = net.alias.get(cid);
   if (bound && bound !== key) return;  // 已經報到過的連線不能再用別的身分 join 一次

@@ -71,7 +71,8 @@ export class Net {
     const cid = conn.connectionId || conn.peer + Math.random();
     conn.on('open', () => { this.conns.set(cid, conn); this.onPeerJoin(cid); });
     conn.on('data', (msg) => {
-      if (msg && typeof msg === 'object') this.onMessage(msg, this.alias.get(cid) || cid, cid);
+      // 還沒報到（join）的連線沒有玩家身分：連線代號是對方自己填的，不能拿來當身分
+      if (msg && typeof msg === 'object') this.onMessage(msg, this.alias.get(cid) ?? null, cid);
     });
     let gone = false;
     const leave = () => {

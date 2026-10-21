@@ -1,10 +1,10 @@
 // 每日挑戰：全台灣每天同一題（台灣時間午夜換題），每支手機第一次完成的成績進今日排行榜。
 // 題目用日期當種子從題庫抽，只看「條目存在、不是消歧義頁」這種每個人查都一樣的條件。
-// 第一個算出今天題目的人會把它存進 Firebase（stats/dailyPuzzle/<日期>），之後大家都讀這一份，
+// 第一個算出今天題目的人會把它存進 Firebase（stats/dailyPuzzle/d<天數>），之後大家都讀這一份，
 // 所以就算當天維基百科有人改了條目、或題庫更新，同一天的題目也不會變。
 // 排行榜存在 stats/daily/<日期>/<手機代號>；沒設定 Firebase 時一樣能玩（題目靠自己算），只是沒有排行榜。
-import { getDb } from './fb.js?v=72';
-import { api } from './wiki.js?v=72';
+import { getDb } from './fb.js?v=73';
+import { api } from './wiki.js?v=73';
 
 const LAUNCH = '2026-10-21';  // 第 1 期
 const LOG = 'wikirace-daily-log';
@@ -29,7 +29,7 @@ function seeded(text) {
 
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
 // Firebase SDK 載不下來也不要卡住
-const database = () => withTimeout(getDb(), 8000).catch(() => null);
+const database = () => withTimeout(getDb(), 14000).catch(() => null);
 
 // 維基百科有時回 200 但內容是錯誤（太忙、維護中）：一定要當成失敗重試，
 // 不能當成「條目不存在」跳過，不然這支手機抽到的題目會跟別人不一樣
@@ -56,7 +56,7 @@ async function linksDirectly(from, to) {
 
 // 自己從題庫算出今天的題目
 async function compute(key) {
-  const { TOPICS } = await import('./topics.js?v=72');
+  const { TOPICS } = await import('./topics.js?v=73');
   const rnd = seeded(`wikirace-daily-${key}`);
   const pick = async (avoid) => {
     for (let i = 0; i < 25; i++) {
@@ -80,7 +80,8 @@ export function puzzle(key = todayKey()) {
   puzzles[key] ||= (async () => {
     const base = { key, no: dailyNo(key) };
     const db = await database();
-    const ref = db && db.ref(`stats/dailyPuzzle/${key}`);
+    // 存在 d＋天數 底下：資料庫規則用伺服器時間檢查，只准存昨天到明天的題目
+    const ref = db && db.ref(`stats/dailyPuzzle/d${Math.round(Date.parse(key) / 864e5)}`);
     // 已經有人算好今天的題目：直接用那一份
     if (ref) {
       try {

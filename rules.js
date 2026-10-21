@@ -3,6 +3,8 @@
 export function rulesFor(adminUid) {
   const uid = String(adminUid || '').replace(/[^A-Za-z0-9_-]/g, '');
   const admin = `auth != null && auth.uid === '${uid}'`;
+  // 台灣時間今天是 1970-01-01 之後的第幾天（伺服器時間，玩家改不了）
+  const DAY = '((now + 28800000 - (now + 28800000) % 86400000) / 86400000)';
   const roomOwner = "root.child('rooms').child($code).child('owner').val() === auth.uid";
   return {
     rules: {
@@ -12,6 +14,9 @@ export function rulesFor(adminUid) {
         $id: {
           '.write': "auth != null && (!data.exists() || data.child('u').val() === auth.uid)",
           '.validate': "newData.child('u').val() === auth.uid && newData.child('t').isNumber()",
+          u: { '.validate': true },
+          t: { '.validate': true },
+          $other: { '.validate': false },
         },
       },
       // 房間概況：房主寫、只有管理員看得到（裡面有暱稱）
@@ -39,11 +44,11 @@ export function rulesFor(adminUid) {
             '.validate': "newData.hasChildren(['mode', 'players', 'at']) && newData.child('players').isNumber() && newData.child('players').val() <= 8",
           },
         },
-        // 史上尖峰只能往上加（只是一個數字，公開讀；更新用 transaction 要先讀得到）
+        // 史上尖峰只能往上加、不能刪（只是一個數字，公開讀；更新用 transaction 要先讀得到）。管理員可以重設
         peakOnline: {
           '.read': true,
-          '.write': 'auth != null',
-          '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000 && (!data.exists() || newData.val() >= data.val())',
+          '.write': `auth != null && (newData.exists() || ${admin})`,
+          '.validate': `newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000 && (!data.exists() || newData.val() >= data.val() || ${admin})`,
         },
         // 每日挑戰排行榜：每個帳號每天一筆，不能覆蓋
         daily: {
@@ -55,11 +60,12 @@ export function rulesFor(adminUid) {
             },
           },
         },
-        // 每日題目：第一個算出來的人存，之後不能改
+        // 每日題目：第一個算出來的人存，之後不能改。key 是 d＋台灣日期的天數，只能存昨天到明天（不能預先亂塞未來的題目）；
+        // 管理員可以刪掉重算
         dailyPuzzle: {
-          $date: {
+          $day: {
             '.read': true,
-            '.write': 'auth != null && !data.exists()',
+            '.write': `(auth != null && !data.exists() && (${[-1, 0, 1].map((d) => `$day === 'd' + (${DAY} + ${d})`).join(' || ')})) || ${admin}`,
             '.validate': "newData.child('start').isString() && newData.child('target').isString() && newData.child('start').val().length < 200 && newData.child('target').val().length < 200",
           },
         },
