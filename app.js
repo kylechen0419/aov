@@ -174,7 +174,9 @@ function reportActivity() {
   setActivity(a);
 }
 
-setInterval(() => reportActivity(), 10000);  // 暱稱、房主身分等零碎變動，定期補報（內容沒變不會重寫）
+setInterval(() => reportActivity(), 10000);
+let nameReportTimer;
+document.addEventListener('input', (e) => { if (e.target?.id === 'nickname') { clearTimeout(nameReportTimer); nameReportTimer = setTimeout(reportActivity, 800); } });  // 暱稱、房主身分等零碎變動，定期補報（內容沒變不會重寫）
 
 function show(view) {
   state.view = view;

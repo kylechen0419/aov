@@ -18,10 +18,27 @@
   .gate button { font: inherit; font-weight: 800; font-size: 16px; padding: 12px; border: 0; border-radius: 12px; background: var(--blue); color: #fff; cursor: pointer; }
   .gate .err { color: var(--red); font-size: 13px; min-height: 18px; }
   .wrap { max-width: 640px; margin: 0 auto; }
-  .stat { display: flex; gap: 10px; flex-wrap: wrap; }
-  .stat .box { background: var(--card); border-radius: 14px; padding: 10px 16px; flex: 1; min-width: 70px; }
-  .stat b { font-size: 24px; display: block; font-variant-numeric: tabular-nums; }
-  .stat span { font-size: 12px; color: var(--muted); }
+  .stat { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 14px; }
+  .stat .box { background: var(--card); border-radius: 12px; padding: 8px 4px; text-align: center; min-width: 0; }
+  .stat b { font-size: 20px; display: block; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .sec { background: var(--card); border: 1px solid var(--line); border-radius: 16px; margin: 0 0 10px; }
+  .sec > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 13px 14px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+  .sec > summary::-webkit-details-marker { display: none; }
+  .sec > summary::after { content: ''; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: -4px 4px 0 0; transition: transform .2s; }
+  .sec[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
+  .sec-t { font-weight: 800; font-size: 15px; flex: none; }
+  .sec-s { flex: 1; min-width: 0; text-align: right; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sec-s.on { color: var(--green); font-weight: 800; }
+  .sec-s.warn { color: var(--yellow); font-weight: 800; }
+  .sec-b { padding: 0 14px 14px; }
+  .sec .empty { padding: 14px 0; font-size: 13px; }
+  .sec .rooms .room { background: var(--card2); }
+  .sec .who-row { background: var(--card2); border-color: transparent; }
+  .sub-d { margin: 0 0 10px; }
+  .sub-d > summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 800; padding: 4px 0; }
+  .sub-d[open] > summary { margin-bottom: 4px; }
+  .group { font-size: 12px; color: var(--muted); font-weight: 800; letter-spacing: .1em; margin: 22px 4px 8px; }
   .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
   .ann { display: flex; gap: 8px; margin-top: 6px; }
   .ann input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--line); background: var(--card2); color: var(--ink); }
@@ -74,7 +91,6 @@
   .tag.solo { background: #5b2bbf; }
   .tag.daily { background: #b8561a; }
   .tag.host { background: #7a5a12; color: var(--yellow); }
-  .who-sum { font-size: 12px; color: var(--muted); margin: -4px 2px 8px; }
   .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
   .nt-state { font-size: 13px; font-weight: 800; margin: 0 0 8px; }
   .nt-state.on { color: var(--green); }
@@ -109,96 +125,119 @@
     <p class="sub" id="status">連線中…</p>
 
     <div class="stat">
-      <div class="box"><b id="s-rooms">0</b><span>房間</span></div>
-      <div class="box"><b id="s-players">0</b><span>遊玩中</span></div>
       <div class="box"><b id="s-online">–</b><span>在線上</span></div>
+      <div class="box"><b id="s-players">0</b><span>遊玩中</span></div>
+      <div class="box"><b id="s-rooms">0</b><span>房間</span></div>
+      <div class="box"><b id="s-daily">–</b><span>今日挑戰</span></div>
       <div class="box"><b id="s-peak">–</b><span>史上尖峰</span></div>
-      <div class="box"><b id="s-daily">–</b><span>今日挑戰完成</span></div>
     </div>
 
-    <h2>👥 在線玩家</h2>
-    <p class="who-sum" id="who-sum"></p>
-    <div id="who" class="who"><p class="empty">讀取中…</p></div>
+    <!-- 每一塊都可以收合（記在這支手機）；標題列右邊是一行摘要，收起來也看得到重點 -->
+    <details class="sec" data-sec="who" open>
+      <summary><span class="sec-t">👥 在線玩家</span><span class="sec-s" id="who-sum">讀取中…</span></summary>
+      <div class="sec-b"><div id="who" class="who"><p class="empty">讀取中…</p></div></div>
+    </details>
 
-    <h2>🔐 資料庫保護</h2>
-    <div class="panel">
-      <p class="nt-state" id="sec-state">檢查中…</p>
-      <ol class="nt-steps">
-        <li>Firebase 主控台 → <b>Authentication</b> → 開始使用 →「登入方式」裡啟用 <b>匿名</b> 和 <b>Google</b>。</li>
-        <li>Authentication → <b>設定</b> → <b>授權網域</b> → 新增 <code id="sec-domain">kylechen0419.github.io</code></li>
-        <li>回到這裡按「用 Google 登入」，下面會出現只認你帳號的規則。</li>
-        <li>按「複製規則」→ Realtime Database → <b>規則</b> → 整段換掉 → <b>發布</b>。</li>
-      </ol>
-      <div class="nt-btns">
-        <button id="sec-login" class="primary" type="button" hidden>用 Google 登入</button>
-        <button id="sec-logout" type="button" hidden>登出</button>
+    <details class="sec" data-sec="rooms" open>
+      <summary><span class="sec-t">🎮 正在遊玩的房間</span><span class="sec-s" id="rooms-sum">–</span></summary>
+      <div class="sec-b">
+        <div class="toolbar">
+          <span class="seg" id="sort"><button data-sort="new" class="on">最新</button><button data-sort="players">人多</button><button data-sort="age">開最久</button></span>
+          <span class="seg" id="filter"><button data-filter="all" class="on">全部</button><button data-filter="game">比賽中</button></span>
+        </div>
+        <div id="rooms" class="rooms"></div>
       </div>
-      <div id="sec-rules-box" hidden>
-        <p class="nt-head">你的專屬規則（只有你的 Google 帳號能發公告、踢人、關房、改通知）</p>
-        <textarea id="sec-rules" class="sec-rules" readonly></textarea>
-        <div class="nt-btns"><button id="sec-copy" class="primary" type="button">複製規則</button></div>
-      </div>
-      <p class="nt-msg" id="sec-msg"></p>
-    </div>
+    </details>
 
-    <h2>📢 全站公告</h2>
-    <div class="panel">
-      <div class="ann">
-        <input id="ann-text" maxlength="200" placeholder="打一句話，推到所有正在玩的人畫面上…">
-        <button class="send" id="ann-send">送出</button>
-        <button class="clear" id="ann-clear">清除</button>
+    <details class="sec" data-sec="stats">
+      <summary><span class="sec-t">📊 歷史統計</span><span class="sec-s" id="stats-sum">–</span></summary>
+      <div class="sec-b" id="stats">
+        <div class="toolbar"><span class="seg"><button data-period="today" class="on">今日</button><button data-period="week">本週</button><button data-period="all">全部</button></span></div>
+        <div class="grid2">
+          <div class="kv"><b id="k-games">0</b><span>對局數</span></div>
+          <div class="kv"><b id="k-players">0</b><span>玩家人次</span></div>
+          <div class="kv"><b id="k-complete">–</b><span>完成率（有人抵達）</span></div>
+          <div class="kv"><b id="k-rematch">–</b><span>再玩率（玩第二局以上）</span></div>
+          <div class="kv"><b id="k-dur">–</b><span>平均一局</span></div>
+          <div class="kv"><b id="k-steps">–</b><span>平均步數</span></div>
+        </div>
+        <div id="modes"></div>
+        <p class="nt-head">😵 最難的題目（最常沒人抵達）</p>
+        <div id="hard"><p class="empty">還沒有資料</p></div>
       </div>
-      <p class="ann-cur" id="ann-cur"></p>
-    </div>
+    </details>
 
-    <h2>📱 手機通知</h2>
-    <div class="panel">
-      <p class="nt-state" id="nt-state">還沒開啟</p>
-      <div id="nt-setup" hidden>
-        <ol class="nt-steps">
-          <li>在 iPhone 的 App Store 搜尋並下載 <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener"><b>ntfy</b></a>（免費），打開時<b>允許通知</b>。</li>
-          <li>在 ntfy 按右上角 <b>＋</b>，把下面的頻道名稱貼進 Topic，按 <b>Subscribe</b>。</li>
-          <li>按「傳一則測試通知」，手機有跳出來就完成了。</li>
-        </ol>
-        <div class="nt-topic"><code id="nt-topic">—</code><button id="nt-copy" type="button">複製</button></div>
-      </div>
-      <div class="nt-btns">
-        <button id="nt-on" class="primary" type="button">開啟通知</button>
-        <button id="nt-test" type="button" hidden>傳一則測試通知</button>
-        <button id="nt-new" type="button" hidden>換一個頻道</button>
-        <button id="nt-off" class="danger" type="button" hidden>關閉通知</button>
-      </div>
-      <div id="nt-opts" hidden>
-        <p class="nt-head">什麼時候通知我</p>
-        <label class="chk"><input type="checkbox" data-nt="room"> 有人開了房間</label>
-        <label class="chk"><input type="checkbox" data-nt="start"> 房間開始第一場比賽</label>
-        <label class="chk"><input type="checkbox" data-nt="solo"> 有人開始單人訓練或每日挑戰</label>
-        <label class="chk self"><input type="checkbox" id="nt-self"> 我用這支手機玩的時候，不要通知我自己</label>
-      </div>
-      <p class="nt-msg" id="nt-msg"></p>
-    </div>
+    <p class="group">設定</p>
 
-    <h2>📊 歷史統計 <span class="seg" style="float:right"><button data-period="today" class="on">今日</button><button data-period="week">本週</button><button data-period="all">全部</button></span></h2>
-    <div class="panel" id="stats">
-      <div class="grid2">
-        <div class="kv"><b id="k-games">0</b><span>對局數</span></div>
-        <div class="kv"><b id="k-players">0</b><span>玩家人次</span></div>
-        <div class="kv"><b id="k-complete">–</b><span>完成率（有人抵達）</span></div>
-        <div class="kv"><b id="k-rematch">–</b><span>再玩率（玩第二局以上）</span></div>
-        <div class="kv"><b id="k-dur">–</b><span>平均一局</span></div>
-        <div class="kv"><b id="k-steps">–</b><span>平均步數</span></div>
+    <details class="sec" data-sec="ann">
+      <summary><span class="sec-t">📢 全站公告</span><span class="sec-s" id="ann-sum">–</span></summary>
+      <div class="sec-b">
+        <div class="ann">
+          <input id="ann-text" maxlength="200" placeholder="打一句話，推到所有正在玩的人畫面上…">
+          <button class="send" id="ann-send">送出</button>
+          <button class="clear" id="ann-clear">清除</button>
+        </div>
+        <p class="ann-cur" id="ann-cur"></p>
       </div>
-      <div id="modes"></div>
-      <h2 style="margin:14px 0 6px">😵 最難的題目（最常沒人抵達）</h2>
-      <div id="hard"><p class="empty">還沒有資料</p></div>
-    </div>
+    </details>
 
-    <h2>🎮 正在遊玩的房間</h2>
-    <div class="toolbar">
-      <span class="seg" id="sort"><button data-sort="new" class="on">最新</button><button data-sort="players">人多</button><button data-sort="age">開最久</button></span>
-      <span class="seg" id="filter"><button data-filter="all" class="on">全部</button><button data-filter="game">比賽中</button></span>
-    </div>
-    <div id="rooms" class="rooms"></div>
+    <details class="sec" data-sec="notify">
+      <summary><span class="sec-t">📱 手機通知</span><span class="sec-s" id="nt-sum">–</span></summary>
+      <div class="sec-b">
+        <p class="nt-state" id="nt-state">還沒開啟</p>
+        <div id="nt-setup" hidden>
+          <details class="sub-d" id="nt-howto">
+            <summary>怎麼在手機上收通知</summary>
+            <ol class="nt-steps">
+              <li>在 iPhone 的 App Store 搜尋並下載 <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener"><b>ntfy</b></a>（免費），打開時<b>允許通知</b>。</li>
+              <li>在 ntfy 按右上角 <b>＋</b>，把下面的頻道名稱貼進 Topic，按 <b>Subscribe</b>。</li>
+              <li>按「傳一則測試通知」，手機有跳出來就完成了。</li>
+            </ol>
+          </details>
+          <div class="nt-topic"><code id="nt-topic">—</code><button id="nt-copy" type="button">複製</button></div>
+        </div>
+        <div class="nt-btns">
+          <button id="nt-on" class="primary" type="button">開啟通知</button>
+          <button id="nt-test" type="button" hidden>傳一則測試通知</button>
+          <button id="nt-new" type="button" hidden>換一個頻道</button>
+          <button id="nt-off" class="danger" type="button" hidden>關閉通知</button>
+        </div>
+        <div id="nt-opts" hidden>
+          <p class="nt-head">什麼時候通知我</p>
+          <label class="chk"><input type="checkbox" data-nt="room"> 有人開了房間</label>
+          <label class="chk"><input type="checkbox" data-nt="start"> 房間開始第一場比賽</label>
+          <label class="chk"><input type="checkbox" data-nt="solo"> 有人開始單人訓練或每日挑戰</label>
+          <label class="chk self"><input type="checkbox" id="nt-self"> 我用這支手機玩的時候，不要通知我自己</label>
+        </div>
+        <p class="nt-msg" id="nt-msg"></p>
+      </div>
+    </details>
+
+    <details class="sec" data-sec="sec">
+      <summary><span class="sec-t">🔐 資料庫保護</span><span class="sec-s" id="sec-sum">檢查中…</span></summary>
+      <div class="sec-b">
+        <p class="nt-state" id="sec-state">檢查中…</p>
+        <details class="sub-d" id="sec-howto" open>
+          <summary>設定步驟</summary>
+          <ol class="nt-steps">
+            <li>Firebase 主控台 → <b>Authentication</b> → 開始使用 →「登入方式」裡啟用 <b>匿名</b> 和 <b>Google</b>。</li>
+            <li>Authentication → <b>設定</b> → <b>授權網域</b> → 新增 <code id="sec-domain">kylechen0419.github.io</code></li>
+            <li>回到這裡按「用 Google 登入」，下面會出現只認你帳號的規則。</li>
+            <li>按「複製規則」→ Realtime Database → <b>規則</b> → 整段換掉 → <b>發布</b>。網站更新後如果有提醒，再做一次這一步。</li>
+          </ol>
+        </details>
+        <div class="nt-btns">
+          <button id="sec-login" class="primary" type="button" hidden>用 Google 登入</button>
+          <button id="sec-copy" class="primary" type="button" hidden>複製規則</button>
+          <button id="sec-logout" type="button" hidden>登出</button>
+        </div>
+        <details class="sub-d" id="sec-rules-box" hidden>
+          <summary>查看規則內容</summary>
+          <textarea id="sec-rules" class="sec-rules" readonly></textarea>
+        </details>
+        <p class="nt-msg" id="sec-msg"></p>
+      </div>
+    </details>
   </main>
 
   <script src="firebase-config.js?v=75"></script>
@@ -253,7 +292,7 @@
         wireSecurity(auth);
         db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); }, () => { $('#status').textContent = '讀不到房間：資料庫已上鎖，請先用 Google 登入'; });
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
-        db.ref('who').on('value', (snap) => { lastWho = snap.val() || {}; renderWho(); }, () => { lastWho = null; $('#who').innerHTML = '<p class="empty">讀不到在線玩家：請先用 Google 登入；已登入的話，到上面「資料庫保護」重新複製規則、到 Firebase 發布一次（新版規則才有這個列表）</p>'; });
+        db.ref('who').on('value', (snap) => { lastWho = snap.val() || {}; renderWho(); }, () => { lastWho = null; $('#who-sum').textContent = '讀不到'; $('#who').innerHTML = '<p class="empty">讀不到在線玩家：請先用 Google 登入；已登入的話，到上面「資料庫保護」重新複製規則、到 Firebase 發布一次（新版規則才有這個列表）</p>'; });
         // 每日挑戰：台灣時間的今天有幾個人完成（跟遊戲端 daily.js 的日期算法一樣）；後台開著過了午夜會自動換到新的一天
         let dailyRef = null;
         const watchDaily = () => {
@@ -269,7 +308,12 @@
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
         db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); }, () => {});
         db.ref('config/notify').on('value', (snap) => { notifyCfg = snap.val(); renderNotify(); }, () => { $('#nt-msg').textContent = '讀不到通知設定：請到 Firebase 規則加上 config（見 README）'; });
-        db.ref('broadcast').on('value', (snap) => { const b = snap.val(); $('#ann-cur').textContent = b && b.text ? `目前公告：「${b.text}」（點清除可移除）` : '目前沒有公告'; });
+        db.ref('broadcast').on('value', (snap) => {
+          const b = snap.val(); const on = !!(b && b.text);
+          $('#ann-cur').textContent = on ? `目前公告：「${b.text}」（點清除可移除）` : '目前沒有公告';
+          $('#ann-sum').textContent = on ? `公告中：${b.text}` : '目前沒有公告';
+          $('#ann-sum').classList.toggle('warn', on);
+        });
         setInterval(() => { renderRooms(); renderWho(); }, 5000);
         wireControls();
       } catch (e) { $('#status').textContent = '連不上 Firebase'; }
@@ -287,7 +331,6 @@
     wireNotify();
     $('#sort').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; sortBy = b.dataset.sort; sel('#sort', b); renderRooms(); };
     $('#filter').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filterBy = b.dataset.filter; sel('#filter', b); renderRooms(); };
-    document.querySelector('.seg').parentElement.querySelector('.seg').addEventListener('click', () => {});
     document.querySelectorAll('[data-period]').forEach((b) => { b.onclick = () => { period = b.dataset.period; document.querySelectorAll('[data-period]').forEach((x) => x.classList.toggle('on', x === b)); renderStats(); }; });
   }
   function sel(group, btn) { $(group).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn)); }
@@ -304,11 +347,14 @@
   };
   function wireSecurity(auth) {
     $('#sec-domain').textContent = location.host || 'kylechen0419.github.io';
-    if (!auth) { $('#sec-state').textContent = '這裡沒有載入登入功能（連不上 Google）'; return; }
+    if (!auth) { $('#sec-state').textContent = '這裡沒有載入登入功能（連不上 Google）'; $('#sec-sum').textContent = '連不上 Google'; return; }
     const u = auth.currentUser;
     const google = !!(u && !u.isAnonymous);
     $('#sec-state').textContent = google ? `✅ 已用 Google 登入：${u.email || u.uid}` : '還沒用 Google 登入：規則上鎖後，發公告、踢人、關房、改通知都需要先登入';
     $('#sec-state').classList.toggle('on', google);
+    $('#sec-sum').textContent = google ? '✅ 已用 Google 登入' : '⚠️ 還沒用 Google 登入';
+    $('#sec-sum').className = 'sec-s ' + (google ? 'on' : 'warn');
+    $('#sec-howto').open = !google;  // 設定好之後步驟收起來
     $('#sec-login').hidden = google;
     $('#sec-logout').hidden = !google;
     $('#sec-login').onclick = () => {
@@ -320,6 +366,7 @@
     import('./rules.js?v=75').then(({ rulesFor }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
+      $('#sec-copy').hidden = false;
     });
     $('#sec-copy').onclick = () => {
       const box = $('#sec-rules');
@@ -337,6 +384,8 @@
     const on = !!(c && c.topic);
     $('#nt-state').textContent = on ? '✅ 已開啟：有人在玩時會通知你的手機' : '還沒開啟';
     $('#nt-state').classList.toggle('on', on);
+    $('#nt-sum').textContent = on ? '✅ 已開啟' : '還沒開啟';
+    $('#nt-sum').className = 'sec-s' + (on ? ' on' : '');
     $('#nt-setup').hidden = !on;
     $('#nt-opts').hidden = !on;
     $('#nt-on').hidden = on;
@@ -392,7 +441,8 @@
     if (!lastWho) return;  // 還沒讀到（或沒有權限）：保留原本的訊息
     const list = Object.values(lastWho).filter((w) => w && w.s);
     const count = (f) => list.filter(f).length;
-    $('#who-sum').textContent = `共 ${list.length} 人 · 房間裡 ${count((w) => w.r)} · 單人訓練 ${count((w) => w.s === 'solo')} · 每日挑戰 ${count((w) => w.s === 'daily')} · 在首頁 ${count((w) => w.s === 'home')}`;
+    const parts = [[count((w) => w.r && w.s !== 'room'), '比賽'], [count((w) => w.s === 'room'), '房間'], [count((w) => w.s === 'solo'), '單人'], [count((w) => w.s === 'daily'), '每日'], [count((w) => w.s === 'home'), '首頁']];
+    $('#who-sum').textContent = [`${list.length} 人`, ...parts.filter(([n]) => n).map(([n, t]) => `${t} ${n}`)].join(' · ');
     if (!list.length) { $('#who').innerHTML = '<p class="empty">目前沒有人在線上</p>'; return; }
     list.sort((a, b) => (WHO_ORDER[a.s] ?? 5) - (WHO_ORDER[b.s] ?? 5) || String(a.r || '').localeCompare(String(b.r || '')) || (a.since || 0) - (b.since || 0));
     $('#who').innerHTML = list.map((w) => {
@@ -416,6 +466,8 @@
     let list = Object.values(lastRooms || {}).filter((r) => r && Date.now() - (r.updatedAt || 0) < 90000);
     $('#s-rooms').textContent = list.length;
     $('#s-players').textContent = list.reduce((n, r) => n + (r.count || 0), 0);
+    const racing = list.filter((r) => r.state === 'game').length;
+    $('#rooms-sum').textContent = list.length ? `${list.length} 間${racing ? ` · 比賽中 ${racing}` : ''}` : '沒有人在玩';
     $('#status').textContent = `更新於 ${new Date().toLocaleTimeString('zh-TW')}`;
     if (filterBy === 'game') list = list.filter((r) => r.state === 'game');
     list.sort((a, b) => sortBy === 'players' ? (b.count || 0) - (a.count || 0) : sortBy === 'age' ? (a.startedAt || a.updatedAt) - (b.startedAt || b.updatedAt) : (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -447,6 +499,8 @@
     const from = period === 'today' ? new Date().setHours(0, 0, 0, 0) : period === 'week' ? now - 7 * 864e5 : 0;
     const g = games.filter((x) => x && (x.at || 0) >= from);
     $('#k-games').textContent = g.length;
+    const today = new Date().setHours(0, 0, 0, 0);
+    $('#stats-sum').textContent = `今日 ${games.filter((x) => x && (x.at || 0) >= today).length} 局 · 總共 ${games.length} 局`;
     $('#k-players').textContent = g.reduce((n, x) => n + (x.players || 0), 0);
     const wins = g.filter((x) => x.win);
     $('#k-complete').textContent = g.length ? Math.round(wins.length / g.length * 100) + '%' : '–';
@@ -465,6 +519,16 @@
     const top = Object.entries(hard).sort((a, b) => b[1] - a[1]).slice(0, 6);
     $('#hard').innerHTML = top.length ? top.map(([k, n]) => `<div class="hard"><span class="r">${esc(k)}</span><span class="c">${n} 次沒人到</span></div>`).join('') : '<p class="empty">沒有「沒人抵達」的對局</p>';
   }
+
+  // 每一塊收合／展開記在這支手機
+  (() => {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('wikirace-admin-open') || '{}') || {}; } catch (e) {}
+    document.querySelectorAll('details.sec').forEach((d) => {
+      if (typeof saved[d.dataset.sec] === 'boolean') d.open = saved[d.dataset.sec];
+      d.addEventListener('toggle', () => { saved[d.dataset.sec] = d.open; try { localStorage.setItem('wikirace-admin-open', JSON.stringify(saved)); } catch (e) {} });
+    });
+  })();
 
   if (sessionStorage.getItem('wikirace-admin') === '1') start(); else openGate();
   </script>
