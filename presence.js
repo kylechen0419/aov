@@ -16,6 +16,14 @@ let spyCb = () => {};
 // 管理員要看我的畫面時通知 app.js（on=true 開始、false 結束）
 export function onSpy(cb) { spyCb = cb; }
 
+// 被管理員踢出伺服器時通知 app.js（{ until }；解除了就是 null）
+let banCb = () => {};
+export function onBan(cb) { banCb = cb; }
+
+// 被踢出：從線上名單拿掉自己，之後也不再寫
+let dropMe = () => {};
+export function leaveOnline() { dropMe(); }
+
 // 管理員觀戰中：把目前的畫面（條目、捲到哪、點了什麼、步數）寫上去，只有管理員讀得到
 export function sendLiveToAdmin(data) {
   if (!liveRef) return;
@@ -49,16 +57,25 @@ export async function initPresence(onCount) {
     const opened = Date.now();
     let live = false;
     let uid = '';
-    const ready = () => live && (uid || authOff());  // 還沒登入好：規則會擋，等登入好（onAuth）再寫
+    let gone = false;
+    const ready = () => live && !gone && (uid || authOff());  // 還沒登入好：規則會擋，等登入好（onAuth）再寫
     const off = (p) => p?.catch?.(() => {});
+    dropMe = () => { gone = true; try { off(me.remove()); off(who.remove()); } catch { /* 忽略 */ } };
     // 給後台看的詳細資料：每次狀態改變就更新
     pushWho = () => {
       if (!ready()) return;
       try { off(who.set({ ...activity, u: uid, t: opened, since, at: Date.now() })); } catch { /* 忽略 */ }
     };
     // u：是誰的（資料庫規則只准本人刪改）。每次都重新拿登入身分：網路慢的話會晚一點才登入好
+    let banFor = null;
+    const watchBan = () => {
+      if (!uid || banFor === uid) return;
+      banFor = uid;
+      db.ref(`ban/${uid}`).on('value', (snap) => { const v = snap.val(); banCb(v && Number(v.until) > Date.now() ? { until: Number(v.until) } : null); }, () => { banFor = null; });
+    };
     const write = async () => {
       uid = (await getUid()) || '';
+      watchBan();  // 被踢的人寫不進資料（規則會擋），所以先聽踢出名單
       if (!ready()) return;
       try {
         off(me.onDisconnect().remove());

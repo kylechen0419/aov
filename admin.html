@@ -88,6 +88,34 @@
   .who-row .st { grid-column: 1 / -1; font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .who-row .dt { grid-column: 1 / -1; font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who-row.home { opacity: .7; }
+  .who-kick { font-size: 12px; font-weight: 800; color: var(--red); background: #4a1530; padding: 4px 10px; border-radius: 999px; border: 0; cursor: pointer; font-family: inherit; }
+  .who-row .st .who-watch + .who-kick { margin-left: 0; }
+  .who-row .st .who-kick:first-of-type { margin-left: auto; }
+  .kick-pick { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); padding-top: 4px; }
+  .kick-pick button { border: 0; font: inherit; font-weight: 800; font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer; background: var(--line); color: var(--ink); }
+  .kick-pick button.go { background: #4a1530; color: var(--red); }
+  .ban-row { display: flex; align-items: center; gap: 8px; background: var(--card2); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 13px; }
+  .ban-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ban-row span { color: var(--muted); font-size: 12px; }
+  .ban-row button { border: 0; font: inherit; font-weight: 800; font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer; background: var(--line); color: var(--ink); }
+  .gl-sum { font-weight: 500; }
+  .gl-q { width: 100%; font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink); margin-bottom: 8px; }
+  .glist { display: grid; gap: 6px; }
+  .gm { background: var(--card2); border-radius: 10px; padding: 8px 10px; font-size: 13px; cursor: pointer; }
+  .gm-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .gm-top .when { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .gm-route { font-weight: 800; margin: 3px 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gm-who { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gm-detail { margin-top: 6px; display: grid; gap: 6px; }
+  .gm-p { border-top: 1px solid var(--line); padding-top: 6px; }
+  .gm-p .h { display: flex; gap: 8px; font-weight: 800; }
+  .gm-p .h span { color: var(--muted); font-weight: 500; }
+  .gm-p .path { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+  .gl-more { width: 100%; margin-top: 8px; border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 8px; border-radius: 10px; background: var(--line); color: var(--ink); cursor: pointer; }
+  .pstat { display: grid; grid-template-columns: 1fr auto auto auto; gap: 4px 10px; font-size: 13px; }
+  .pstat .hd { color: var(--muted); font-size: 11px; font-weight: 800; }
+  .pstat .nm { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pstat .n { text-align: right; font-variant-numeric: tabular-nums; }
   .who-watch { margin-left: auto; font-size: 12px; font-weight: 800; color: #fff; background: var(--blue); padding: 4px 10px; border-radius: 999px; text-decoration: none; }
   .tag.solo { background: #5b2bbf; }
   .tag.daily { background: #b8561a; }
@@ -165,6 +193,12 @@
         <div id="modes"></div>
         <p class="nt-head">😵 最難的題目（最常沒人抵達）</p>
         <div id="hard"><p class="empty">還沒有資料</p></div>
+        <p class="nt-head">🏅 玩家戰績</p>
+        <div id="pstats"><p class="empty">還沒有資料</p></div>
+        <p class="nt-head">📜 所有對局 <span class="gl-sum" id="gl-sum"></span></p>
+        <input id="gl-q" class="gl-q" placeholder="找玩家暱稱或題目…" autocomplete="off">
+        <div id="glist" class="glist"><p class="empty">還沒有資料</p></div>
+        <button id="gl-more" class="gl-more" type="button" hidden>顯示更多</button>
       </div>
     </details>
 
@@ -211,6 +245,14 @@
           <label class="chk self"><input type="checkbox" id="nt-self"> 我用這支手機玩的時候，不要通知我自己</label>
         </div>
         <p class="nt-msg" id="nt-msg"></p>
+      </div>
+    </details>
+
+    <details class="sec" data-sec="ban">
+      <summary><span class="sec-t">🚫 踢出名單</span><span class="sec-s" id="ban-sum">–</span></summary>
+      <div class="sec-b">
+        <p class="nt-steps" style="padding:0;margin:0 0 8px">在上面「在線玩家」按「🚫 踢出」就會馬上斷線；期限內他打不開遊戲、也寫不進任何資料。</p>
+        <div id="banlist"><p class="empty">沒有人被踢出</p></div>
       </div>
     </details>
 
@@ -266,6 +308,8 @@
 
   let notifyCfg = null;
   let lastWho = null;
+  let kickOpen = null, kickName = '';
+  let bans = {};
   let db = null, lastRooms = null, games = [], sortBy = 'new', filterBy = 'all', period = 'today';
 
   function start() {
@@ -293,6 +337,7 @@
         wireSecurity(auth);
         db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); }, () => { $('#status').textContent = '讀不到房間：資料庫已上鎖，請先用 Google 登入'; });
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
+        db.ref('ban').on('value', (snap) => { bans = snap.val() || {}; renderBans(); }, () => { $('#ban-sum').textContent = '讀不到'; });
         db.ref('who').on('value', (snap) => { lastWho = snap.val() || {}; renderWho(); }, () => { lastWho = null; $('#who-sum').textContent = '讀不到'; $('#who').innerHTML = '<p class="empty">讀不到在線玩家：請先用 Google 登入；已登入的話，到上面「資料庫保護」重新複製規則、到 Firebase 發布一次（新版規則才有這個列表）</p>'; });
         // 每日挑戰：台灣時間的今天有幾個人完成（跟遊戲端 daily.js 的日期算法一樣）；後台開著過了午夜會自動換到新的一天
         let dailyRef = null;
@@ -461,9 +506,32 @@
       // 比賽中（含單人、每日）可以觀戰；玩家畫面上會顯示「管理員正在觀戰」
       const canWatch = w.st && ['game', 'result', 'watch', 'solo', 'daily'].includes(w.s);
       const watch = canWatch ? `<a class="who-watch" href="index.html?adminwatch=${encodeURIComponent(w.key)}" target="_blank" rel="noopener">👀 觀戰</a>` : '';
+      const me = firebase.auth && firebase.auth().currentUser && firebase.auth().currentUser.uid === w.u;
+      const kick = w.u && !me ? `<button class="who-kick" type="button" data-uid="${esc(w.u)}" data-name="${esc(w.n || '')}">🚫 踢出</button>` : '';
+      const pick = kickOpen === w.u ? `<div class="kick-pick">踢出 ${esc(w.n || '這位玩家')}：<button class="go" data-min="10">10 分鐘</button><button class="go" data-min="1440">1 天</button><button class="go" data-min="0">永久</button><button class="no">取消</button></div>` : '';
       return `<div class="who-row ${w.s === 'home' ? 'home' : ''}"><span class="nm">${esc(w.n || '（還沒取暱稱）')}</span><span class="tm">${w.since ? '已 ' + ago(w.since) : ''}</span>`
-        + `<div class="st">${tags.join('')}${watch}</div>${detail ? `<div class="dt">${detail}</div>` : ''}</div>`;
+        + `<div class="st">${tags.join('')}${watch}${kick}</div>${detail ? `<div class="dt">${detail}</div>` : ''}${pick}</div>`;
     }).join('');
+    $('#who').querySelectorAll('.who-kick').forEach((b) => { b.onclick = () => { kickOpen = kickOpen === b.dataset.uid ? null : b.dataset.uid; kickName = b.dataset.name; renderWho(); }; });
+    const kp = $('#who').querySelector('.kick-pick');
+    if (kp) {
+      kp.querySelector('.no').onclick = () => { kickOpen = null; renderWho(); };
+      kp.querySelectorAll('.go').forEach((b) => { b.onclick = () => {
+        const min = Number(b.dataset.min);
+        const until = min ? Date.now() + min * 60000 : 4102444800000;  // 永久＝2100 年
+        db.ref('ban/' + kickOpen).set({ until, at: Date.now(), n: (kickName || '').slice(0, 16) }).then(() => { kickOpen = null; renderWho(); }, denied);
+      }; });
+    }
+  }
+
+  function renderBans() {
+    const list = Object.entries(bans).filter(([, b]) => b && b.until > Date.now()).sort((a, b) => b[1].at - a[1].at);
+    $('#ban-sum').textContent = list.length ? `${list.length} 人` : '沒有人被踢出';
+    $('#banlist').innerHTML = list.length ? list.map(([uid, b]) => {
+      const left = b.until > 4e12 ? '永久' : `到 ${new Date(b.until).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+      return `<div class="ban-row"><b>${esc(b.n || '（沒有暱稱）')}</b><span>${left}</span><button data-uid="${esc(uid)}">解除</button></div>`;
+    }).join('') : '<p class="empty">沒有人被踢出</p>';
+    $('#banlist').querySelectorAll('button').forEach((x) => { x.onclick = () => db.ref('ban/' + x.dataset.uid).remove().catch(denied); });
   }
 
   function renderRooms() {
@@ -521,6 +589,7 @@
     // 最難題目
     const hard = {}; for (const x of g) { if (x.win) continue; const k = `${x.start} → ${x.target}`; hard[k] = (hard[k] || 0) + 1; }
     const top = Object.entries(hard).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    renderGames(g);
     $('#hard').innerHTML = top.length ? top.map(([k, n]) => `<div class="hard"><span class="r">${esc(k)}</span><span class="c">${n} 次沒人到</span></div>`).join('') : '<p class="empty">沒有「沒人抵達」的對局</p>';
   }
 
@@ -533,6 +602,49 @@
       d.addEventListener('toggle', () => { saved[d.dataset.sec] = d.open; try { localStorage.setItem('wikirace-admin-open', JSON.stringify(saved)); } catch (e) {} });
     });
   })();
+
+  // ---------- 所有對局、玩家戰績 ----------
+  const MODE = { duel: '1 對 1', party: '派對', solo: '單人訓練', daily: '每日挑戰' };
+  const RES = { win: '抵達', giveup: '投降', timeout: '時間到', over: '沒追上', left: '離開', oppLeft: '對手離開', oppGaveUp: '對手投降', hostLeft: '房主離開' };
+  const medal = (pl) => ['🥇', '🥈', '🥉'][pl - 1] || (pl ? `第 ${pl} 名` : '');
+  let glShow = 30, glOpen = new Set();
+  function renderGames(g) {
+    const list = g.filter((x) => x && x.at).sort((a, b) => b.at - a.at);
+    // 玩家戰績：依暱稱合計（同一個暱稱算同一人）
+    const per = {};
+    for (const x of list) for (const p of (Array.isArray(x.list) ? x.list : Object.values(x.list || {}))) {
+      if (!p || !p.n) continue;
+      const r = (per[p.n] ||= { n: p.n, games: 0, wins: 0, arrive: 0, steps: 0 });
+      r.games++;
+      if (p.r === 'win') { r.arrive++; r.steps += p.k || 0; }
+      if (p.pl === 1 && p.r === 'win' && x.players > 1) r.wins++;
+    }
+    const prow = Object.values(per).sort((a, b) => b.games - a.games).slice(0, 30);
+    $('#pstats').innerHTML = prow.length ? `<div class="pstat"><span class="hd">暱稱</span><span class="hd n">局數</span><span class="hd n">多人第一</span><span class="hd n">平均步數</span>`
+      + prow.map((r) => `<span class="nm">${esc(r.n)}</span><span class="n">${r.games}</span><span class="n">${r.wins}</span><span class="n">${r.arrive ? (r.steps / r.arrive).toFixed(1) : '–'}</span>`).join('') + '</div>' : '<p class="empty">還沒有資料</p>';
+    // 所有對局（可以用暱稱或題目搜尋）
+    const q = ($('#gl-q').value || '').trim();
+    const hit = q ? list.filter((x) => `${x.start} ${x.target} ${(Array.isArray(x.list) ? x.list : Object.values(x.list || {})).map((p) => p && p.n).join(' ')}`.includes(q)) : list;
+    $('#gl-sum').textContent = `${hit.length} 局`;
+    const shown = hit.slice(0, glShow);
+    $('#gl-more').hidden = hit.length <= glShow;
+    $('#glist').innerHTML = shown.length ? shown.map((x) => {
+      const ps = Array.isArray(x.list) ? x.list : Object.values(x.list || {});
+      const who = ps.length ? ps.map((p) => `${p.n}${p.pl ? ' ' + medal(p.pl) : ` ${RES[p.r] || p.r || ''}`}`).join('、') : `${x.players || '?'} 人（舊紀錄沒有名單）`;
+      const id = `${x.at}-${x.start}`;
+      const open = glOpen.has(id);
+      const detail = open && ps.length ? `<div class="gm-detail">${ps.map((p) => {
+        const path = (Array.isArray(p.p) ? p.p : Object.values(p.p || {}));
+        return `<div class="gm-p"><div class="h">${esc(p.n)} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${esc(RES[p.r] || p.r || '還沒結束')} · ${p.k || 0} 步${p.t ? ' · ' + dur(p.t) : ''}</span></div>${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
+      }).join('')}</div>` : '';
+      const when = new Date(x.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return `<div class="gm" data-id="${esc(id)}"><div class="gm-top"><span class="when">${when}</span><span class="tag">${MODE[x.mode] || esc(x.mode)}</span><span class="tag">${GOAL[x.goal] || ''}</span>${x.win ? '' : '<span class="tag" style="color:var(--red)">沒人抵達</span>'}</div>`
+        + `<div class="gm-route">《${esc(x.start)}》→《${esc(x.target)}》</div><div class="gm-who">${esc(who)}</div>${detail}</div>`;
+    }).join('') : '<p class="empty">沒有符合的對局</p>';
+    $('#glist').querySelectorAll('.gm').forEach((el) => { el.onclick = () => { const id = el.dataset.id; if (glOpen.has(id)) glOpen.delete(id); else glOpen.add(id); renderStats(); }; });
+  }
+  $('#gl-q').addEventListener('input', () => { glShow = 30; renderStats(); });
+  $('#gl-more').onclick = () => { glShow += 30; renderStats(); };
 
   if (sessionStorage.getItem('wikirace-admin') === '1') start(); else openGate();
   </script>

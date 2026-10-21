@@ -1336,3 +1336,11 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .admin-watching #watch-tabs { display: none; }
 /* 比賽中上方是計時器和對手：提示改放在下方工具列上面 */
 body:has(#view-game:not([hidden])) .admin-eye { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+
+/* 被踢出伺服器：整個畫面擋住 */
+.ban-screen { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: rgba(18, 12, 48, .92); backdrop-filter: blur(6px); }
+.ban-card { max-width: 340px; background: var(--card); border-radius: var(--r); padding: 28px 22px; text-align: center; box-shadow: var(--shadow); }
+.ban-icon { font-size: 52px; line-height: 1; margin-bottom: 10px; }
+.ban-card h2 { margin: 0 0 10px; font-size: 20px; font-weight: 900; }
+.ban-card p { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
+.ban-card .ban-sub { font-size: 13px; color: var(--muted); font-weight: 500; }

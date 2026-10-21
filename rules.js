@@ -5,6 +5,8 @@ export function rulesFor(adminUid) {
   const admin = `auth != null && auth.uid === '${uid}'`;
   // 台灣時間今天是 1970-01-01 之後的第幾天（伺服器時間，玩家改不了）
   const DAY = '((now + 28800000 - (now + 28800000) % 86400000) / 86400000)';
+  // 被管理員踢出伺服器的人：期限內什麼都不能寫
+  const ok = "(!root.child('ban').child(auth.uid).exists() || root.child('ban').child(auth.uid).child('until').val() < now)";
   const roomOwner = "root.child('rooms').child($code).child('owner').val() === auth.uid";
   return {
     rules: {
@@ -12,7 +14,7 @@ export function rulesFor(adminUid) {
       online: {
         '.read': true,
         $id: {
-          '.write': "auth != null && (!data.exists() || data.child('u').val() === auth.uid)",
+          '.write': `auth != null && (!data.exists() || data.child('u').val() === auth.uid) && (!newData.exists() || ${ok})`,
           '.validate': "newData.child('u').val() === auth.uid && newData.child('t').isNumber()",
           u: { '.validate': true },
           t: { '.validate': true },
@@ -23,7 +25,7 @@ export function rulesFor(adminUid) {
       who: {
         '.read': admin,
         $id: {
-          '.write': "auth != null && (!data.exists() || data.child('u').val() === auth.uid)",
+          '.write': `auth != null && (!data.exists() || data.child('u').val() === auth.uid) && (!newData.exists() || ${ok})`,
           '.validate': "newData.child('u').val() === auth.uid && newData.child('t').isNumber() && newData.child('s').isString() && newData.child('s').val().length <= 12",
           u: { '.validate': true },
           t: { '.validate': true },
@@ -55,7 +57,7 @@ export function rulesFor(adminUid) {
       live: {
         $id: {
           '.read': admin,
-          '.write': "auth != null && root.child('who').child($id).child('u').val() === auth.uid",
+          '.write': `auth != null && root.child('who').child($id).child('u').val() === auth.uid && (!newData.exists() || ${ok})`,
           '.validate': "newData.child('at').isNumber()",
           at: { '.validate': true },
           idle: { '.validate': 'newData.isBoolean()' },
@@ -81,7 +83,7 @@ export function rulesFor(adminUid) {
       rooms: {
         '.read': admin,
         $code: {
-          '.write': `auth != null && (!data.exists() || data.child('owner').val() === auth.uid || ${admin})`,
+          '.write': `(auth != null && (!data.exists() || data.child('owner').val() === auth.uid) && (!newData.exists() || ${ok})) || ${admin}`,
           '.validate': "newData.child('owner').val() === auth.uid && newData.child('code').val() === $code",
         },
       },
@@ -98,8 +100,20 @@ export function rulesFor(adminUid) {
         games: {
           '.read': admin,
           $id: {
-            '.write': 'auth != null && !data.exists()',
+            '.write': `auth != null && !data.exists() && ${ok}`,
             '.validate': "newData.hasChildren(['mode', 'players', 'at']) && newData.child('players').isNumber() && newData.child('players').val() <= 8",
+            // 每個人的戰績（暱稱、名次、結果、步數、時間、路線）
+            list: {
+              $i: {
+                n: { '.validate': 'newData.isString() && newData.val().length <= 16' },
+                pl: { '.validate': 'newData.isNumber()' },
+                r: { '.validate': 'newData.isString() && newData.val().length <= 12' },
+                k: { '.validate': 'newData.isNumber()' },
+                t: { '.validate': 'newData.isNumber()' },
+                p: { $j: { '.validate': 'newData.isString() && newData.val().length <= 120' } },
+                $other: { '.validate': false },
+              },
+            },
           },
         },
         // 史上尖峰只能往上加、不能刪（只是一個數字，公開讀；更新用 transaction 要先讀得到）。管理員可以重設
@@ -113,7 +127,7 @@ export function rulesFor(adminUid) {
           $date: {
             '.read': true,
             $uid: {
-              '.write': 'auth != null && auth.uid === $uid && !data.exists()',
+              '.write': `auth != null && auth.uid === $uid && !data.exists() && ${ok}`,
               '.validate': "newData.child('n').isString() && newData.child('n').val().length <= 16 && newData.child('s').isNumber() && newData.child('t').isNumber()",
               // 走過的路線：每一站是條目名稱
               p: { $i: { '.validate': 'newData.isString() && newData.val().length <= 120' } },
@@ -125,9 +139,18 @@ export function rulesFor(adminUid) {
         dailyPuzzle: {
           $day: {
             '.read': true,
-            '.write': `(auth != null && !data.exists() && (${[-1, 0, 1].map((d) => `$day === 'd' + (${DAY} + ${d})`).join(' || ')})) || ${admin}`,
+            '.write': `(auth != null && !data.exists() && ${ok} && (${[-1, 0, 1].map((d) => `$day === 'd' + (${DAY} + ${d})`).join(' || ')})) || ${admin}`,
             '.validate': "newData.child('start').isString() && newData.child('target').isString() && newData.child('start').val().length < 200 && newData.child('target').val().length < 200",
           },
+        },
+      },
+      // 踢出伺服器：管理員寫，被踢的人讀得到自己的（遊戲才知道要擋）
+      ban: {
+        '.read': admin,
+        $uid: {
+          '.read': `${admin} || auth.uid === $uid`,
+          '.write': admin,
+          '.validate': "newData.child('until').isNumber() && (!newData.child('n').exists() || (newData.child('n').isString() && newData.child('n').val().length <= 16))",
         },
       },
       // 全站公告：大家讀、管理員寫

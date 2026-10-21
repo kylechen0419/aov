@@ -1,5 +1,5 @@
 import { Net } from './net.js?v=77';
-import { initPresence, setActivity, onSpy, sendLiveToAdmin } from './presence.js?v=77';
+import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=77';
 import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=77';
 import { initNotify, notify } from './notify.js?v=77';
 import { getDb, getUid, authOff } from './fb.js?v=77';
@@ -1107,6 +1107,29 @@ function recordGameStats(g, info) {
     mode: g.mode, goal: cleanGoal(g.settings.goal), players: all.length, round: state.roomScore.games,
     start: tw(g.settings.start), target: tw(g.settings.target),
     win: !!winner, durationMs: winner?.finished?.elapsed || elapsed, steps: winner ? winner.clicks : null,
+    list: gameRoster(g),
+  });
+}
+
+// 這一局每個人的戰績（給後台的「所有對局」）：暱稱、名次、結果、步數、時間、路線
+function gameRoster(g) {
+  return ranking(g).slice(0, 8).map((e) => ({
+    n: String(e.name || '玩家').slice(0, 16), pl: e.place || 0, r: String(e.finished?.reason || (e.left ? 'left' : '')).slice(0, 12),
+    k: Number(e.clicks) || 0, t: Math.round(e.finished?.elapsed || 0),
+    p: cleanPath(e.path).slice(0, 40).map((t) => tw(t).slice(0, 100)),
+  }));
+}
+
+// 單人訓練、每日挑戰也記一筆（後台看得到大家怎麼玩）
+function recordSoloStats(g) {
+  if (g.statsRecorded || !g.finished) return;
+  g.statsRecorded = true;
+  const win = g.finished.reason === 'win';
+  recordGame({
+    mode: state.daily ? 'daily' : 'solo', goal: cleanGoal(g.settings.goal), players: 1, round: 1,
+    start: tw(g.settings.start), target: tw(g.settings.target),
+    win, durationMs: Math.round(g.finished.elapsed || 0), steps: win ? g.finished.clicks : null,
+    list: gameRoster(g),
   });
 }
 
@@ -2383,6 +2406,38 @@ onSpy((on) => {
   if (on) { toast('👀 管理員正在觀戰你的畫面', 3000); pushAdminLive(); }
 });
 
+// ---------- 被管理員踢出伺服器：馬上斷線，期限內整個遊戲都擋住 ----------
+let banned = false;
+function applyBan(b) {
+  if (!b || !(b.until > Date.now())) {
+    store.set('wikirace-ban', '');
+    if (banned) { banned = false; $('#ban-until').textContent = '已經解除了，馬上帶你回到遊戲…'; setTimeout(() => location.reload(), 1500); }
+    return;
+  }
+  store.set('wikirace-ban', JSON.stringify({ until: b.until }));  // 這支手機也記住（重新整理也一樣擋）
+  const forever = b.until - Date.now() > 3650 * 864e5;
+  $('#ban-until').textContent = forever ? '你已經不能再進入這個遊戲。' : `${new Date(b.until).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 之後才能再回來。`;
+  $('#ban-screen').hidden = false;
+  if (banned) return;
+  banned = true;
+  leaveOnline();
+  // 離開房間、斷線（房主被踢：其他人會自動接手房間）
+  leavingRoom = true;
+  if (net.code && !net.isHost) net.send({ t: 'bye' });
+  session.clear();
+  hosted.clear();
+  stopControlWatch();
+  setTimeout(() => net.destroy(), 200);
+  if (state.game && !state.game.finished) abandonGame();
+  state.game = null;
+  state.solo = false;
+  state.daily = null;
+  try { music.stop?.(); } catch { /* 忽略 */ }
+  show('home');
+  setConn('');
+}
+onBan(applyBan);
+
 // 管理員那一邊（後台按「觀戰」打開 ?adminwatch=<key>）：用觀戰畫面顯示那位玩家
 async function startAdminWatch(key) {
   document.body.classList.add('admin-watching');
@@ -2727,7 +2782,7 @@ function finishGame(reason) {
   stopGameLoops(g);
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
-  if (state.solo) settleDaily(g);
+  if (state.solo) { settleDaily(g); recordSoloStats(g); }
   sendProgress({ t: 'finish', ...g.finished });
   if (net.isHost) { onAnyFinish(state.myId, g.finished); checkHintVotes(); }
   $('#hint-bar').hidden = true;
@@ -4510,6 +4565,8 @@ initAnnounce();
 initNotify();
 show('home');
 if (adminWatchKey && /^[-\w]{4,40}$/.test(adminWatchKey)) startAdminWatch(adminWatchKey);
+// 之前被踢出、期限還沒到：一打開就擋住
+try { const b = JSON.parse(store.get('wikirace-ban') || 'null'); if (b && b.until > Date.now() && !adminWatchKey) applyBan(b); } catch { /* 忽略 */ }
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 // 第一次來的人先看教學；從邀請連結來的人只顯示提示，不擋住加入（重新整理回房間時都不打擾）
 // 朋友分享的每日挑戰連結（?daily）：直接打開今天的題目，新玩家也不被教學擋住
