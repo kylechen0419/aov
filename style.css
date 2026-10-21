@@ -104,6 +104,16 @@ symbol .fill { fill: currentColor; stroke: none; }
   display: flex; justify-content: space-between; align-items: baseline;
 }
 .section-note { font-weight: 500; font-size: 12px; opacity: .85; }
+/* 房間設定：每一段可以收合，標題右邊是目前選了什麼 */
+.fold { min-width: 0; }
+.fold > summary { list-style: none; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; margin: 6px 6px 0; align-items: center; gap: 10px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold-sum { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 700; font-size: 12px; opacity: .92; text-shadow: none; }
+.fold-sum span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fold-sum::after { content: ''; flex: none; width: 7px; height: 7px; border-right: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(45deg); margin-top: -4px; transition: transform .2s; }
+.fold[open] .fold-sum::after { transform: rotate(-135deg); margin-top: 3px; }
+.fold[open] .fold-sum span { display: none; }
+.fold > .card { margin-top: 10px; }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .14em; }
 
 /* 首頁主視覺 */
@@ -1298,6 +1308,15 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .daily-board .nm { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daily-board .sc { font-size: 13px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .daily-board .avatar { width: 32px; height: 32px; font-size: 13px; }
+.daily-board li.has-route { cursor: pointer; }
+.daily-board li.has-route .sc::after { content: '›'; display: inline-block; margin-left: 6px; transition: transform .2s; }
+.daily-board li.has-route.open .sc::after { transform: rotate(90deg); }
+.daily-route { grid-column: 1 / -1; list-style: none; margin: 4px 0 2px; padding: 8px 10px; background: var(--card); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 4px 2px; font-size: 13px; font-weight: 700; }
+.daily-route li { display: inline; background: none; padding: 0; border-radius: 0; font-size: 13px; }
+.daily-route li + li::before { content: '›'; margin: 0 6px 0 4px; color: var(--muted); }
+.daily-route li.start { color: var(--blue, #3a6cf4); }
+.daily-route li.goal { color: #c98a00; }
+.daily-board li.daily-route-note { display: block; background: none; padding: 0 2px; font-size: 12px; color: var(--muted); font-weight: 700; }
 .daily-board li.gap, .daily-board li.daily-empty { display: block; background: none; text-align: center; color: var(--muted); padding: 2px 0; }
 .daily-name { display: grid; gap: 4px; }
 .daily-result { background: linear-gradient(135deg, #fff3e6, #ffe3c9); border: 2px solid #ffc89c; display: grid; gap: 6px; }
@@ -1306,3 +1325,14 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .dres-rank { font-weight: 900; color: #b4531a; font-size: 15px; }
 .dres-sub { margin: 0; font-size: 13px; color: var(--muted); font-weight: 700; line-height: 1.5; }
 .dres-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+
+/* 管理員觀戰：玩家畫面上方的提示（不擋操作） */
+.admin-eye {
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 6px); left: 50%; transform: translateX(-50%); z-index: 90;
+  background: rgba(20, 14, 60, .88); color: #fff; font-size: 12px; font-weight: 800; padding: 5px 12px; border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25); pointer-events: none; white-space: nowrap; animation: eyePulse 2.4s ease-in-out infinite;
+}
+@keyframes eyePulse { 50% { box-shadow: 0 4px 14px rgba(0, 0, 0, .25), 0 0 0 4px rgba(255, 210, 63, .35); } }
+.admin-watching #watch-tabs { display: none; }
+/* 比賽中上方是計時器和對手：提示改放在下方工具列上面 */
+body:has(#view-game:not([hidden])) .admin-eye { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }

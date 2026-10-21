@@ -3,8 +3,8 @@
 // 第一個算出今天題目的人會把它存進 Firebase（stats/dailyPuzzle/d<天數>），之後大家都讀這一份，
 // 所以就算當天維基百科有人改了條目、或題庫更新，同一天的題目也不會變。
 // 排行榜存在 stats/daily/<日期>/<手機代號>；沒設定 Firebase 時一樣能玩（題目靠自己算），只是沒有排行榜。
-import { getDb } from './fb.js?v=76';
-import { api } from './wiki.js?v=76';
+import { getDb } from './fb.js?v=77';
+import { api } from './wiki.js?v=77';
 
 const LAUNCH = '2026-10-21';  // 第 1 期
 const LOG = 'wikirace-daily-log';
@@ -56,7 +56,7 @@ async function linksDirectly(from, to) {
 
 // 自己從題庫算出今天的題目
 async function compute(key) {
-  const { TOPICS } = await import('./topics.js?v=76');
+  const { TOPICS } = await import('./topics.js?v=77');
   const rnd = seeded(`wikirace-daily-${key}`);
   const pick = async (avoid) => {
     for (let i = 0; i < 25; i++) {
@@ -130,7 +130,9 @@ const clean = (id, r) => {
   if (!r || typeof r !== 'object') return null;
   const s = Math.round(Number(r.s)), t = Math.round(Number(r.t));
   if (!(s >= 1 && s <= 999 && t >= 1000 && t <= 24 * 3600e3)) return null;
-  return { id, n: String(r.n || '').trim().slice(0, 16) || '玩家', a: typeof r.a === 'string' ? r.a.slice(0, 32) : '', s, t, h: !!r.h };
+  // p：走過的路線（舊的成績沒有）
+  const p = (Array.isArray(r.p) ? r.p : r.p && typeof r.p === 'object' ? Object.values(r.p) : []).filter((x) => typeof x === 'string').slice(0, 80).map((x) => x.slice(0, 100));
+  return { id, n: String(r.n || '').trim().slice(0, 16) || '玩家', a: typeof r.a === 'string' ? r.a.slice(0, 32) : '', s, t, h: !!r.h, p };
 };
 // 回傳依「步數少→時間短」排好的成績；沒有 Firebase 或連不上回傳 null
 export async function board(key) {

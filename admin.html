@@ -88,6 +88,7 @@
   .who-row .st { grid-column: 1 / -1; font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .who-row .dt { grid-column: 1 / -1; font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who-row.home { opacity: .7; }
+  .who-watch { margin-left: auto; font-size: 12px; font-weight: 800; color: #fff; background: var(--blue); padding: 4px 10px; border-radius: 999px; text-decoration: none; }
   .tag.solo { background: #5b2bbf; }
   .tag.daily { background: #b8561a; }
   .tag.host { background: #7a5a12; color: var(--yellow); }
@@ -240,7 +241,7 @@
     </details>
   </main>
 
-  <script src="firebase-config.js?v=76"></script>
+  <script src="firebase-config.js?v=77"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -363,7 +364,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=76').then(({ rulesFor }) => {
+    import('./rules.js?v=77').then(({ rulesFor }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
@@ -425,7 +426,7 @@
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=76');
+      const { sendNtfy } = await import('./notify.js?v=77');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -439,7 +440,7 @@
   const WHO_ORDER = { game: 0, watch: 0, solo: 1, daily: 1, result: 2, room: 3, home: 4 };
   function renderWho() {
     if (!lastWho) return;  // 還沒讀到（或沒有權限）：保留原本的訊息
-    const list = Object.values(lastWho).filter((w) => w && w.s);
+    const list = Object.entries(lastWho).filter(([, w]) => w && w.s).map(([key, w]) => ({ ...w, key }));
     const count = (f) => list.filter(f).length;
     const parts = [[count((w) => w.r && w.s !== 'room'), '比賽'], [count((w) => w.s === 'room'), '房間'], [count((w) => w.s === 'solo'), '單人'], [count((w) => w.s === 'daily'), '每日'], [count((w) => w.s === 'home'), '首頁']];
     $('#who-sum').textContent = [`${list.length} 人`, ...parts.filter(([n]) => n).map(([n, t]) => `${t} ${n}`)].join(' · ');
@@ -457,8 +458,11 @@
         const end = w.done ? (w.ok ? ' · ✅ 抵達' : ' · 已結束') : '';
         detail = `《${esc(w.st)}》→《${esc(w.tg)}》 · ${w.k || 0} 步${end}`;
       }
+      // 比賽中（含單人、每日）可以觀戰；玩家畫面上會顯示「管理員正在觀戰」
+      const canWatch = w.st && ['game', 'result', 'watch', 'solo', 'daily'].includes(w.s);
+      const watch = canWatch ? `<a class="who-watch" href="index.html?adminwatch=${encodeURIComponent(w.key)}" target="_blank" rel="noopener">👀 觀戰</a>` : '';
       return `<div class="who-row ${w.s === 'home' ? 'home' : ''}"><span class="nm">${esc(w.n || '（還沒取暱稱）')}</span><span class="tm">${w.since ? '已 ' + ago(w.since) : ''}</span>`
-        + `<div class="st">${tags.join('')}</div>${detail ? `<div class="dt">${detail}</div>` : ''}</div>`;
+        + `<div class="st">${tags.join('')}${watch}</div>${detail ? `<div class="dt">${detail}</div>` : ''}</div>`;
     }).join('');
   }
 

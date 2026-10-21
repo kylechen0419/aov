@@ -2,14 +2,25 @@
 // 另外給製作者後台一份「誰在線上、在做什麼」（who：只有管理員讀得到）：暱稱、在首頁／房間／比賽／單人訓練、
 // 房間代碼、模式、題目和步數。不會記下正在看哪個條目、也看不到任何人的畫面。
 // 沒有在 firebase-config.js 填設定的話，整個功能會安靜地關閉，不影響遊戲其他部分。
-import { getDb, getUid, onAuth, authOff } from './fb.js?v=76';
-import { bumpPeak } from './rooms.js?v=76';
+import { getDb, getUid, onAuth, authOff } from './fb.js?v=77';
+import { bumpPeak } from './rooms.js?v=77';
 
 let started = false;
 let retries = 0;
 let activity = { s: 'home' };  // 目前在做什麼（app.js 透過 setActivity 更新）
 let since = Date.now();        // 這個狀態從什麼時候開始
 let pushWho = () => {};
+let liveRef = null;        // live/<自己的 key>：管理員觀戰時才寫
+let spyCb = () => {};
+
+// 管理員要看我的畫面時通知 app.js（on=true 開始、false 結束）
+export function onSpy(cb) { spyCb = cb; }
+
+// 管理員觀戰中：把目前的畫面（條目、捲到哪、點了什麼、步數）寫上去，只有管理員讀得到
+export function sendLiveToAdmin(data) {
+  if (!liveRef) return;
+  try { liveRef.set({ ...data, at: Date.now() })?.catch?.(() => {}); } catch { /* 忽略 */ }
+}
 
 // 遊戲畫面或進度改變時呼叫；內容一樣就不重寫
 export function setActivity(a) {
@@ -53,9 +64,37 @@ export async function initPresence(onCount) {
         off(me.onDisconnect().remove());
         off(who.onDisconnect().remove());
         await me.set({ u: uid, t: opened });
-        pushWho();
+        await who.set({ ...activity, u: uid, t: opened, since, at: Date.now() });
+        watchSpy();  // 規則要先確認這筆是我的，才讓我讀管理員的觀戰要求
       } catch { /* 規則擋下（還沒登入）就等登入好再寫 */ }
     };
+    // 管理員觀戰：spy/<key> 有值就是管理員正在看。管理員的頁面每 20 秒更新一次，
+    // 超過 60 秒沒看到更新就當作沒在看了（用自己看到更新的時間算，手機時間不準也沒關係）
+    const spyRef = db.ref(`spy/${me.key}`);
+    const lref = db.ref(`live/${me.key}`);
+    let spyMark = null;
+    let spySeen = 0;
+    let spyOn = false;
+    const checkSpy = () => {
+      const on = spyMark !== null && Date.now() - spySeen < 60000;
+      if (on === spyOn) return;
+      spyOn = on;
+      liveRef = on ? lref : null;
+      if (on) off(lref.onDisconnect().remove());
+      else { try { off(lref.remove()); } catch { /* 忽略 */ } }
+      spyCb(on);
+    };
+    let spying = false;
+    const watchSpy = () => {
+      if (spying) return;
+      spying = true;
+      spyRef.on('value', (snap) => {
+        const at = snap.val()?.at ?? null;
+        if (at !== spyMark) { spyMark = at; spySeen = Date.now(); }
+        checkSpy();
+      }, () => { spying = false; /* 規則還沒更新：沒有觀戰功能 */ });
+    };
+    setInterval(checkSpy, 10000);
     db.ref('.info/connected').on('value', (snap) => { live = snap.val() === true; if (live) write(); });
     onAuth((id) => { if (id) write(); });
     online.on('value', (snap) => { const n = snap.numChildren(); onCount(n); bumpPeak(n); });

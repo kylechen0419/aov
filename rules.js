@@ -45,6 +45,38 @@ export function rulesFor(adminUid) {
           $other: { '.validate': false },
         },
       },
+      // 管理員觀戰：管理員寫 spy/<key>（要看誰），那位玩家讀得到就開始把畫面寫到 live/<key>（只有管理員讀得到）
+      spy: {
+        $id: {
+          '.read': `${admin} || (auth != null && root.child('who').child($id).child('u').val() === auth.uid)`,
+          '.write': admin,
+        },
+      },
+      live: {
+        $id: {
+          '.read': admin,
+          '.write': "auth != null && root.child('who').child($id).child('u').val() === auth.uid",
+          '.validate': "newData.child('at').isNumber()",
+          at: { '.validate': true },
+          idle: { '.validate': 'newData.isBoolean()' },
+          s: { '.validate': 'newData.isString() && newData.val().length <= 12' },
+          p: { '.validate': 'newData.isString() && newData.val().length <= 200' },
+          st: { '.validate': 'newData.isString() && newData.val().length <= 200' },
+          tg: { '.validate': 'newData.isString() && newData.val().length <= 200' },
+          lang: { '.validate': 'newData.isString() && newData.val().length <= 4' },
+          fin: { '.validate': 'newData.isString() && newData.val().length <= 12' },
+          gid: { '.validate': 'newData.isString() && newData.val().length <= 40' },
+          path: { $i: { '.validate': 'newData.isString() && newData.val().length <= 200' } },
+          i: { '.validate': 'newData.isNumber()' },
+          f: { '.validate': 'newData.isNumber()' },
+          k: { '.validate': 'newData.isNumber()' },
+          el: { '.validate': 'newData.isNumber()' },
+          n: { '.validate': 'newData.isNumber()' },
+          tapAt: { '.validate': 'newData.isNumber()' },
+          near: { '.validate': 'newData.isBoolean()' },
+          $other: { '.validate': false },
+        },
+      },
       // 房間概況：房主寫、只有管理員看得到（裡面有暱稱）
       rooms: {
         '.read': admin,
@@ -83,6 +115,8 @@ export function rulesFor(adminUid) {
             $uid: {
               '.write': 'auth != null && auth.uid === $uid && !data.exists()',
               '.validate': "newData.child('n').isString() && newData.child('n').val().length <= 16 && newData.child('s').isNumber() && newData.child('t').isNumber()",
+              // 走過的路線：每一站是條目名稱
+              p: { $i: { '.validate': 'newData.isString() && newData.val().length <= 120' } },
             },
           },
         },

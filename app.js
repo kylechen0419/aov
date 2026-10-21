@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=76';
-import { initPresence, setActivity } from './presence.js?v=76';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=76';
-import { initNotify, notify } from './notify.js?v=76';
-import { getUid, authOff } from './fb.js?v=76';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=76';
-import * as wiki from './wiki.js?v=76';
-import { tw, twTree, zhReady } from './zh.js?v=76';
-import { makeShareImage } from './share.js?v=76';
-import { solve } from './solver.js?v=76';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=76';
+import { Net } from './net.js?v=77';
+import { initPresence, setActivity, onSpy, sendLiveToAdmin } from './presence.js?v=77';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=77';
+import { initNotify, notify } from './notify.js?v=77';
+import { getDb, getUid, authOff } from './fb.js?v=77';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=77';
+import * as wiki from './wiki.js?v=77';
+import { tw, twTree, zhReady } from './zh.js?v=77';
+import { makeShareImage } from './share.js?v=77';
+import { solve } from './solver.js?v=77';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=77';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -174,6 +174,7 @@ function reportActivity() {
     if (race) Object.assign(a, race, { done: !!g.finished });
   }
   setActivity(a);
+  pushAdminLive();
 }
 
 setInterval(() => reportActivity(), 10000);
@@ -625,7 +626,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=76').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=77').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -798,6 +799,7 @@ function writeForm(s) {
   f.allowBack.checked = s.allowBack;
   f.trueRandom.checked = s.trueRandom;
   paintRoomGoal();
+  paintFoldSummaries();
 }
 
 function playerTag(p) {
@@ -858,6 +860,17 @@ function renderPartyBoard() {
   $('#party-grid').replaceChildren(...items);
 }
 
+// 房間設定收起來時，標題右邊顯示目前選了什麼
+function paintFoldSummaries() {
+  const st = state.settings;
+  const sum = (key, text) => { const el = $(`#fold-${key}`); if (el) el.replaceChildren(Object.assign(document.createElement('span'), { textContent: text })); };
+  sum('route', `${tw(st.start) || '隨機'} → ${tw(st.target) || '隨機'}`);
+  sum('goal', `${goalText(st.goal)} · ${isParty() ? '派對' : '1 對 1'}`);
+  const time = Number(st.timeLimit) ? `${Number(st.timeLimit) / 60} 分鐘` : '不限時';
+  const view = { dist: '只看遠近', hint: '模糊位置', full: '完整條目' }[oppViewOf(st)];
+  sum('rule', [st.lang === 'en' ? 'English' : '中文', time, view, st.allowBack ? '可上一頁' : '不能上一頁', st.trueRandom ? '地獄模式' : ''].filter(Boolean).join(' · '));
+}
+
 function paintRoomGoal() {
   const goal = cleanGoal(state.settings.goal);
   $('#room-goal').textContent = `${GOALS[goal].icon} ${GOALS[goal].name} · ${isParty() ? '派對' : '1 對 1'}`;
@@ -875,6 +888,7 @@ function renderRoom() {
   const host = net.isHost;
   const party = isParty();
   paintRoomGoal();
+  paintFoldSummaries();
   renderRoomScore();
   $('#row-lastcall').hidden = !party;
   $('#btn-transfer').hidden = !(host && onlineGuests().length);
@@ -1194,7 +1208,14 @@ function initRoom() {
       }, 250);
     }
   });
-  form().addEventListener('change', () => { paintOppViewDesc(); if (net.isHost) broadcastSettings(); });
+  form().addEventListener('change', () => { paintOppViewDesc(); if (net.isHost) broadcastSettings(); paintFoldSummaries(); });
+  // 收合／展開記在這支手機
+  for (const d of form().querySelectorAll('details.fold')) {
+    const k = `wikirace-fold-${d.dataset.fold}`;
+    const saved = store.get(k);
+    if (saved === '1' || saved === '0') d.open = saved === '1';
+    d.addEventListener('toggle', () => store.set(k, d.open ? '1' : '0'));
+  }
   form().addEventListener('submit', (e) => e.preventDefault());
 
   form().querySelectorAll('[data-random]').forEach((btn) => {
@@ -1686,7 +1707,7 @@ let resending = null;
 function resendDaily(key) {
   const m = myDay(key);
   if (!m?.win || m.sent) return Promise.resolve();
-  const rec = { n: m.n || $('#nickname').value.trim() || '玩家', a: m.a || '', s: m.s, t: m.t, h: m.h ? 1 : 0 };
+  const rec = { n: m.n || $('#nickname').value.trim() || '玩家', a: m.a || '', s: m.s, t: m.t, h: m.h ? 1 : 0, p: Array.isArray(m.p) ? m.p : [] };
   resending ||= myBoardId()
     .then((id) => id && submit(key, id, rec))
     .then((ok) => { if (ok) saveDay(key, { ...myDay(key), sent: true }); })
@@ -1718,6 +1739,8 @@ async function renderDailyBoard(key) {
   const m = myDay(key);
   if (me >= 0 && m?.win && (m.rank !== me + 1 || m.of !== rows.length)) { saveDay(key, { ...m, rank: me + 1, of: rows.length }); renderDailyMine(key); }
   const medal = ['🥇', '🥈', '🥉'];
+  // 每個人的路線：自己今天的正式挑戰用掉之後才看得到（不然等於直接看答案）
+  const canSee = !!m;
   const row = (r, i) => {
     const li = document.createElement('li');
     li.classList.toggle('me', i === me);
@@ -1727,10 +1750,24 @@ async function renderDailyBoard(key) {
       Object.assign(document.createElement('span'), { className: 'nm', textContent: i === me ? `${r.n}（你）` : r.n }),
       Object.assign(document.createElement('span'), { className: 'sc', textContent: `${r.s} 步 · ${fmtTime(r.t)}${r.h ? ' 💡' : ''}` }),
     );
+    if (canSee && r.p.length > 1) {
+      li.classList.add('has-route');
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
+      li.setAttribute('aria-expanded', 'false');
+      const route = Object.assign(document.createElement('ol'), { className: 'daily-route', hidden: true });
+      route.append(...r.p.map((t, k) => Object.assign(document.createElement('li'), { className: k === 0 ? 'start' : k === r.p.length - 1 ? 'goal' : '', textContent: tw(t) })));
+      li.append(route);
+      const toggle = () => { route.hidden = !route.hidden; li.setAttribute('aria-expanded', String(!route.hidden)); li.classList.toggle('open', !route.hidden); };
+      li.onclick = toggle;
+      li.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+    }
     return li;
   };
   const items = rows.slice(0, 10).map(row);
   if (me >= 10) items.push(Object.assign(document.createElement('li'), { className: 'gap', textContent: '⋯' }), row(rows[me], me));
+  const hasRoutes = rows.some((r) => r.p.length > 1);
+  if (hasRoutes) items.unshift(Object.assign(document.createElement('li'), { className: 'daily-route-note', textContent: canSee ? '點一下名字，看他是怎麼走的' : '🔒 完成今天的挑戰後，就能看到大家的路線' }));
   list.replaceChildren(...items);
 }
 
@@ -1781,7 +1818,8 @@ function settleDaily(g) {
   d.recorded = true;
   const f = g.finished;
   const win = f.reason === 'win';
-  saveDay(d.key, { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown, n: state.myName, a: state.myAvatar || '', sent: false });
+  const path = cleanPath(f.path || g.path).slice(0, 80).map((t) => t.slice(0, 100));  // 走過的路線：排行榜上給完成的人看
+  saveDay(d.key, { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown, n: state.myName, a: state.myAvatar || '', p: path, sent: false });
   if (win) d.sending = resendDaily(d.key);
 }
 
@@ -2319,11 +2357,99 @@ function fillArticle(root, titleEl, art, settings) {
   });
 }
 
+// ---------- 管理員觀戰：管理員從後台要看的時候，把畫面送給他（畫面上方會顯示「管理員正在觀戰」） ----------
+let adminWatching = false;
+let lastView = null;
+let lastTap = null;
+function pushAdminLive() {
+  if (!adminWatching) return;
+  const g = state.game;
+  const racing = g && ['game', 'result', 'watch'].includes(state.view);
+  if (!racing) { sendLiveToAdmin({ idle: true, s: state.view }); return; }
+  const cur = g.current || g.settings.start;
+  const v = lastView?.p === cur ? lastView : { i: 0, f: 0 };
+  const data = {
+    p: String(cur).slice(0, 200), i: v.i, f: v.f, k: g.finished?.clicks ?? g.clicks ?? 0,
+    path: cleanPath(g.finished?.path || g.path).slice(-40).map((t) => t.slice(0, 200)),
+    st: String(g.settings.start).slice(0, 200), tg: String(g.settings.target).slice(0, 200), lang: g.settings.lang === 'en' ? 'en' : 'zh',
+    el: Math.round(g.finished?.elapsed ?? elapsed()), fin: g.finished?.reason || '', near: !!g.near, gid: String(g.id || '').slice(0, 40),
+  };
+  if (lastTap?.p === cur) { data.n = lastTap.n; data.tapAt = lastTap.at; }
+  sendLiveToAdmin(data);
+}
+onSpy((on) => {
+  adminWatching = on;
+  $('#admin-eye').hidden = !on;
+  if (on) { toast('👀 管理員正在觀戰你的畫面', 3000); pushAdminLive(); }
+});
+
+// 管理員那一邊（後台按「觀戰」打開 ?adminwatch=<key>）：用觀戰畫面顯示那位玩家
+async function startAdminWatch(key) {
+  document.body.classList.add('admin-watching');
+  const o = { id: 'p', name: '玩家', avatar: '', color: COLORS[1], clicks: 0, current: '', path: [], near: false, finished: null, left: false, offline: false };
+  const g = { id: null, finished: { reason: 'watch' }, others: new Map([['p', o]]), settings: { ...DEFAULT_SETTINGS }, startAt: performance.now(), mode: 'duel' };
+  state.game = g;
+  state.watch = { id: 'p', shown: null, token: 0, follow: true, ready: false, live: {} };
+  show('watch');
+  $('.live-badge').lastChild.textContent = '管理員觀戰中';
+  $('#btn-watch-back').onclick = () => { location.href = 'admin.html'; };
+  $('#btn-watch-back').setAttribute('aria-label', '回到後台');
+  const status = (t) => { $('#watch-status').textContent = t; $('#watch-status').className = ''; };
+  status('連線中…');
+  const db = await getDb();
+  if (!db) { status('連不上資料庫'); return; }
+  const spy = db.ref(`spy/${key}`);
+  const denied = () => status('沒有權限：請先在後台用 Google 登入，並更新資料庫規則');
+  const beat = () => spy.set({ at: window.firebase.database.ServerValue.TIMESTAMP }).catch(denied);
+  spy.onDisconnect().remove();
+  beat();
+  setInterval(beat, 20000);
+  window.addEventListener('pagehide', () => { try { spy.remove(); } catch { /* 忽略 */ } });
+  // 名字、頭像、還在不在線上
+  db.ref(`who/${key}`).on('value', (snap) => {
+    const w = snap.val();
+    if (!w) { o.left = true; renderWatch(); status('玩家已經離開遊戲了'); return; }
+    o.name = w.n || '玩家';
+    o.avatar = cleanAvatar(w.av);
+    renderWatch();
+  }, denied);
+  let lastTapAt = 0;
+  let lastGame = null;
+  db.ref(`live/${key}`).on('value', (snap) => {
+    const v = snap.val();
+    if (!v) { status('等待玩家的畫面…'); return; }
+    if (v.idle) { status(v.s === 'room' ? '在房間裡，還沒開始比賽' : '在首頁，還沒開始比賽'); return; }
+    if (v.gid !== lastGame) {
+      // 換了一局（或剛開始看）：重新設定題目
+      lastGame = v.gid;
+      g.settings = { ...DEFAULT_SETTINGS, lang: v.lang === 'en' ? 'en' : 'zh', start: v.st, target: v.tg };
+      $('#watch-goal').textContent = tw(v.tg);
+      state.watch.shown = null;
+      state.watch.live = {};
+    }
+    const moved = o.clicks !== v.k || o.current !== v.p;
+    o.current = v.p;
+    o.clicks = Number(v.k) || 0;
+    o.path = Array.isArray(v.path) ? v.path : Object.values(v.path || {});
+    o.near = !!v.near;
+    o.finished = v.fin ? { reason: v.fin } : null;
+    o.left = false;
+    g.startAt = performance.now() - (Number(v.el) || 0);
+    renderWatch(moved);
+    onLive('p', { t: 'view', p: v.p, i: Number(v.i) || 0, f: Number(v.f) || 0 });
+    if (v.tapAt && v.tapAt !== lastTapAt) { lastTapAt = v.tapAt; if (state.watch.shown === v.p && state.watch.ready) showTap(Number(v.n)); }
+  }, denied);
+  setInterval(() => { if (!o.finished) $('#watch-timer').textContent = fmtTime(elapsed()); }, 500);
+}
+
 // ---------- 觀戰的即時畫面：比賽中的人把捲動位置和點擊送給已經比完的人 ----------
 // 有人比完（可能在觀戰）才送，避免比賽時浪費流量
 const hasSpectators = (g) => !!g && [...g.others.values()].some((o) => o.finished && !o.left);
 
 function sendLive(msg) {
+  if (msg.t === 'view') lastView = { p: state.game?.current, i: msg.i, f: msg.f };
+  else if (msg.t === 'tap') lastTap = { p: state.game?.current, n: msg.n, at: Date.now() };
+  if (adminWatching) pushAdminLive();
   const g = state.game;
   if (!g || g.finished || !g.current || !hasSpectators(g)) return;
   const full = { ...msg, p: g.current };
@@ -4361,10 +4487,14 @@ window.__wikirace = { net, state };
 initSound();
 initHome();
 // 線上人數（有設定 firebase-config.js 才會顯示）
-initPresence((n) => {
-  $('#online-count').textContent = n.toLocaleString('en-US');
-  $('#online-chip').hidden = !(n > 0);
-});
+// 管理員從後台打開觀戰（?adminwatch=<玩家 key>）：這個分頁只用來觀戰，不算一個在線玩家
+const adminWatchKey = new URLSearchParams(location.search).get('adminwatch');
+if (!adminWatchKey) {
+  initPresence((n) => {
+    $('#online-count').textContent = n.toLocaleString('en-US');
+    $('#online-chip').hidden = !(n > 0);
+  });
+}
 initRoom();
 initGame();
 initResult();
@@ -4379,11 +4509,12 @@ $('#btn-hint-vote').onclick = voteHint;
 initAnnounce();
 initNotify();
 show('home');
+if (adminWatchKey && /^[-\w]{4,40}$/.test(adminWatchKey)) startAdminWatch(adminWatchKey);
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 // 第一次來的人先看教學；從邀請連結來的人只顯示提示，不擋住加入（重新整理回房間時都不打擾）
 // 朋友分享的每日挑戰連結（?daily）：直接打開今天的題目，新玩家也不被教學擋住
 const fromDaily = new URLSearchParams(location.search).has('daily');
-if (!store.get('wikirace-tutorial-done') && !session.load()) {
+if (!store.get('wikirace-tutorial-done') && !session.load() && !adminWatchKey) {
   if (new URLSearchParams(location.search).get('room') || fromDaily) $('#tut-hint').hidden = false;
   else openTutorial();
 }

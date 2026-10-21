@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=76">
+  <link rel="stylesheet" href="style.css?v=77">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=76"></script>
+  <script src="firebase-config.js?v=77"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -131,7 +131,7 @@
         <svg class="ic tip-ic"><use href="#i-bulb"/></svg>
         <div><b>你知道嗎？</b><p id="dyk-text"></p></div>
       </section>
-      <p class="privacy-note">本遊戲會記錄基本遊玩狀態（暱稱、房間、進度）供製作者改善遊戲。</p>
+      <p class="privacy-note">本遊戲會記錄基本遊玩狀態（暱稱、房間、進度）供製作者改善遊戲；製作者觀看你的遊戲畫面時，畫面上方會顯示「管理員正在觀戰」。</p>
     </section>
   </main>
 
@@ -185,7 +185,8 @@
     </section>
 
     <form id="settings-form" class="page settings" autocomplete="off">
-      <h2 class="section-title">路線 <span id="host-only-hint" class="section-note" hidden>只有房主可以修改</span></h2>
+      <details class="fold" data-fold="route" open>
+        <summary class="section-title fold-head"><span>路線 <span id="host-only-hint" class="section-note" hidden>只有房主可以修改</span></span><span class="fold-sum" id="fold-route"></span></summary>
       <div class="card route-card">
         <div class="route-line" aria-hidden="true"></div>
         <label class="route-stop" for="set-start">
@@ -207,8 +208,10 @@
         </label>
         <datalist id="suggest-target"></datalist>
       </div>
+      </details>
 
-      <h2 class="section-title">玩法 <span class="section-note">房主隨時可以換，不用重開房間</span></h2>
+      <details class="fold" data-fold="goal">
+        <summary class="section-title fold-head"><span>玩法</span><span class="fold-sum" id="fold-goal"></span></summary>
       <div class="card group">
         <div class="row stack">
           <span class="row-label">比賽方式</span>
@@ -226,8 +229,10 @@
           </div>
         </div>
       </div>
+      </details>
 
-      <h2 class="section-title">規則</h2>
+      <details class="fold" data-fold="rule">
+        <summary class="section-title fold-head"><span>規則</span><span class="fold-sum" id="fold-rule"></span></summary>
       <div class="card group">
         <div class="row">
           <span class="row-label">語言</span>
@@ -267,6 +272,7 @@
         <label class="row" for="set-back"><span class="row-label">允許上一頁<small>算一步</small></span><input id="set-back" class="switch" type="checkbox" name="allowBack" checked></label>
         <label class="row" for="set-random"><span class="row-label">地獄模式<small>隨機改抽冷門條目</small></span><input id="set-random" class="switch" type="checkbox" name="trueRandom"></label>
       </div>
+      </details>
 
       <p id="room-error" class="error" hidden></p>
       <div class="cta">
@@ -337,6 +343,8 @@
   </main>
 
   <!-- 結果 -->
+  <div id="admin-eye" class="admin-eye" role="status" hidden>👀 管理員正在觀戰</div>
+
   <main id="view-watch" class="view" hidden>
     <header class="watch-bar">
       <div class="watch-top">
@@ -644,6 +652,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=76"></script>
+  <script type="module" src="app.js?v=77"></script>
 </body>
 </html>
