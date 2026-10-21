@@ -271,6 +271,7 @@
         </div>
         <label class="row" for="set-back"><span class="row-label">允許上一頁<small>算一步</small></span><input id="set-back" class="switch" type="checkbox" name="allowBack" checked></label>
         <label class="row" for="set-random"><span class="row-label">地獄模式<small>隨機改抽冷門條目</small></span><input id="set-random" class="switch" type="checkbox" name="trueRandom"></label>
+        <label class="row" for="set-find"><span class="row-label">允許找連結<small>比賽中可以打字搜尋這一頁的連結</small></span><input id="set-find" class="switch" type="checkbox" name="allowFind"></label>
       </div>
       </details>
 
@@ -330,10 +331,19 @@
     <nav class="tabbar">
       <button id="btn-back" class="tab"><svg class="ic"><use href="#i-back"/></svg><span>上一頁</span></button>
       <button id="btn-path" class="tab"><svg class="ic"><use href="#i-route"/></svg><span>路線 <b id="path-count">1</b></span></button>
+      <button id="btn-find" class="tab" hidden><svg class="ic"><use href="#i-search"/></svg><span>找連結</span></button>
       <button id="btn-emote-game" class="tab" data-emote-open><svg class="ic"><use href="#i-smile"/></svg><span>表情</span></button>
       <button id="btn-music-game" class="tab"><svg class="ic"><use href="#i-music"/></svg><span>音樂</span></button>
       <button id="btn-giveup" class="tab danger"><svg class="ic"><use href="#i-flag"/></svg><span>投降</span></button>
     </nav>
+
+    <div id="find-sheet" class="sheet find-sheet" hidden>
+      <div class="sheet-grabber"></div>
+      <div class="sheet-head"><b>🔍 找這頁的連結</b><button id="btn-find-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <input id="find-input" class="find-input" type="search" placeholder="打幾個字，例如：日本" autocomplete="off" enterkeyhint="search" aria-label="找這頁的連結">
+      <p id="find-note" class="find-note"></p>
+      <ul id="find-list" class="find-list"></ul>
+    </div>
 
     <div id="path-drawer" class="sheet" hidden>
       <div class="sheet-grabber"></div>
@@ -614,6 +624,7 @@
       <div class="card group">
         <label class="row" for="solo-back"><span class="row-label">允許上一頁<small>算一步</small></span><input id="solo-back" class="switch" type="checkbox" checked></label>
         <label class="row" for="solo-hell"><span class="row-label">地獄模式<small>隨機改抽冷門條目</small></span><input id="solo-hell" class="switch" type="checkbox"></label>
+        <label class="row" for="solo-find"><span class="row-label">允許找連結<small>可以打字搜尋這一頁的連結</small></span><input id="solo-find" class="switch" type="checkbox"></label>
       </div>
       <p id="solo-error" class="error" hidden></p>
       <button id="solo-start" class="btn purple wide" type="button">開始訓練</button>

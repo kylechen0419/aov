@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS = {
   // 對手位置怎麼顯示：dist＝只看遠近、hint＝模糊位置（條目簡介）、full＝完整條目名稱
   // 預設模糊：看得出對手大概在哪，但不知道確切的條目，沒辦法照抄路線
   oppView: 'hint', allowBack: true, trueRandom: false,
+  allowFind: false,  // 比賽中可以打字找這一頁的連結（房主決定，預設不行）
 };
 const MAX_PLAYERS = { duel: 2, party: 8 };
 // 斷線後保留位置的時間：比賽中久一點，房間裡短一點
@@ -796,6 +797,7 @@ function readForm() {
     oppView: ['dist', 'hint', 'full'].includes(f.oppView.value) ? f.oppView.value : 'hint',
     allowBack: f.allowBack.checked,
     trueRandom: f.trueRandom.checked,
+    allowFind: f.allowFind.checked,
   };
 }
 
@@ -824,6 +826,7 @@ function writeForm(s) {
   f.oppView.value = oppViewOf(s);
   paintOppViewDesc();
   f.allowBack.checked = s.allowBack;
+  f.allowFind.checked = !!s.allowFind;
   f.trueRandom.checked = s.trueRandom;
   paintRoomGoal();
   paintFoldSummaries();
@@ -896,7 +899,7 @@ function paintFoldSummaries() {
   sum('goal', [goalText(st.goal), isParty() ? '🎉 派對 2–8 人' : '⚔️ 1 對 1']);
   const time = Number(st.timeLimit) ? `⏱ ${Number(st.timeLimit) / 60} 分鐘` : '⏱ 不限時';
   const view = { dist: '👀 只看遠近', hint: '👀 模糊位置', full: '👀 完整條目' }[oppViewOf(st)];
-  sum('rule', [st.lang === 'en' ? '🌐 English' : '🌐 中文', time, view, st.allowBack ? '↩️ 可上一頁' : '🚫 不能上一頁', st.trueRandom ? '🔥 地獄模式' : '']);
+  sum('rule', [st.lang === 'en' ? '🌐 English' : '🌐 中文', time, view, st.allowBack ? '↩️ 可上一頁' : '🚫 不能上一頁', st.allowFind ? '🔍 可找連結' : '', st.trueRandom ? '🔥 地獄模式' : '']);
 }
 
 function paintRoomGoal() {
@@ -1706,6 +1709,7 @@ async function startTraining() {
       target: $('#solo-target-input').value.trim(),
       allowBack: $('#solo-back').checked,
       trueRandom: $('#solo-hell').checked,
+      allowFind: $('#solo-find').checked,
     };
     const pick = async (val) => (val ? val : wiki.randomTitle(s.lang, s.trueRandom));
     s.start = await wiki.resolveTitle(s.lang, await pick(s.start));
@@ -2139,6 +2143,8 @@ function createGame(settings, id) {
   $('#feed').replaceChildren();
   $('#btn-back').hidden = !settings.allowBack;
   $('#btn-back').disabled = true;
+  $('#btn-find').hidden = !settings.allowFind;
+  closeFind();
   $('#article').replaceChildren();
   $('#article-title').textContent = '';
   $('#breadcrumb').textContent = '';
@@ -2397,6 +2403,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
   const g = state.game;
   if (!g || g.finished || g.loading) return;
   g.loading = true;
+  closeFind();
   $('#article-loading').hidden = false;
   if (!first && !restore) sfx.click();
   try {
@@ -2895,11 +2902,64 @@ function initGame() {
   };
 
   $('#btn-path').onclick = () => { $('#path-drawer').hidden = !$('#path-drawer').hidden; };
+  $('#btn-find').onclick = () => { if ($('#find-sheet').hidden) openFind(); else closeFind(); };
+  $('#btn-find-close').onclick = closeFind;
+  $('#find-input').addEventListener('input', renderFind);
+  $('#find-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#find-list button')?.click(); } });
   $('#btn-hint-open').onclick = () => { if ($('#hint-modal').hidden) openHint(); else closeHint(); };
   $('#hint-close').onclick = closeHint;
   $('#hint-modal').addEventListener('click', (e) => { if (e.target.id === 'hint-modal') closeHint(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#hint-modal').hidden) closeHint(); });
   $('#btn-path-close').onclick = () => { $('#path-drawer').hidden = true; };
+}
+
+// ---------- 找這頁的連結（房主允許才有）：打幾個字，列出這一頁符合的連結，點一下捲過去、標出來 ----------
+function openFind() {
+  const g = state.game;
+  if (!g || g.finished || !g.settings.allowFind) return;
+  $('#path-drawer').hidden = true;
+  $('#find-sheet').hidden = false;
+  $('#find-input').value = '';
+  renderFind();
+  setTimeout(() => $('#find-input').focus(), 50);
+}
+function closeFind() {
+  $('#find-sheet').hidden = true;
+  $('#find-input').blur();
+}
+function renderFind() {
+  const q = $('#find-input').value.trim().toLowerCase();
+  const seen = new Map();
+  for (const a of $('#article').querySelectorAll('a.wl')) {
+    const title = a.dataset.title;
+    if (!title || seen.has(title)) continue;
+    const text = a.textContent.replace(/\s+/g, ' ').trim();
+    const name = tw(title);
+    if (q && !(`${text} ${name}`.toLowerCase().includes(q) || `${text} ${name}`.toLowerCase().includes(tw(q)))) continue;
+    seen.set(title, { a, text: text || name, name });
+  }
+  const list = [...seen.values()];
+  $('#find-note').textContent = q ? (list.length ? `${list.length} 個符合的連結，點一下跳過去` : '這一頁沒有符合的連結，換個字試試') : `這一頁有 ${list.length} 個連結，打字來找`;
+  $('#find-list').replaceChildren(...(q ? list.slice(0, 40) : []).map(({ a, text, name }) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.append(Object.assign(document.createElement('b'), { textContent: text }));
+    if (name !== text) b.append(Object.assign(document.createElement('small'), { textContent: name }));
+    b.onclick = () => jumpToLink(a);
+    li.append(b);
+    return li;
+  }));
+}
+// 捲到那個連結、閃一下（要不要點還是玩家自己決定）
+function jumpToLink(a) {
+  closeFind();
+  if (!a.isConnected) return;
+  a.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  a.classList.remove('find-hit');
+  void a.offsetWidth;
+  a.classList.add('find-hit');
+  setTimeout(() => a.classList.remove('find-hit'), 2600);
 }
 
 function feed(parts, tag, color) {
@@ -3026,6 +3086,7 @@ function finishGame(reason) {
   const g = state.game;
   if (!g || g.finished) return;
   stopGameLoops(g);
+  closeFind();
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
   if (state.solo) { settleDaily(g); recordSoloStats(g); }
