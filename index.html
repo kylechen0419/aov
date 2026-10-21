@@ -40,6 +40,7 @@
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-5 4 4 3-3 4 4"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M5 6l8 6-8 6zM13 6l6 6-6 6M20 5v14"/></symbol>
     <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
   </svg>
 
@@ -219,6 +220,25 @@
           <div class="segmented" role="radiogroup" aria-label="比賽方式">
             <label><input type="radio" name="roomGoal" value="speed" checked><span>⚡ 比速度</span></label>
             <label><input type="radio" name="roomGoal" value="steps"><span>👣 比步數</span></label>
+            <label><input type="radio" name="roomGoal" value="rush"><span>🏃 搶分賽</span></label>
+          </div>
+        </div>
+        <p id="rush-desc" class="row-note" hidden>時間內不停找：抵達終點 +1 分，馬上換下一題；每個人的題目順序都一樣，每人每局可以跳過 2 題</p>
+        <div class="row stack" id="row-rush-min" hidden>
+          <span class="row-label">搶分時間</span>
+          <div class="segmented" role="radiogroup" aria-label="搶分時間">
+            <label><input type="radio" name="rushMin" value="3"><span>3分</span></label>
+            <label><input type="radio" name="rushMin" value="5" checked><span>5分</span></label>
+            <label><input type="radio" name="rushMin" value="8"><span>8分</span></label>
+            <label><input type="radio" name="rushMin" value="10"><span>10分</span></label>
+          </div>
+        </div>
+        <div class="row stack" id="row-rush-level" hidden>
+          <span class="row-label">題目難度<small id="rush-level-desc">終點離起點大約 3 步</small></span>
+          <div class="segmented" role="radiogroup" aria-label="題目難度">
+            <label><input type="radio" name="rushLevel" value="easy"><span>簡單</span></label>
+            <label><input type="radio" name="rushLevel" value="normal" checked><span>普通</span></label>
+            <label><input type="radio" name="rushLevel" value="hard"><span>困難</span></label>
           </div>
         </div>
         <label class="row" for="set-items"><span class="row-label">🎁 道具<small id="set-items-desc">撿道具整對手</small></span><input id="set-items" class="switch" type="checkbox" name="roomItems"></label>
@@ -242,7 +262,7 @@
             <label><input type="radio" name="lang" value="en"><span>English</span></label>
           </div>
         </div>
-        <div class="row stack">
+        <div class="row stack" id="row-timelimit">
           <span class="row-label">時間限制</span>
           <div class="segmented" role="radiogroup" aria-label="時間限制">
             <label><input type="radio" name="timeLimit" value="0" checked><span>不限</span></label>
@@ -335,6 +355,7 @@
       <button id="btn-find" class="tab" hidden><svg class="ic"><use href="#i-search"/></svg><span>找連結</span></button>
       <button id="btn-emote-game" class="tab" data-emote-open><svg class="ic"><use href="#i-smile"/></svg><span>表情</span></button>
       <button id="btn-music-game" class="tab"><svg class="ic"><use href="#i-music"/></svg><span>音樂</span></button>
+      <button id="btn-rush-skip" class="tab" hidden><svg class="ic"><use href="#i-skip"/></svg><span>跳過 <b id="rush-skips">2</b></span></button>
       <button id="btn-giveup" class="tab danger"><svg class="ic"><use href="#i-flag"/></svg><span>投降</span></button>
     </nav>
 

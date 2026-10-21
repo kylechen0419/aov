@@ -492,7 +492,7 @@
     $('#pw').focus();
   }
 
-  const GOAL = { speed: '⚡ 比速度', steps: '👣 比步數', items: '🎁 道具・比速度', isteps: '🎁 道具・比步數' };
+  const GOAL = { speed: '⚡ 比速度', steps: '👣 比步數', items: '🎁 道具・比速度', isteps: '🎁 道具・比步數', rush: '🏃 搶分賽' };
   const STATE = { room: ['room', '房間中'], game: ['game', '比賽中'], result: ['result', '結算中'] };
   const dist = (d) => ({ 1: '差 1 步', 2: '約差 2 步', 3: '還很遠' }[d] || '');
   const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };

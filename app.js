@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   // 預設模糊：看得出對手大概在哪，但不知道確切的條目，沒辦法照抄路線
   oppView: 'hint', allowBack: true, trueRandom: false,
   allowFind: false,  // 比賽中可以打字找這一頁的連結（房主決定，預設不行）
+  rushMin: 5, rushLevel: 'normal',  // 搶分賽：總共幾分鐘、題目難度
 };
 const MAX_PLAYERS = { duel: 2, party: 8 };
 // 斷線後保留位置的時間：比賽中久一點，房間裡短一點
@@ -285,6 +286,7 @@ const hostId = () => [...state.players.values()].find((p) => p.host)?.id || 'hos
 // 玩法：比速度或比步數，兩種都可以加道具。存成一個值：speed、steps、items（比速度＋道具，舊的「道具賽」）、isteps（比步數＋道具）
 const goalSteps = (goal) => goal === 'steps' || goal === 'isteps';
 const goalItems = (goal) => goal === 'items' || goal === 'isteps';
+const isRush = (g = state.game) => g?.settings.goal === 'rush';
 const makeGoal = (steps, items) => (items ? (steps ? 'isteps' : 'items') : (steps ? 'steps' : 'speed'));
 const isSteps = (g = state.game) => goalSteps(g?.settings.goal);
 const isItems = (g = state.game) => goalItems(g?.settings.goal);
@@ -293,7 +295,15 @@ const GOALS = {
   steps: { icon: '👣', name: '比步數', brief: '步數最少的贏' },
   items: { icon: '🎁', name: '道具賽・比速度', brief: '先抵達的贏；每 40 秒發一個道具，落後的人拿到比較強的' },
   isteps: { icon: '🎁', name: '道具賽・比步數', brief: '步數最少的贏；每走 3 步發一個道具，落後的人拿到比較強的' },
+  rush: { icon: '🏃', name: '搶分賽', brief: '時間內抵達一題 +1 分，馬上換下一題；大家的題目順序一樣，每人可以跳過 2 題' },
 };
+// 搶分賽的難度：終點是從起點沿著連結隨機走幾步走到的（困難＝完全隨機的兩個條目）
+const RUSH_LEVELS = {
+  easy: { name: '簡單', hops: 2, desc: '終點離起點大約 2 步' },
+  normal: { name: '普通', hops: 3, desc: '終點離起點大約 3 步' },
+  hard: { name: '困難', hops: 0, desc: '完全隨機的兩個條目，跟一般對局一樣' },
+};
+const RUSH_SKIPS = 2;
 const goalText = (goal) => { const g = GOALS[cleanGoal(goal)]; return `${g.icon} ${g.name}`; };
 // 畫面上的顏色：有道具用道具的粉紅色，其他照比速度／比步數
 const goalClass = (goal) => (goalItems(goal) ? 'items' : goalSteps(goal) ? 'steps' : 'speed');
@@ -790,7 +800,7 @@ function readForm() {
   const f = form().elements;
   return {
     lang: f.lang.value,
-    goal: makeGoal(f.roomGoal.value === 'steps', f.roomItems.checked),
+    goal: f.roomGoal.value === 'rush' ? 'rush' : makeGoal(f.roomGoal.value === 'steps', f.roomItems.checked),
     timeLimit: Number(f.timeLimit.value),
     // 派對模式：第一個人抵達後，其他人剩這麼多秒（0＝不限）
     lastCall: Number(f.lastCall.value) || 0,
@@ -800,6 +810,8 @@ function readForm() {
     allowBack: f.allowBack.checked,
     trueRandom: f.trueRandom.checked,
     allowFind: f.allowFind.checked,
+    rushMin: [3, 5, 8, 10].includes(Number(f.rushMin.value)) ? Number(f.rushMin.value) : 5,
+    rushLevel: RUSH_LEVELS[f.rushLevel.value] ? f.rushLevel.value : 'normal',
   };
 }
 
@@ -817,7 +829,9 @@ function paintOppViewDesc() {
 function writeForm(s) {
   const f = form().elements;
   f.lang.value = s.lang;
-  f.roomGoal.value = goalSteps(s.goal) ? 'steps' : 'speed';
+  f.roomGoal.value = s.goal === 'rush' ? 'rush' : goalSteps(s.goal) ? 'steps' : 'speed';
+  f.rushMin.value = String(s.rushMin || 5);
+  f.rushLevel.value = RUSH_LEVELS[s.rushLevel] ? s.rushLevel : 'normal';
   f.roomItems.checked = goalItems(s.goal);
   $('#set-items-desc').textContent = goalSteps(s.goal) ? '每走 3 步發一個，比步數用的道具' : '每 40 秒發一個，撿道具整對手';
   f.roomMode.value = isParty() ? 'party' : 'duel';
@@ -897,9 +911,10 @@ function paintFoldSummaries() {
   const st = state.settings;
   // 每一項是一個小標籤
   const sum = (key, items) => { const el = $(`#fold-${key}`); if (el) el.replaceChildren(...items.filter(Boolean).map((t) => Object.assign(document.createElement('span'), { textContent: t }))); };
-  sum('route', [`${tw(st.start) || '隨機'} → ${tw(st.target) || '隨機'}`]);
-  sum('goal', [goalText(st.goal), isParty() ? '🎉 派對 2–8 人' : '⚔️ 1 對 1']);
-  const time = Number(st.timeLimit) ? `⏱ ${Number(st.timeLimit) / 60} 分鐘` : '⏱ 不限時';
+  const rush = st.goal === 'rush';
+  sum('route', [rush ? '🏃 搶分賽：題目自動出' : `${tw(st.start) || '隨機'} → ${tw(st.target) || '隨機'}`]);
+  sum('goal', [goalText(st.goal), rush ? `${st.rushMin || 5} 分鐘 · ${(RUSH_LEVELS[st.rushLevel] || RUSH_LEVELS.normal).name}` : '', isParty() ? '🎉 派對 2–8 人' : '⚔️ 1 對 1']);
+  const time = rush ? '' : Number(st.timeLimit) ? `⏱ ${Number(st.timeLimit) / 60} 分鐘` : '⏱ 不限時';
   const view = { dist: '👀 只看遠近', hint: '👀 模糊位置', full: '👀 完整條目' }[oppViewOf(st)];
   sum('rule', [st.lang === 'en' ? '🌐 English' : '🌐 中文', time, view, st.allowBack ? '↩️ 可上一頁' : '🚫 不能上一頁', st.allowFind ? '🔍 可找連結' : '', st.trueRandom ? '🔥 地獄模式' : '']);
 }
@@ -910,6 +925,13 @@ function paintRoomGoal() {
   $('#room-goal').classList.toggle('steps', goalClass(goal) === 'steps');
   $('#room-goal').classList.toggle('items', goalClass(goal) === 'items');
   $('#room-items-help').hidden = !goalItems(goal);
+  // 搶分賽：起點終點、時間限制、道具、最後衝刺都用不到，換成搶分時間和難度
+  const rush = goal === 'rush';
+  for (const id of ['#rush-desc', '#row-rush-min', '#row-rush-level']) $(id).hidden = !rush;
+  $('#set-items').closest('.row').hidden = rush;
+  $('#row-timelimit').hidden = rush;
+  form().querySelector('details[data-fold="route"]').hidden = rush;
+  $('#rush-level-desc').textContent = (RUSH_LEVELS[state.settings.rushLevel] || RUSH_LEVELS.normal).desc;
   // 第一次玩道具賽：進房間時先看一次教學
   if (goalItems(goal) && state.view === 'room' && !store.get('wikirace-items-guide') && $('#items-modal').hidden && !state.itemsGuideShown) {
     state.itemsGuideShown = true;
@@ -923,7 +945,7 @@ function renderRoom() {
   paintRoomGoal();
   paintFoldSummaries();
   renderRoomScore();
-  $('#row-lastcall').hidden = !party;
+  $('#row-lastcall').hidden = !party || isRush({ settings: state.settings });
   $('#btn-transfer').hidden = !(host && onlineGuests().length);
   $('#btn-change-goal').hidden = !host;
   form().classList.toggle('readonly', !host);  // 玩家：收合按鈕寫「查看」
@@ -1278,7 +1300,7 @@ function initRoom() {
       }, 250);
     }
   });
-  form().addEventListener('change', () => { paintOppViewDesc(); if (net.isHost) broadcastSettings(); paintFoldSummaries(); });
+  form().addEventListener('change', () => { paintOppViewDesc(); if (net.isHost) broadcastSettings(); paintFoldSummaries(); paintRoomGoal(); });
   // 房主：上方的「換玩法」直接打開「玩法」那一段
   $('#btn-change-goal').onclick = () => {
     const d = form().querySelector('details[data-fold="goal"]');
@@ -1636,17 +1658,28 @@ async function hostStart() {
   showError('#room-error');
   try {
     const s = readForm();
-    const pick = async (val) => (val ? val : wiki.randomTitle(s.lang, s.trueRandom));
-    s.start = await wiki.resolveTitle(s.lang, await pick(s.start));
-    s.target = await wiki.resolveTitle(s.lang, await pick(s.target));
-    let guard = 0;
-    while (s.start === s.target && !readForm().target && guard++ < 5) {
-      s.target = await wiki.resolveTitle(s.lang, await wiki.randomTitle(s.lang, s.trueRandom));
+    if (s.goal === 'rush') {
+      // 搶分賽：房主先出好前兩題，其他的比賽中在背景繼續出，大家照同一個順序玩
+      btn.textContent = '出題中…';
+      s.timeLimit = s.rushMin * 60;
+      s.lastCall = 0;
+      s.rush = await Promise.all([rushPuzzle(s), rushPuzzle(s)]);
+      s.start = s.rush[0].s;
+      s.target = s.rush[0].t;
+    } else {
+      const pick = async (val) => (val ? val : wiki.randomTitle(s.lang, s.trueRandom));
+      s.start = await wiki.resolveTitle(s.lang, await pick(s.start));
+      s.target = await wiki.resolveTitle(s.lang, await pick(s.target));
+      let guard = 0;
+      while (s.start === s.target && !readForm().target && guard++ < 5) {
+        s.target = await wiki.resolveTitle(s.lang, await wiki.randomTitle(s.lang, s.trueRandom));
+      }
+      if (s.start === s.target) throw new Error('起點和終點不能是同一個條目');
     }
-    if (s.start === s.target) throw new Error('起點和終點不能是同一個條目');
     if (!net.connected) throw new Error(isParty() ? '其他玩家都離線了' : '對手已離線');
     state.settings = s;
-    writeForm(s);
+    // 搶分賽的題目不寫進「路線」欄位（之後改回一般玩法時，起點終點還是原本設定的）
+    writeForm(s.goal === 'rush' ? { ...s, start: form().elements.start.value, target: form().elements.target.value } : s);
     // 開局時大家的準備狀態歸零，下一局重新準備
     for (const p of state.players.values()) if (!p.host) p.ready = false;
     const id = randomKey();
@@ -1676,6 +1709,7 @@ function openSolo() {
 function initSolo() {
   $('#btn-solo').onclick = openSolo;
   $('#btn-newbie').onclick = startNewbie;
+  $('#btn-rush-skip').onclick = rushSkip;
   $('#solo-close').onclick = () => { $('#solo-modal').hidden = true; };
   $('#solo-modal').addEventListener('click', (e) => { if (e.target.id === 'solo-modal') $('#solo-modal').hidden = true; });
   // 隨機出題：抽一個條目填進去（起點、終點不會抽到一樣的）
@@ -2095,6 +2129,10 @@ function exitSolo() {
 function createGame(settings, id) {
   state.myReady = false;
   state.settings = settings;
+  // 搶分賽：每個人自己的起點終點會一直換，用自己的一份設定
+  const rush = settings.goal === 'rush';
+  // 房間的設定不留題目的起點終點（回房間改玩一般對局時，路線欄位還是空的＝隨機）
+  if (rush) { state.settings = { ...settings, start: '', target: '' }; settings = { ...settings, rush: undefined }; }
   if (net.isHost) state.hostLocked = true;
   const others = new Map(opponents().map((p) => [p.id, {
     id: p.id, name: p.name, avatar: p.avatar, color: p.color,
@@ -2122,10 +2160,15 @@ function createGame(settings, id) {
     timer: null,
     heart: null,
   };
+  if (rush) Object.assign(state.game, { rushQ: cleanRushQ(state.settings.rush), rushIdx: 0, score: 0, scoreAt: 0, skips: RUSH_SKIPS, rushWait: false });
   const party = isParty();
   const me = state.players.get(state.myId);
   $('#hud-target').textContent = tw(settings.target);
   $('#hud-clicks').textContent = '0';
+  $('#hud-clicks').parentElement.lastChild.textContent = rush ? ' 分' : ' 步';
+  $('#btn-rush-skip').hidden = !rush;
+  disarmSkip();
+  $('#btn-rush-skip').disabled = false;
   $('#hud-timer').textContent = settings.timeLimit ? fmtTime(settings.timeLimit * 1000) : '00:00';
   $('#hud-timer').className = 'hud-timer';
   paintAvatar($('#hud-me-avatar'), { name: state.myName, avatar: state.myAvatar });
@@ -2214,6 +2257,7 @@ function startGame(settings, id) {
     g.timer = setInterval(tick, 200);
     syncRoom(true);
     goTo(settings.start, { first: true, preload });
+    if (isRush(g)) { renderRush(g); setTimeout(() => rushFill(g), 1500); return; }
     // 起點讀完之後就開始在背景找最佳解答（不跟第一頁搶網路）
     setTimeout(() => prefetchSolution(g), 4000);
   }, 1000);
@@ -2227,13 +2271,14 @@ function gameSnapshot() {
     [state.myId]: {
       clicks: g.finished?.clicks ?? g.clicks, current: g.current || g.settings.start, path: g.finished?.path || g.path,
       near: g.near, finished: g.finished, left: false,
+      ...(isRush(g) ? { score: g.score, qi: g.rushIdx, sk: g.skips, at: g.scoreAt } : {}),
     },
   };
   for (const o of g.others.values()) {
-    progress[o.id] = { clicks: o.clicks, current: o.current, path: o.path, near: o.near, finished: o.finished, left: o.left };
+    progress[o.id] = { clicks: o.clicks, current: o.current, path: o.path, near: o.near, finished: o.finished, left: o.left, ...(isRush(g) ? rushFields(o) : {}) };
   }
   return {
-    id: g.id, settings: g.settings, mode: g.mode, players: [...state.players.values()],
+    id: g.id, settings: isRush(g) ? { ...g.settings, rush: g.rushQ } : g.settings, mode: g.mode, players: [...state.players.values()],
     elapsed: g.startAt ? performance.now() - g.startAt : 0,
     lastCall: g.lastCallEnd ? Math.max(0, g.lastCallEnd - performance.now()) : 0,
     hint: g.hint.shown,
@@ -2250,6 +2295,12 @@ function applyProgress(o, p) {
   o.near = !!p.near;
   if (p.finished && !o.finished) o.finished = p.finished;
   if (p.left) o.left = true;
+  if (p.score !== undefined) Object.assign(o, rushFields(p, o));
+}
+// 搶分賽的分數欄位（別人傳來的，數字要檢查）
+const rushNum = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v)) || 0));
+function rushFields(m, o = {}) {
+  return { score: rushNum(m.score ?? o.score, 999), qi: rushNum(m.qi ?? o.qi, 999), sk: rushNum(m.sk ?? o.sk ?? RUSH_SKIPS, RUSH_SKIPS), at: rushNum(m.at ?? o.at, 864e5) };
 }
 
 // 玩家：重新整理後從房主給的狀態接回比賽
@@ -2265,6 +2316,13 @@ function resumeGame(snap) {
     if (p.finished) done.push([id, p.finished]);
   }
   const mine = snap.progress?.[state.myId] || {};
+  if (isRush(g)) {
+    // 搶分賽：接回自己做到第幾題、幾分
+    const r = rushFields(mine);
+    Object.assign(g, { score: r.score, rushIdx: r.qi, skips: r.sk, scoreAt: r.at });
+    const q = g.rushQ[g.rushIdx];
+    if (q) { g.settings.start = q.s; g.settings.target = q.t; $('#hud-target').textContent = tw(q.t); }
+  }
   g.startAt = performance.now() - (snap.elapsed || 0);
   g.clicks = mine.clicks || 0;
   g.path = Array.isArray(mine.path) ? mine.path.slice() : [];
@@ -2288,6 +2346,12 @@ function resumeGame(snap) {
   toast('已重新連線，繼續比賽！', 2500);
   music.play('race');
   g.timer = setInterval(tick, 200);
+  if (isRush(g)) {
+    renderRush(g);
+    if (net.isHost) setTimeout(() => rushFill(g), 1500);
+    // 斷線前剛好答對（還停在上一題的終點）：直接開下一題
+    if (!g.path.length || g.path[0] !== g.settings.start) { g.path = []; g.stack = []; g.spots = []; rushGo(g); for (const [id, f] of done) onOtherFinish(id, f); return; }
+  }
   goTo(mine.current || g.settings.start, { restore: true });
   for (const [id, f] of done) onOtherFinish(id, f);
 }
@@ -2302,10 +2366,11 @@ function renderOppHud() {
     $('#hud-opp-name').textContent = o?.name || '對手';
     paintAvatar($('#hud-opp-avatar'), o);
     $('#hud-opp-avatar').style.removeProperty('--side');
-    $('#hud-opp-clicks').textContent = o ? o.clicks : 0;
-    $('#hud-opp-clicks').parentElement.lastChild.textContent = ' 步';
+    $('#hud-opp-clicks').textContent = o ? (isRush(g) ? o.score || 0 : o.clicks) : 0;
+    $('#hud-opp-clicks').parentElement.lastChild.textContent = isRush(g) ? ' 分' : ' 步';
     let where = '';
-    if (o?.finished?.reason === 'win') where = `${o.name} 已用 ${o.finished.clicks} 步抵達`;
+    if (isRush(g) && o && !o.left && !o.offline) where = o.finished ? `${o.name} 已結束（${o.score || 0} 分）` : `${o.name} 正在找第 ${(o.qi || 0) + 1} 題`;
+    else if (o?.finished?.reason === 'win') where = `${o.name} 已用 ${o.finished.clicks} 步抵達`;
     else if (o?.left) where = `${o.name} 已離線`;
     else if (o?.offline) where = `${o.name} 斷線中，等待重新連線…${waitLeft(o)}`;
     else if (o) {
@@ -2322,8 +2387,8 @@ function renderOppHud() {
   $('#hud-opp-avatar').replaceChildren(String(list.length));
   $('#hud-opp-avatar').classList.remove('has-img');
   $('#hud-opp-avatar').style.setProperty('--side', '#ffb020');
-  $('#hud-opp-clicks').textContent = `${arrived}/${list.length + 1}`;
-  $('#hud-opp-clicks').parentElement.lastChild.textContent = ' 抵達';
+  $('#hud-opp-clicks').textContent = isRush(g) ? String(Math.max(0, ...list.map((o) => o.score || 0))) : `${arrived}/${list.length + 1}`;
+  $('#hud-opp-clicks').parentElement.lastChild.textContent = isRush(g) ? ' 分最高' : ' 抵達';
   $('#hud-opp-page').textContent = '';
   const chips = list.map((o) => {
     const li = document.createElement('li');
@@ -2336,9 +2401,9 @@ function renderOppHud() {
     li.append(avatarEl(o, 'sm'));
     const info = document.createElement('span');
     info.className = 'strip-info';
-    const label = o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : o.offline ? `斷線${waitLeft(o, true)}` : `${o.clicks} 步`;
+    const label = isRush(g) ? (o.left ? `離線 · ${o.score || 0} 分` : o.offline ? `斷線${waitLeft(o, true)}` : `${o.score || 0} 分 · 第 ${(o.qi || 0) + 1} 題`) : o.finished?.reason === 'win' ? '抵達！' : o.left ? '離線' : o.finished ? '出局' : o.offline ? `斷線${waitLeft(o, true)}` : `${o.clicks} 步`;
     info.append(Object.assign(document.createElement('b'), { textContent: o.name }), Object.assign(document.createElement('span'), { textContent: label }));
-    const here = [oppWhere(g, o).replace(/^[《「]|[》」]$/g, ''), distLabel(o.dist)].filter(Boolean).join(' · ');
+    const here = isRush(g) ? '' : [oppWhere(g, o).replace(/^[《「]|[》」]$/g, ''), distLabel(o.dist)].filter(Boolean).join(' · ');
     if (here && !o.finished && !o.left && !o.offline) info.append(Object.assign(document.createElement('small'), { textContent: here }));
     li.append(info);
     return li;
@@ -2395,8 +2460,9 @@ function tick() {
   syncRoom();
   if (g.fx) applyFx();
   if (isItems(g)) itemClock(g);
-  if (ms >= HINT_AFTER && !g.hint.offered && !g.hint.shown) offerHint();
-  if (ms >= HINT2_AFTER && !g.hint2.offered && !g.hint2.shown) offerHint(2);
+  // 搶分賽題目一直換，不用投票提示
+  if (!isRush(g) && ms >= HINT_AFTER && !g.hint.offered && !g.hint.shown) offerHint();
+  if (!isRush(g) && ms >= HINT2_AFTER && !g.hint2.offered && !g.hint2.shown) offerHint(2);
   if (left <= 0) finishGame('timeout');
 }
 
@@ -2451,7 +2517,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
       if (state.daily.first) { saveDay(state.daily.key, { tried: 1, n: state.myName, a: state.myAvatar || '' }); saveDailyRun(g); }
     }
     renderBreadcrumb(g);
-    $('#hud-clicks').textContent = g.clicks;
+    $('#hud-clicks').textContent = isRush(g) ? g.score : g.clicks;
     fillPath($('#hud-path'), g.path, g.settings.target);
     $('#path-count').textContent = g.path.length;
     $('#btn-back').disabled = g.stack.length === 0;
@@ -2474,7 +2540,8 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
         sendProgress({ t: 'progress', title: here, clicks: g.clicks, near: g.near, path: g.path, d: g.dist ?? undefined, desc });
       });
     }
-    if (reached) finishGame('win');
+    if (reached && isRush(g)) rushScore(g);
+    else if (reached) finishGame('win');
     else {
       renderGoal();
       if (!checkOutstepped() && first) setTimeout(runCoach, 400);
@@ -2491,6 +2558,11 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
 
 // 房主自己的進度要標上 id 廣播；玩家則交給房主轉發
 function sendProgress(msg) {
+  // 搶分賽：每個人的終點不一樣，不送遠近和所在位置，改送分數、第幾題、還能跳過幾次
+  const g = state.game;
+  if (isRush(g) && (msg.t === 'progress' || msg.t === 'finish')) {
+    msg = { ...msg, near: false, d: undefined, desc: undefined, score: g.score, qi: g.rushIdx, sk: g.skips, at: g.scoreAt };
+  }
   if (net.isHost) net.send({ ...msg, id: state.myId });
   else net.send(msg);
 }
@@ -3000,7 +3072,7 @@ function feed(parts, tag, color) {
 function refreshDanger() {
   const g = state.game;
   if (!g) return;
-  const near = [...g.others.values()].filter((o) => o.near && !o.finished && !o.left);
+  const near = [...g.others.values()].filter((o) => o.near && !o.finished && !o.left && !isRush(g));
   const on = near.length > 0 && !g.finished;
   const was = !!g.heart;
   $('#hud').classList.toggle('danger', on);
@@ -3025,6 +3097,8 @@ function onOtherProgress(id, msg) {
   const o = g?.others.get(id);
   if (!o || o.finished || o.left) return;
   const moved = msg.clicks !== o.clicks || msg.title !== o.current;
+  const scored = isRush(g) && Number(msg.score) > (o.score || 0);
+  if (isRush(g)) Object.assign(o, rushFields(msg, o));
   o.clicks = msg.clicks;
   o.current = msg.title;
   if (Array.isArray(msg.path)) o.path = msg.path.slice(0, 200);
@@ -3042,14 +3116,16 @@ function onOtherProgress(id, msg) {
     return;
   }
   refreshDanger();
-  if (moved && g.startAt) {
+  if ((moved || scored) && g.startAt) {
     const racer = $('#hud-opp');
     racer.classList.remove('bump');
     void racer.offsetWidth;
     racer.classList.add('bump');
     sfx.oppMove();
     const color = g.mode === 'party' ? o.color : null;
-    feed(oppViewOf(g.settings) === 'full' ? [{ b: o.name }, ` 前往《${tw(msg.title)}》`] : [{ b: o.name }, ' 又前進了一步'], `第${msg.clicks}步`, color);
+    if (isRush(g)) {
+      if (scored) feed([{ b: o.name }, ` 搶到 1 分！現在 ${o.score} 分`], '+1', color);
+    } else feed(oppViewOf(g.settings) === 'full' ? [{ b: o.name }, ` 前往《${tw(msg.title)}》`] : [{ b: o.name }, ' 又前進了一步'], `第${msg.clicks}步`, color);
     haptic('light');
   }
 }
@@ -3065,6 +3141,7 @@ function bestSteps(g) {
 function renderGoal() {
   const g = state.game;
   const el = $('#hud-goal');
+  if (g && isRush(g)) { el.hidden = false; el.classList.remove('hot'); el.textContent = `🏃 第 ${g.rushIdx + 1} 題`; return; }
   if (!g || !isSteps(g)) { el.hidden = true; return; }
   el.hidden = false;
   const best = bestSteps(g);
@@ -3103,6 +3180,7 @@ function finishGame(reason) {
   if (g.settings.newbie && reason === 'win') { store.set('wikirace-newbie-done', '1'); setTimeout(() => toast('🎉 第一局完成！接下來可以開房間找朋友對決，或挑戰每日一題', 5000), 1200); }
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
+  if (isRush(g)) { Object.assign(g.finished, { score: g.score, at: g.scoreAt }); $('#btn-rush-skip').disabled = true; }
   if (state.solo) { settleDaily(g); recordSoloStats(g); }
   sendProgress({ t: 'finish', ...g.finished });
   if (net.isHost) { onAnyFinish(state.myId, g.finished); checkHintVotes(); }
@@ -3162,6 +3240,15 @@ function onOtherFinish(id, msg) {
   o.clicks = msg.clicks;
   o.path = msg.path || o.path;
   o.near = false;
+  if (isRush(g)) {
+    // 搶分賽：別人結束（時間到、投降）不影響自己，時間到再一起比分數
+    Object.assign(o, rushFields(msg, o));
+    Object.assign(o.finished, { score: o.score, at: o.at });
+    renderOppHud();
+    if (!g.finished && msg.reason === 'giveup') feed([{ b: o.name }, ` 不玩了（${o.score} 分）`], '出局', g.mode === 'party' ? o.color : null);
+    if (g.finished) refreshResult();
+    return;
+  }
   renderOppHud();
   if (g.mode !== 'party') {
     if (!g.finished && msg.reason === 'win' && isSteps(g)) {
@@ -3287,9 +3374,17 @@ function outcomeDuel(g) {
 function ranking(g) {
   const meP = state.players.get(state.myId);
   const entries = [
-    { id: state.myId, name: state.myName, avatar: state.myAvatar, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false },
-    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left, offline: o.offline, offlineUntil: o.offlineUntil })),
+    { id: state.myId, name: state.myName, avatar: state.myAvatar, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false, score: g.score || 0, at: g.scoreAt || 0, qi: g.rushIdx || 0 },
+    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left, offline: o.offline, offlineUntil: o.offlineUntil, score: o.score || 0, at: o.at || 0, qi: o.qi || 0 })),
   ];
+  if (isRush(g)) {
+    // 搶分賽：分數多的在前；一樣多分的，比較早拿到最後一分的在前；再一樣就步數少的在前
+    entries.sort((a, b) => (b.score - a.score) || (a.at - b.at) || (a.clicks - b.clicks));
+    let place = 0;
+    let prev = null;
+    entries.forEach((e, i) => { place = prev && prev.score === e.score && prev.at === e.at ? place : i + 1; e.place = place; prev = e; });
+    return entries;
+  }
   const group = (e) => {
     if (e.finished?.reason === 'win') return 0;
     if (!e.finished && !e.left) return 1;
@@ -3318,6 +3413,12 @@ function resultLabel(f) {
 }
 
 function rankStatus(e) {
+  if (isRush()) {
+    if (e.left && !e.finished) return `離線 · ${e.score} 分`;
+    if (!e.finished && e.offline) return `斷線中${waitLeft(e)} · ${e.score} 分`;
+    if (!e.finished) return `比賽中… ${e.score} 分`;
+    return `${e.score} 分${e.finished.reason === 'giveup' ? ' · 中途放棄' : ''} · 共 ${e.clicks} 步`;
+  }
   if (e.finished?.reason === 'win') return `${e.clicks} 步 · ${fmtTime(e.finished.elapsed)}`;
   if (e.left && !e.finished) return '離線';
   if (!e.finished && e.offline) return `斷線中${waitLeft(e)}`;
@@ -3339,6 +3440,7 @@ function renderRanking(g, entries) {
     li.dataset.id = e.id;
     li.dataset.gid = String(g.id);  // 新的一局就全部收起來
     li.classList.toggle('is-me', e.me);
+    li.classList.toggle('no-route', isRush(g));  // 搶分賽：題目很多，不展開路線
     if (e.place && e.place <= 3) li.classList.add(`p${e.place}`);
     const badge = Object.assign(document.createElement('span'), { className: 'rank-badge', textContent: e.place ? String(e.place) : '–' });
     const body = document.createElement('details');
@@ -3350,9 +3452,10 @@ function renderRanking(g, entries) {
     ol.className = 'metro';
     ol.style.setProperty('--side', e.color);
     fillPath(ol, e.path || [], target);
-    body.append(sum, ol);
+    body.append(sum);
+    if (!isRush(g)) body.append(ol);
     body.open = opened.has(e.id);
-    if (e.finished || e.left) body.append(routeReplayButton(e.me ? '你' : e.name, e.path || [], g.settings, e.finished?.reason === 'win'));
+    if ((e.finished || e.left) && !isRush(g)) body.append(routeReplayButton(e.me ? '你' : e.name, e.path || [], g.settings, e.finished?.reason === 'win'));
     li.append(badge, body);
     if (g.finished && !e.me && !e.finished && !e.left) {
       if (e.offline && net.isHost) {
@@ -3373,6 +3476,15 @@ function renderRanking(g, entries) {
 
 // 結果畫面的資料，也用來產生分享圖
 function resultInfo(g) {
+  if (isRush(g)) {
+    const entries = ranking(g);
+    const mine = entries.find((e) => e.me);
+    const first = mine.place === 1;
+    const tie = first && entries.filter((e) => e.place === 1).length > 1;
+    const res = !allDone(g) ? 'pending' : tie ? 'draw' : first ? 'win' : 'lose';
+    const title = !allDone(g) ? `你拿到 ${mine.score} 分！等其他人比完…` : tie ? `平手！都是 ${mine.score} 分` : first ? `第 1 名！搶到 ${mine.score} 分！` : `第 ${mine.place} 名・${mine.score} 分`;
+    return { res, kicker: res === 'pending' ? '…' : String(mine.place), title, tone: res === 'pending' ? 'place' : first ? 'win' : 'place', entries };
+  }
   if (g.mode === 'party') {
     const entries = ranking(g);
     const mine = entries.find((e) => e.me);
@@ -3397,7 +3509,7 @@ let lastOutcome = null;
 // 每次有人抵達、投降、離線都會呼叫；勝負因幾乎同時抵達而更正時，戰績也跟著改正，本房戰績只記一次。
 function settleGame(g) {
   if (!g || !g.finished || state.solo || g !== state.game) return;
-  const party = g.mode === 'party';
+  const party = g.mode === 'party' || isRush(g);
   const info = resultInfo(g);
   const { res } = info;
   if (res === 'pending') { /* 勝負未定，先不記戰績 */ }
@@ -3421,7 +3533,7 @@ function showResult(update = false) {
   const g = state.game;
   if (!g || !g.finished) return;
   if (state.solo) return showSoloResult(g);
-  const party = g.mode === 'party';
+  const party = g.mode === 'party' || isRush(g);  // 搶分賽 1 對 1 也用排名表
   // 從單人訓練切回一般對局時，把被訓練結算改過的元素還原
   $('#btn-share').hidden = false;
   $('#btn-solo-home').hidden = true;
@@ -3441,10 +3553,10 @@ function showResult(update = false) {
   $('#result-kicker').textContent = info.kicker;
   $('#result-kicker').classList.remove('emoji');
   $('#result-title').textContent = info.title;
-  let sub = `《${tw(g.settings.start)}》→《${tw(g.settings.target)}》`;
+  let sub = isRush(g) ? `🏃 搶分賽 ${g.settings.rushMin || 5} 分鐘・${(RUSH_LEVELS[g.settings.rushLevel] || RUSH_LEVELS.normal).name}` : `《${tw(g.settings.start)}》→《${tw(g.settings.target)}》`;
   if (g.finished.reason === 'oppGaveUp') sub += '（對手投降）';
   if (g.finished.reason === 'oppLeft') sub += '（對手離線）';
-  if (g.finished.reason === 'timeout') sub += '（時間到）';
+  if (g.finished.reason === 'timeout' && !isRush(g)) sub += '（時間到）';
   if (party && !allDone(g)) sub += '　等待其他玩家…';
   if (isSteps(g)) sub = `👣 比步數　${sub}`;
   $('#btn-share').disabled = res === 'pending';
@@ -3550,6 +3662,9 @@ const SOLVE_FAIL = {
 };
 
 function renderSolution(g) {
+  // 搶分賽題目很多，不找單一題的最短路線
+  $('#solution').hidden = isRush(g);
+  if (isRush(g)) return;
   const sol = g.solution;
   const nobody = ![g.finished, ...[...g.others.values()].map((o) => o.finished)].some((f) => f?.reason === 'win');
   const done = g.mode === 'party' ? allDone(g) : true;
@@ -4935,6 +5050,149 @@ function runCoach() {
   place();
 }
 
+// ---------- 搶分賽 ----------
+// 房主出題：從熱門條目出發，沿著連結隨機走幾步，走到的地方就是終點（保證走得到）；困難就是完全隨機的兩個條目
+const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q) => q && typeof q.s === 'string' && typeof q.t === 'string').map((q) => ({ s: q.s.slice(0, 200), t: q.t.slice(0, 200) })) : []);
+// 年份、日期、列表、其他命名空間：當終點太無聊也太難猜
+const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
+let popularKeys = null;
+async function popularOf(key) {
+  popularKeys ||= import('./topics.js?v=95').then((m) => m.TOPICS).catch(() => []);
+  return new Set((await popularKeys).map(key));
+}
+async function rushPuzzle(s) {
+  const lvl = RUSH_LEVELS[s.rushLevel] || RUSH_LEVELS.normal;
+  const key = s.lang === 'zh' ? (t) => tw(t) : (t) => t;
+  const start = await wiki.resolveTitle(s.lang, await wiki.randomTitle(s.lang, false));
+  if (lvl.hops) {
+    try {
+      const pop = await popularOf(key);
+      const seen = new Set([key(start)]);
+      let cur = start;
+      for (let i = 0; i < lvl.hops; i++) {
+        const links = [...new Set(await clickableLinks(s, cur))].filter((t) => !seen.has(key(t)) && !junkTitle(t));
+        if (!links.length) throw new Error('走不下去');
+        const good = links.filter((t) => pop.has(key(t)));
+        const list = good.length ? good : links;
+        cur = list[Math.floor(Math.random() * list.length)];
+        seen.add(key(cur));
+      }
+      const target = await wiki.resolveTitle(s.lang, cur);
+      if (key(target) !== key(start)) return { s: start, t: target };
+    } catch { /* 走不出去：改用隨機的終點 */ }
+  }
+  let target = start;
+  for (let i = 0; i < 5 && target === start; i++) target = await wiki.resolveTitle(s.lang, await wiki.randomTitle(s.lang, false));
+  return { s: start, t: target };
+}
+// 房主：比賽中在背景繼續出題，出好一題就傳給大家（每個人拿到的順序都一樣）
+async function rushFill(g) {
+  if (!net.isHost || g.rushFilling) return;
+  g.rushFilling = true;
+  // 只比跑最快的人多準備幾題就好（出題要下載好幾個條目，不要一次出太多）
+  const want = () => Math.max(g.rushIdx, ...[...g.others.values()].map((o) => o.qi || 0)) + 4;
+  let fails = 0;
+  while (state.game === g && !allDone(g) && g.rushQ.length < 120 && fails < 8) {
+    if (g.rushQ.length >= want()) { await new Promise((r) => { setTimeout(r, 1000); }); continue; }
+    try {
+      const q = await rushPuzzle(g.settings);
+      if (state.game !== g) break;
+      g.rushQ.push(q);
+      net.send({ t: 'rushq', gid: g.id, list: g.rushQ });
+      if (g.rushWait && !g.finished) rushGo(g);
+    } catch {
+      fails++;
+    }
+    await new Promise((r) => { setTimeout(r, 300); });
+  }
+  g.rushFilling = false;
+}
+function receiveRushQ(msg) {
+  const g = state.game;
+  if (!g || !isRush(g) || msg.gid !== g.id) return;
+  const list = cleanRushQ(msg.list);
+  if (list.length <= g.rushQ.length) return;
+  g.rushQ = list;
+  if (g.rushWait && !g.finished) rushGo(g);
+}
+
+// 換到第 rushIdx 題：題目還沒出好就先等
+function rushGo(g) {
+  if (state.game !== g || g.finished) return;
+  if (g.loading) { setTimeout(() => rushGo(g), 200); return; }
+  const q = g.rushQ[g.rushIdx];
+  renderRush(g);
+  if (!q) {
+    g.rushWait = true;
+    $('#article-title').textContent = '下一題準備中…';
+    $('#article').replaceChildren(Object.assign(document.createElement('p'), { className: 'rush-wait', textContent: '房主正在出下一題，馬上就好！' }));
+    $('#breadcrumb').textContent = '';
+    return;
+  }
+  g.rushWait = false;
+  g.settings.start = q.s;
+  g.settings.target = q.t;
+  g.path = [];
+  g.stack = [];
+  g.spots = [];
+  g.current = null;
+  g.near = false;
+  g.dist = null;
+  g.backSet = null;
+  g.backReady = null;
+  $('#hud-target').textContent = tw(q.t);
+  $('#hud-alert-me').hidden = true;
+  $('#btn-back').disabled = true;
+  closeFind();
+  goTo(q.s, { first: true });
+}
+function disarmSkip() {
+  skipArmed = 0;
+  const btn = $('#btn-rush-skip');
+  btn.classList.remove('armed');
+  btn.lastElementChild.replaceChildren('跳過 ', Object.assign(document.createElement('b'), { id: 'rush-skips', textContent: String(state.game?.skips ?? RUSH_SKIPS) }));
+}
+function renderRush(g) {
+  $('#hud-clicks').textContent = String(g.score);
+  if (!skipArmed) $('#rush-skips').textContent = String(g.skips);
+  $('#btn-rush-skip').disabled = g.skips <= 0 || g.finished || g.rushWait;
+  renderGoal();
+}
+// 抵達這一題的終點：+1 分，馬上換下一題
+function rushScore(g) {
+  g.score++;
+  g.scoreAt = elapsed();
+  g.rushIdx++;
+  flash('#ffc53d');
+  sfx.near();
+  haptic('success');
+  toast(`🎯 +1 分！抵達《${tw(g.settings.target)}》`, 1800);
+  sendProgress({ t: 'progress', title: g.current, clicks: g.clicks, near: false, path: g.path });
+  renderRush(g);
+  setTimeout(() => rushGo(g), 500);
+}
+// 按一下先問「確定跳過？」，3 秒內再按一次才跳（比賽中不跳視窗，也不會不小心跳掉）
+let skipArmed = 0;
+function rushSkip() {
+  const g = state.game;
+  if (!g || !isRush(g) || g.finished || g.skips <= 0 || g.rushWait) return;
+  const btn = $('#btn-rush-skip');
+  if (Date.now() - skipArmed > 3000) {
+    skipArmed = Date.now();
+    btn.classList.add('armed');
+    btn.lastElementChild.textContent = '確定跳過？';
+    toast(`再按一次就跳過這一題（不加分，這一局還能跳過 ${g.skips} 次）`, 2500);
+    setTimeout(() => { if (Date.now() - skipArmed >= 3000) disarmSkip(); }, 3050);
+    return;
+  }
+  disarmSkip();
+  g.skips--;
+  g.rushIdx++;
+  toast(`⏭️ 跳過《${tw(g.settings.target)}》`, 1800);
+  sendProgress({ t: 'progress', title: g.current, clicks: g.clicks, near: false, path: g.path });
+  rushGo(g);
+}
+
 // ---------- 新手第一局 ----------
 // 第一次玩的人先玩一題保證簡單（兩步就到）的題目，邊玩邊提示：先給方向，停太久就直接指出要點哪個連結
 // path：在真的維基百科上確認過每一步都點得到（scripts/solvecheck.mjs 的 PATHS）
@@ -5096,12 +5354,19 @@ function cleanProgress(msg) {
   const out = { t: 'progress', title: msg.title.slice(0, 200), clicks: Math.floor(cleanNum(msg.clicks)), near: !!msg.near, path: cleanPath(msg.path) };
   if (msg.d >= 1 && msg.d <= 3) out.d = Math.floor(msg.d);
   if (typeof msg.desc === 'string') out.desc = msg.desc.slice(0, 40);
+  if (msg.score !== undefined) Object.assign(out, cleanRush(msg));
   return out;
+}
+// 搶分賽的分數：第幾題一定是「答對的題數＋跳過的題數」
+function cleanRush(msg) {
+  const r = rushFields(msg);
+  r.qi = r.score + (RUSH_SKIPS - r.sk);
+  return r;
 }
 function cleanFinish(msg) {
   const reasons = ['win', 'lose', 'giveup', 'timeout', 'over', 'oppGaveUp', 'oppLeft', 'hostLeft'];
   if (!reasons.includes(msg.reason)) return null;
-  return { t: 'finish', reason: msg.reason, elapsed: cleanNum(msg.elapsed), clicks: Math.floor(cleanNum(msg.clicks)), path: cleanPath(msg.path) };
+  return { t: 'finish', reason: msg.reason, elapsed: cleanNum(msg.elapsed), clicks: Math.floor(cleanNum(msg.clicks)), path: cleanPath(msg.path), ...(msg.score !== undefined ? cleanRush(msg) : {}) };
 }
 
 // 房主：處理玩家加入或重新連線。用玩家私密 key 算出的公開 id 認人（見 publicId）
@@ -5370,6 +5635,9 @@ function handleHostMessage(msg) {
       break;
     case 'finish':
       if (msg.id) onOtherFinish(msg.id, msg);
+      break;
+    case 'rushq':
+      receiveRushQ(msg);
       break;
     case 'lastcall':
       applyLastCall(Number(msg.seconds) || 60, msg.by);

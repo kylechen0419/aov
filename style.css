@@ -719,6 +719,8 @@ body.solo #route-grid .opp-side { display: none; }
 .rank-item summary::-webkit-details-marker { display: none; }
 .rank-item summary::after { content: "路線 ▾"; margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); }
 .rank-item details[open] summary::after { content: "收起 ▴"; }
+.rank-item.no-route summary::after { content: none; }
+.rank-item.no-route summary { cursor: default; }
 .rank-item summary b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9em; }
 .rank-stat { font-family: var(--font-num); font-weight: 700; font-size: 13px; color: var(--muted); flex-basis: 100%; padding-left: 34px; margin-top: -6px; }
 .rank-item .metro { margin-top: 6px; }
@@ -1488,3 +1490,8 @@ body.replaying { overflow: hidden; }
 @keyframes newbiePop { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 .tab.newbie-glow { animation: newbieGlow 1.2s ease-in-out infinite; }
 @keyframes newbieGlow { 50% { box-shadow: 0 0 0 4px #ffc933; } }
+/* 搶分賽 */
+.tab.armed { background: #fff1e6; color: #c2410c; animation: newbieGlow 1s ease-in-out infinite; }
+.rush-wait { text-align: center; color: var(--muted); font-weight: 800; padding: 40px 0; }
+.row-note { margin: 0; padding: 0 18px 12px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.row-note[hidden] { display: none; }
