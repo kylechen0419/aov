@@ -469,7 +469,7 @@
     <div id="multi-grid" class="multi-grid"></div>
   </div>
 
-  <script src="firebase-config.js?v=85"></script>
+  <script src="firebase-config.js?v=86"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -486,7 +486,7 @@
     $('#pw').focus();
   }
 
-  const GOAL = { speed: '⚡ 比速度', steps: '👣 比步數', items: '🎁 道具賽' };
+  const GOAL = { speed: '⚡ 比速度', steps: '👣 比步數', items: '🎁 道具・比速度', isteps: '🎁 道具・比步數' };
   const STATE = { room: ['room', '房間中'], game: ['game', '比賽中'], result: ['result', '結算中'] };
   const dist = (d) => ({ 1: '差 1 步', 2: '約差 2 步', 3: '還很遠' }[d] || '');
   const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };
@@ -634,7 +634,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=84').then(({ rulesFor, RULES_VERSION }) => {
+    import('./rules.js?v=86').then(({ rulesFor, RULES_VERSION }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
@@ -710,13 +710,13 @@
       const n = (v) => Number(v) || 0, c = (v) => (v ? Object.keys(v).length : 0);
       const lines = [`🎮 對局 ${n(d && d.games)} 局${y && y.games ? `（昨天 ${y.games}）` : ''}・玩家 ${n(d && d.players)} 人次`, `📅 每日挑戰 ${c(dl)} 人完成`, `👥 現在在線 ${c(on)} 人・史上尖峰 ${n(pk)} 人`];
       if (d && d.errors) lines.push(`🐞 今天有 ${d.errors} 筆錯誤紀錄，到後台看看`);
-      const { sendNtfy } = await import('./notify.js?v=84');
+      const { sendNtfy } = await import('./notify.js?v=86');
       await sendNtfy(notifyCfg.topic, 'test', `維基競速・今日摘要（${day(Date.now()).slice(5).replace('-', '/')}）`, lines.join('\n'));
       ntMsg('已傳出今日摘要，手機幾秒內會收到');
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=84');
+      const { sendNtfy } = await import('./notify.js?v=86');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -777,7 +777,7 @@
 
   // ---------- 暱稱過濾 ----------
   let badwords = '', names = null;
-  import('./names.js?v=84').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
+  import('./names.js?v=86').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
   function renderBadwords(fromDb) {
     const n = String(badwords || '').split(/[,，、\n]+/).filter((x) => x.trim()).length;
     $('#bw-sum').textContent = n ? `內建＋自訂 ${n} 個字` : '用內建清單';
@@ -1173,7 +1173,7 @@
 
   // ---------- 題庫管理（config/topicBan：一行一個） ----------
   let topicBan = '', topicCount = 0;
-  import('./topics.js?v=84').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
+  import('./topics.js?v=86').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
   const topicList = () => String(topicBan || '').split('\n').map((t) => t.trim()).filter(Boolean);
   const topicSet = () => new Set(topicList());
   const saveTopics = (list, what) => db.ref('config/topicBan').set(list.join('\n') || null).then(() => { $('#tp-msg').textContent = '已儲存，之後的隨機出題會跳過'; audit(what[0], what[1]); }, () => { $('#tp-msg').textContent = '存不進去：請先用 Google 登入'; });
@@ -1229,7 +1229,7 @@
     }
   }
   const dcMsg = (t) => { $('#dc-msg').textContent = t || ''; };
-  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=84'));
+  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=86'));
   async function setDaily(i, start, target) {
     const key = dcKeys()[i];
     const n = dcCount[key] || 0;

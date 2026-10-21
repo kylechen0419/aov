@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=84';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=84';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=84';
-import { initNotify, notify } from './notify.js?v=84';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=84';
-import { reportError, catchErrors } from './errors.js?v=84';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=84';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=84';
-import * as wiki from './wiki.js?v=84';
-import { tw, twTree, zhReady } from './zh.js?v=84';
-import { makeShareImage } from './share.js?v=84';
-import { solve } from './solver.js?v=84';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=84';
+import { Net } from './net.js?v=86';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=86';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=86';
+import { initNotify, notify } from './notify.js?v=86';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=86';
+import { reportError, catchErrors } from './errors.js?v=86';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=86';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=86';
+import * as wiki from './wiki.js?v=86';
+import { tw, twTree, zhReady } from './zh.js?v=86';
+import { makeShareImage } from './share.js?v=86';
+import { solve } from './solver.js?v=86';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=86';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -279,15 +279,21 @@ function fillPath(ol, path, target) {
 const isParty = () => state.mode === 'party';
 const hostId = () => [...state.players.values()].find((p) => p.host)?.id || 'host';
 // 比步數：抵達終點不會直接結束對手的比賽，最後比誰的步數少（一樣多再比用時）
-const isSteps = (g = state.game) => g?.settings.goal === 'steps';
-const isItems = (g = state.game) => g?.settings.goal === 'items';
-// 三種玩法：比速度、比步數、道具賽（道具賽也是先抵達的贏）
+// 玩法：比速度或比步數，兩種都可以加道具。存成一個值：speed、steps、items（比速度＋道具，舊的「道具賽」）、isteps（比步數＋道具）
+const goalSteps = (goal) => goal === 'steps' || goal === 'isteps';
+const goalItems = (goal) => goal === 'items' || goal === 'isteps';
+const makeGoal = (steps, items) => (items ? (steps ? 'isteps' : 'items') : (steps ? 'steps' : 'speed'));
+const isSteps = (g = state.game) => goalSteps(g?.settings.goal);
+const isItems = (g = state.game) => goalItems(g?.settings.goal);
 const GOALS = {
   speed: { icon: '⚡', name: '比速度', brief: '先抵達的贏' },
   steps: { icon: '👣', name: '比步數', brief: '步數最少的贏' },
-  items: { icon: '🎁', name: '道具賽', brief: '每 40 秒發一個道具，落後的人拿到比較強的' },
+  items: { icon: '🎁', name: '道具賽・比速度', brief: '先抵達的贏；每 40 秒發一個道具，落後的人拿到比較強的' },
+  isteps: { icon: '🎁', name: '道具賽・比步數', brief: '步數最少的贏；每走 3 步發一個道具，落後的人拿到比較強的' },
 };
 const goalText = (goal) => { const g = GOALS[cleanGoal(goal)]; return `${g.icon} ${g.name}`; };
+// 畫面上的顏色：有道具用道具的粉紅色，其他照比速度／比步數
+const goalClass = (goal) => (goalItems(goal) ? 'items' : goalSteps(goal) ? 'steps' : 'speed');
 let notifiedStart = null;  // 已經通知過「開始比賽」的房間代碼
 const cleanGoal = (g) => (GOALS[g] ? g : 'speed');
 const opponents = () => [...state.players.values()].filter((p) => p.id !== state.myId);
@@ -508,7 +514,7 @@ function applyBroadcast(b) {
 }
 
 // ---------- 戰績（存在這支手機上，比速度和比步數各自分開記） ----------
-const statsKey = (goal) => (goal === 'steps' || goal === 'items' ? `wikirace-stats-${goal}` : 'wikirace-stats');
+const statsKey = (goal) => (goal === 'steps' || goal === 'items' || goal === 'isteps' ? `wikirace-stats-${goal}` : 'wikirace-stats');
 
 function loadStats(goal) {
   try { return { w: 0, l: 0, d: 0, streak: 0, ...JSON.parse(store.get(statsKey(goal)) || '{}') }; } catch { return { w: 0, l: 0, d: 0, streak: 0 }; }
@@ -532,8 +538,8 @@ function renderStats() {
   const st = loadStats(goal);
   const total = st.w + st.l + st.d;
   $('#stats-label').textContent = `${GOALS[goal].icon} ${GOALS[goal].name}戰績`;
-  $('#stats-label').classList.toggle('steps', goal === 'steps');
-  $('#stats-label').classList.toggle('items', goal === 'items');
+  $('#stats-label').classList.toggle('steps', goalClass(goal) === 'steps');
+  $('#stats-label').classList.toggle('items', goalClass(goal) === 'items');
   $('#stat-w').textContent = st.w;
   $('#stat-l').textContent = st.l;
   $('#stat-rate').textContent = total ? `${Math.round((st.w / total) * 100)}%` : '–';
@@ -592,7 +598,7 @@ function renderHistory() {
 
 // ---------- 首頁 ----------
 function selectedGoal() {
-  return cleanGoal(document.querySelector('input[name="goalHome"]:checked')?.value);
+  return makeGoal(document.querySelector('input[name="goalHome"]:checked')?.value === 'steps', !!$('#goal-home-items')?.checked);
 }
 
 function selectedMode() {
@@ -641,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=84').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=86').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -691,14 +697,18 @@ function initHome() {
   const savedMode = store.get('wikirace-mode');
   if (savedMode === 'party') document.querySelector('input[name="mode"][value="party"]').checked = true;
   const savedGoal = store.get('wikirace-goal');
-  if (savedGoal && GOALS[savedGoal]) document.querySelector(`input[name="goalHome"][value="${savedGoal}"]`).checked = true;
+  if (savedGoal && GOALS[savedGoal]) {
+    document.querySelector(`input[name="goalHome"][value="${goalSteps(savedGoal) ? 'steps' : 'speed'}"]`).checked = true;
+    $('#goal-home-items').checked = goalItems(savedGoal);
+  }
   renderStats();
   const paintMode = () => {
-    const goal = GOALS[selectedGoal()].name;
-    $('#btn-create').textContent = `建立${goal}${selectedMode() === 'party' ? '派對' : '對決'}房間`;
+    const goal = selectedGoal();
+    const name = `${goalSteps(goal) ? '比步數' : '比速度'}${goalItems(goal) ? '道具' : ''}`;
+    $('#btn-create').textContent = `建立${name}${selectedMode() === 'party' ? '派對' : '對決'}房間`;
   };
   paintMode();
-  document.querySelectorAll('input[name="mode"], input[name="goalHome"]').forEach((r) => r.addEventListener('change', () => {
+  document.querySelectorAll('input[name="mode"], input[name="goalHome"], #goal-home-items').forEach((r) => r.addEventListener('change', () => {
     store.set('wikirace-mode', selectedMode());
     store.set('wikirace-goal', selectedGoal());
     paintMode();
@@ -777,7 +787,7 @@ function readForm() {
   const f = form().elements;
   return {
     lang: f.lang.value,
-    goal: cleanGoal(f.roomGoal.value),
+    goal: makeGoal(f.roomGoal.value === 'steps', f.roomItems.checked),
     timeLimit: Number(f.timeLimit.value),
     // 派對模式：第一個人抵達後，其他人剩這麼多秒（0＝不限）
     lastCall: Number(f.lastCall.value) || 0,
@@ -803,7 +813,9 @@ function paintOppViewDesc() {
 function writeForm(s) {
   const f = form().elements;
   f.lang.value = s.lang;
-  f.roomGoal.value = cleanGoal(s.goal);
+  f.roomGoal.value = goalSteps(s.goal) ? 'steps' : 'speed';
+  f.roomItems.checked = goalItems(s.goal);
+  $('#set-items-desc').textContent = goalSteps(s.goal) ? '每走 3 步發一個，比步數用的道具' : '每 40 秒發一個，撿道具整對手';
   f.roomMode.value = isParty() ? 'party' : 'duel';
   f.timeLimit.value = String(s.timeLimit);
   f.lastCall.value = String(s.lastCall || 0);
@@ -890,11 +902,11 @@ function paintFoldSummaries() {
 function paintRoomGoal() {
   const goal = cleanGoal(state.settings.goal);
   $('#room-goal').textContent = `${GOALS[goal].icon} ${GOALS[goal].name} · ${isParty() ? '派對' : '1 對 1'}`;
-  $('#room-goal').classList.toggle('steps', goal === 'steps');
-  $('#room-goal').classList.toggle('items', goal === 'items');
-  $('#room-items-help').hidden = goal !== 'items';
+  $('#room-goal').classList.toggle('steps', goalClass(goal) === 'steps');
+  $('#room-goal').classList.toggle('items', goalClass(goal) === 'items');
+  $('#room-items-help').hidden = !goalItems(goal);
   // 第一次玩道具賽：進房間時先看一次教學
-  if (goal === 'items' && state.view === 'room' && !store.get('wikirace-items-guide') && $('#items-modal').hidden && !state.itemsGuideShown) {
+  if (goalItems(goal) && state.view === 'room' && !store.get('wikirace-items-guide') && $('#items-modal').hidden && !state.itemsGuideShown) {
     state.itemsGuideShown = true;
     setTimeout(openItemsGuide, 400);
   }
@@ -2046,8 +2058,8 @@ function createGame(settings, id) {
   $('#brief-target').textContent = tw(settings.target);
   const goal = cleanGoal(settings.goal);
   $('#brief-goal').textContent = `${GOALS[goal].icon} ${GOALS[goal].name}：${GOALS[goal].brief}`;
-  $('#brief-goal').classList.toggle('steps', goal === 'steps');
-  $('#brief-goal').classList.toggle('items', goal === 'items');
+  $('#brief-goal').classList.toggle('steps', goalClass(goal) === 'steps');
+  $('#brief-goal').classList.toggle('items', goalClass(goal) === 'items');
   renderGoal();
   resetItems();
   return state.game;
@@ -2302,7 +2314,15 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
       // 接回比賽：步數與路線沿用之前的，不重算
       if (g.path[g.path.length - 1] !== art.title) g.path.push(art.title);
     } else {
-      if (!first) g.clicks++;
+      if (!first) {
+        // 道具：重擔這一步算 2 步、免費一步這一步不算
+        let n = 1;
+        if (isItems(g) && fxOn(g, 'free')) { n = 0; g.fx.free = 0; showHit('👟', '這一步免費，不算步數！', true); }
+        else if (isItems(g) && fxOn(g, 'heavy')) { n = 2; g.fx.heavy = 0; showHit('🎒', '好重！這一步算 2 步'); }
+        if (isItems(g)) applyFx();
+        g.clicks += n;
+        itemStep(g);
+      }
       if (g.current && !back) { g.stack.push(g.current); g.spots.push(from); }
       g.path.push(art.title);
     }
@@ -3800,19 +3820,36 @@ const ITEMS = {
   bolt: { icon: '⚡', name: '閃電', desc: '所有對手一起冰凍 3 秒', kind: 'all', ms: 3000 },
   shield: { icon: '🛡️', name: '護盾', desc: '擋下 30 秒內的下一次攻擊', kind: 'self', ms: 30000 },
   crystal: { icon: '🔮', name: '水晶球', desc: '標出這一頁「下一步就能到終點」的連結', kind: 'self' },
+  // 比步數專用：直接影響步數
+  heavy: { icon: '🎒', name: '重擔', desc: '對手下一次點連結算 2 步', kind: 'attack', ms: 120000, only: 'steps' },
+  free: { icon: '👟', name: '免費一步', desc: '自己下一次點連結不算步數', kind: 'self', ms: 120000, only: 'steps' },
 };
+// 拖時間的道具在比步數沒有用，只在比速度出現
+for (const k of ['freeze', 'bolt', 'snail']) ITEMS[k].only = 'speed';
+// 這一局（或這個玩法）用得到的道具
+const itemsFor = (steps) => Object.entries(ITEMS).filter(([, it]) => !it.only || it.only === (steps ? 'steps' : 'speed'));
+// 比步數的人會想比較久：香蕉皮、重擔留到他下一次點為止（最多 2 分鐘），不會因為想太久就失效
+const fxMs = (g, item) => (isSteps(g) && (item === 'banana' || item === 'heavy') ? 120000 : ITEMS[item].ms);
 // 持續型效果在畫面上的樣子：壞的紅色、好的綠色
 const FX = {
   fog: { icon: '🌫️', bad: true }, flip: { icon: '🙃', bad: true }, freeze: { icon: '🧊', bad: true },
   banana: { icon: '🍌', bad: true }, snail: { icon: '🐌', bad: true }, shield: { icon: '🛡️', bad: false },
+  heavy: { icon: '🎒', bad: true, text: '下一步算 2 步' }, free: { icon: '👟', bad: false, text: '下一步免費' },
 };
 const MAX_ITEMS = 2;
 const ITEM_EVERY = 40000;
+const ITEM_EVERY_STEPS = 3;  // 比步數：每走 3 步發一個
 // 依照離終點的遠近發道具：落後的人拿強的，領先的人拿弱的
 const ITEM_TIERS = {
   behind: { bolt: 3, freeze: 3, banana: 3, crystal: 3, snail: 2 },
   even: { fog: 3, flip: 2, snail: 2, freeze: 1, banana: 1, shield: 2, crystal: 2 },
   lead: { fog: 3, flip: 3, shield: 3, snail: 1 },
+};
+// 比步數用的另一組：香蕉皮、重擔、水晶球、免費一步
+const ITEM_TIERS_STEPS = {
+  behind: { banana: 3, heavy: 3, crystal: 3, free: 2 },
+  even: { fog: 2, flip: 2, banana: 2, heavy: 2, shield: 2, crystal: 2, free: 1 },
+  lead: { fog: 3, flip: 3, shield: 3, heavy: 1 },
 };
 const TIER_NOTE = { behind: '落後補給', even: '', lead: '領先者' };
 
@@ -3824,6 +3861,7 @@ function resetItems() {
   g.backSet = null;
   g.dist = null;
   g.nextItemAt = 0;
+  g.itemSteps = 0;  // 比步數：上一個道具之後走了幾步
   $('#item-dock').hidden = !isItems(g);
   // 先在背景查好「哪些條目會連到終點」，用來判斷大家離終點多遠
   // 每一種玩法都先查好「哪些條目會連到終點」，用來顯示大家離終點多遠（道具賽也用來決定道具強弱）
@@ -3854,8 +3892,10 @@ function renderItemTimer() {
   const g = state.game;
   if (!g || !isItems(g)) return;
   const el = $('#item-timer');
+  if (g.items.length >= MAX_ITEMS) { el.textContent = '🎁 滿了'; return; }
+  if (isSteps(g)) { el.textContent = `🎁 再 ${Math.max(1, ITEM_EVERY_STEPS - (g.itemSteps || 0))} 步`; return; }
   if (!g.nextItemAt) { el.textContent = '🎁 準備中'; return; }
-  el.textContent = g.items.length >= MAX_ITEMS ? '🎁 滿了' : `🎁 ${Math.max(0, Math.ceil((g.nextItemAt - performance.now()) / 1000))}s`;
+  el.textContent = `🎁 ${Math.max(0, Math.ceil((g.nextItemAt - performance.now()) / 1000))}s`;
 }
 
 // 離終點幾步：這頁有終點連結＝1，有連到「會連到終點的條目」＝2，其他＝3
@@ -3878,29 +3918,43 @@ function itemTier(g) {
   return 'even';
 }
 
-function rollItem(tier) {
-  const w = ITEM_TIERS[tier];
+function rollItem(tier, steps = false) {
+  const w = (steps ? ITEM_TIERS_STEPS : ITEM_TIERS)[tier];
   let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0);
   for (const [k, v] of Object.entries(w)) { r -= v; if (r < 0) return k; }
   return 'fog';
 }
 
-// 計時器每次跑都檢查：時間到就發一個道具
+// 發一個道具（欄位滿了就不發）
+function giveItem(g) {
+  if (g.items.length >= MAX_ITEMS) return;
+  const tier = itemTier(g);
+  const it = rollItem(tier, isSteps(g));
+  g.items.push(it);
+  renderItems();
+  sfx.ready();
+  haptic('success');
+  toast(`🎁 拿到 ${ITEMS[it].icon} ${ITEMS[it].name}！${TIER_NOTE[tier] ? `（${TIER_NOTE[tier]}）` : ''}`, 2200);
+}
+
+// 比步數：每走 3 步發一個（換頁成功後呼叫）
+function itemStep(g) {
+  if (!isItems(g) || !isSteps(g) || g.finished) return;
+  if (g.items.length >= MAX_ITEMS) { g.itemSteps = 0; renderItemTimer(); return; }  // 滿了就不累積
+  g.itemSteps = (g.itemSteps || 0) + 1;
+  if (g.itemSteps >= ITEM_EVERY_STEPS) { g.itemSteps = 0; giveItem(g); }
+  renderItemTimer();
+}
+
+// 計時器每次跑都檢查：時間到就發一個道具（比步數改成看走了幾步，見 itemStep）
 function itemClock(g) {
   if (!g.startAt) return;
+  if (isSteps(g)) { renderItemTimer(); return; }
   // 下一次發道具的時間（重新整理接回來時，不補發錯過的道具）
   if (!g.nextItemAt) g.nextItemAt = g.startAt + Math.max(1, Math.ceil(elapsed() / ITEM_EVERY)) * ITEM_EVERY;
   if (performance.now() >= g.nextItemAt) {
     g.nextItemAt += ITEM_EVERY;
-    if (g.items.length < MAX_ITEMS) {
-      const tier = itemTier(g);
-      const it = rollItem(tier);
-      g.items.push(it);
-      renderItems();
-      sfx.ready();
-      haptic('success');
-      toast(`🎁 拿到 ${ITEMS[it].icon} ${ITEMS[it].name}！${TIER_NOTE[tier] ? `（${TIER_NOTE[tier]}）` : ''}`, 2200);
-    }
+    giveItem(g);
   }
   renderItemTimer();
 }
@@ -3918,7 +3972,7 @@ function applyFx() {
   const chips = g && !g.finished ? Object.entries(FX).filter(([k]) => on(k)).map(([k, f]) => {
     const el = document.createElement('span');
     el.className = `fx-chip ${f.bad ? 'bad' : 'good'}`;
-    el.textContent = k === 'banana' ? `${f.icon} 小心腳下` : `${f.icon} ${Math.ceil((g.fx[k] - now) / 1000)}s`;
+    el.textContent = k === 'banana' ? `${f.icon} 小心腳下` : f.text ? `${f.icon} ${f.text}` : `${f.icon} ${Math.ceil((g.fx[k] - now) / 1000)}s`;
     return el;
   }) : [];
   $('#fx-bar').hidden = !chips.length;
@@ -3939,6 +3993,10 @@ async function useItem(slot) {
       sfx.ready();
     } else if (it === 'crystal') {
       runCrystal();
+    } else if (it === 'free') {
+      g.fx.free = performance.now() + def.ms;
+      toast('👟 下一次點連結不算步數！', 2000);
+      sfx.ready();
     }
     applyFx();
     return;
@@ -3987,7 +4045,7 @@ function onItem(from, item, to) {
     return;
   }
   const key = item === 'bolt' ? 'freeze' : item;
-  g.fx[key] = performance.now() + def.ms;
+  g.fx[key] = performance.now() + fxMs(g, item);
   applyFx();
   showHit(def.icon, `${fromName} 對你用了「${def.name}」！`);
   sfx.alarm();
@@ -4063,10 +4121,9 @@ async function runCrystal() {
   }
 }
 
-function openItemsGuide() { $('#items-modal').hidden = false; }
-
-function initItems() {
-  $$('.item-slot').forEach((b) => { b.onclick = () => useItem(Number(b.dataset.slot)); });
+// 道具說明：照目前的玩法（比賽中看這一局，房間裡看房間設定）列出用得到的道具
+function openItemsGuide() {
+  const steps = goalSteps(state.game && !state.game.finished ? state.game.settings.goal : state.settings.goal);
   const row = (it) => {
     const li = document.createElement('li');
     li.className = it.kind === 'self' ? 'self' : 'atk';
@@ -4076,8 +4133,21 @@ function initItems() {
     li.append(d);
     return li;
   };
-  $('#items-list-atk').replaceChildren(...Object.values(ITEMS).filter((it) => it.kind !== 'self').map(row));
-  $('#items-list-self').replaceChildren(...Object.values(ITEMS).filter((it) => it.kind === 'self').map(row));
+  const list = itemsFor(steps).map(([, it]) => it);
+  $('#items-list-atk').replaceChildren(...list.filter((it) => it.kind !== 'self').map(row));
+  $('#items-list-self').replaceChildren(...list.filter((it) => it.kind === 'self').map(row));
+  $('#items-title').textContent = steps ? '🎁 道具賽教學（比步數）' : '🎁 道具賽教學（比速度）';
+  $('#items-step1').innerHTML = steps
+    ? '<b>道具會自動發</b>：每走 3 步發一個，最多帶 2 個，右下角會顯示還要走幾步。'
+    : '<b>道具會自動發</b>：比賽開始後每 40 秒發一個，最多帶 2 個，右下角會顯示下一個還要幾秒。';
+  $('#items-step2').innerHTML = steps
+    ? '<b>落後的人拿比較強的</b>：離終點越遠，越容易拿到香蕉皮、重擔這種會讓對手多走步數的道具；領先的人只拿得到比較弱的。'
+    : '<b>落後的人拿比較強的</b>：離終點越遠，越容易拿到閃電、冰凍這種強力道具；領先的人只拿得到比較弱的。';
+  $('#items-modal').hidden = false;
+}
+
+function initItems() {
+  $$('.item-slot').forEach((b) => { b.onclick = () => useItem(Number(b.dataset.slot)); });
   const close = () => { $('#items-modal').hidden = true; store.set('wikirace-items-guide', '1'); };
   $('#item-timer').onclick = openItemsGuide;
   $('#item-guide').onclick = openItemsGuide;

@@ -59,7 +59,7 @@ export async function suggest(lang, text) {
 }
 
 let topicsPromise = null;
-const loadTopics = () => (topicsPromise ||= import('./topics.js?v=84').then((m) => m.TOPICS));
+const loadTopics = () => (topicsPromise ||= import('./topics.js?v=86').then((m) => m.TOPICS));
 const recent = [];
 // 管理員從題庫拿掉的條目（後台「題庫管理」，config/topicBan，一行一個）：隨機抽題時跳過
 let banned = new Set();
