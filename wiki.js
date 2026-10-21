@@ -59,7 +59,7 @@ export async function suggest(lang, text) {
 }
 
 let topicsPromise = null;
-const loadTopics = () => (topicsPromise ||= import('./topics.js?v=70').then((m) => m.TOPICS));
+const loadTopics = () => (topicsPromise ||= import('./topics.js?v=71').then((m) => m.TOPICS));
 const recent = [];
 
 // 隨機抽到的條目至少要有這麼多瀏覽量（近 30 天），太冷門、大概看不懂的就跳過

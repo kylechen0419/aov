@@ -80,6 +80,8 @@
   .chk input { width: 20px; height: 20px; accent-color: var(--blue); flex: none; }
   .chk.self { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; color: var(--muted); }
   .nt-msg { font-size: 13px; color: var(--yellow); margin: 8px 0 0; min-height: 1em; }
+  .sec-rules { width: 100%; height: 150px; margin: 4px 0 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; resize: vertical; }
+  .nt-steps code { font-size: 12px; background: var(--card2); padding: 1px 6px; border-radius: 6px; color: var(--ink); user-select: all; }
 </style>
 </head>
 <body>
@@ -101,6 +103,27 @@
       <div class="box"><b id="s-online">–</b><span>在線上</span></div>
       <div class="box"><b id="s-peak">–</b><span>史上尖峰</span></div>
       <div class="box"><b id="s-daily">–</b><span>今日挑戰完成</span></div>
+    </div>
+
+    <h2>🔐 資料庫保護</h2>
+    <div class="panel">
+      <p class="nt-state" id="sec-state">檢查中…</p>
+      <ol class="nt-steps">
+        <li>Firebase 主控台 → <b>Authentication</b> → 開始使用 →「登入方式」裡啟用 <b>匿名</b> 和 <b>Google</b>。</li>
+        <li>Authentication → <b>設定</b> → <b>授權網域</b> → 新增 <code id="sec-domain">kylechen0419.github.io</code></li>
+        <li>回到這裡按「用 Google 登入」，下面會出現只認你帳號的規則。</li>
+        <li>按「複製規則」→ Realtime Database → <b>規則</b> → 整段換掉 → <b>發布</b>。</li>
+      </ol>
+      <div class="nt-btns">
+        <button id="sec-login" class="primary" type="button" hidden>用 Google 登入</button>
+        <button id="sec-logout" type="button" hidden>登出</button>
+      </div>
+      <div id="sec-rules-box" hidden>
+        <p class="nt-head">你的專屬規則（只有你的 Google 帳號能發公告、踢人、關房、改通知）</p>
+        <textarea id="sec-rules" class="sec-rules" readonly></textarea>
+        <div class="nt-btns"><button id="sec-copy" class="primary" type="button">複製規則</button></div>
+      </div>
+      <p class="nt-msg" id="sec-msg"></p>
     </div>
 
     <h2>📢 全站公告</h2>
@@ -163,7 +186,7 @@
     <div id="rooms" class="rooms"></div>
   </main>
 
-  <script src="firebase-config.js?v=70"></script>
+  <script src="firebase-config.js?v=71"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -200,10 +223,19 @@
         if (!window.firebase) {
           await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
           await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
+          try { await load('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js'); } catch (e) {}
         }
         const app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG);
         db = firebase.database(app);
-        db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); });
+        // 先等登入狀態恢復再開始讀資料（規則上鎖後，房間列表、統計只有管理員讀得到）
+        const auth = firebase.auth ? firebase.auth(app) : null;
+        if (auth) {
+          await new Promise((ok) => { const off = auth.onAuthStateChanged(() => { off(); ok(); }); setTimeout(ok, 5000); });
+          const first = auth.currentUser ? auth.currentUser.uid : null;
+          auth.onAuthStateChanged((u) => { if ((u ? u.uid : null) !== first) location.reload(); });  // 登入／登出後重新讀一次
+        }
+        wireSecurity(auth);
+        db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); }, () => { $('#status').textContent = '讀不到房間：資料庫已上鎖，請先用 Google 登入'; });
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
         // 每日挑戰：台灣時間的今天有幾個人完成（跟遊戲端 daily.js 的日期算法一樣）；後台開著過了午夜會自動換到新的一天
         let dailyRef = null;
@@ -218,7 +250,7 @@
         watchDaily();
         setInterval(watchDaily, 60000);
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
-        db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); });
+        db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); }, () => {});
         db.ref('config/notify').on('value', (snap) => { notifyCfg = snap.val(); renderNotify(); }, () => { $('#nt-msg').textContent = '讀不到通知設定：請到 Firebase 規則加上 config（見 README）'; });
         db.ref('broadcast').on('value', (snap) => { const b = snap.val(); $('#ann-cur').textContent = b && b.text ? `目前公告：「${b.text}」（點清除可移除）` : '目前沒有公告'; });
         setInterval(() => renderRooms(), 5000);
@@ -231,10 +263,10 @@
     $('#ann-send').onclick = () => {
       const text = $('#ann-text').value.trim();
       if (!text || !db) return;
-      db.ref('broadcast').set({ text, id: Date.now(), at: Date.now() });
+      db.ref('broadcast').set({ text, id: Date.now(), at: Date.now() }).catch(denied);
       $('#ann-text').value = '';
     };
-    $('#ann-clear').onclick = () => db && db.ref('broadcast').remove();
+    $('#ann-clear').onclick = () => db && db.ref('broadcast').remove().catch(denied);
     wireNotify();
     $('#sort').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; sortBy = b.dataset.sort; sel('#sort', b); renderRooms(); };
     $('#filter').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filterBy = b.dataset.filter; sel('#filter', b); renderRooms(); };
@@ -243,10 +275,46 @@
   }
   function sel(group, btn) { $(group).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn)); }
 
+  // ---------- 資料庫保護（Google 登入＋專屬規則） ----------
+  const denied = () => alert('沒有權限：資料庫已上鎖，請先在「資料庫保護」用 Google 登入');
+  const secMsg = (t) => { $('#sec-msg').textContent = t || ''; };
+  const LOGIN_ERR = {
+    'auth/operation-not-allowed': '還沒啟用 Google 登入：請做上面第 1 步',
+    'auth/unauthorized-domain': '這個網址還沒加到授權網域：請做上面第 2 步',
+    'auth/popup-blocked': '瀏覽器擋掉了登入視窗，請允許彈出視窗後再按一次',
+    'auth/popup-closed-by-user': '登入視窗被關掉了，再按一次「用 Google 登入」',
+    'auth/cancelled-popup-request': '',
+  };
+  function wireSecurity(auth) {
+    $('#sec-domain').textContent = location.host || 'kylechen0419.github.io';
+    if (!auth) { $('#sec-state').textContent = '這裡沒有載入登入功能（連不上 Google）'; return; }
+    const u = auth.currentUser;
+    const google = !!(u && !u.isAnonymous);
+    $('#sec-state').textContent = google ? `✅ 已用 Google 登入：${u.email || u.uid}` : '還沒用 Google 登入：規則上鎖後，發公告、踢人、關房、改通知都需要先登入';
+    $('#sec-state').classList.toggle('on', google);
+    $('#sec-login').hidden = google;
+    $('#sec-logout').hidden = !google;
+    $('#sec-login').onclick = () => {
+      secMsg('');
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch((e) => secMsg(LOGIN_ERR[e.code] ?? `登入失敗（${e.code || e.message}）`));
+    };
+    $('#sec-logout').onclick = () => auth.signOut();
+    if (!google) return;
+    import('./rules.js?v=71').then(({ rulesFor }) => {
+      $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
+      $('#sec-rules-box').hidden = false;
+    });
+    $('#sec-copy').onclick = () => {
+      const box = $('#sec-rules');
+      (navigator.clipboard ? navigator.clipboard.writeText(box.value) : Promise.reject())
+        .then(() => secMsg('已複製！到 Firebase → Realtime Database → 規則，整段換掉後按「發布」'), () => { box.select(); secMsg('請長按上面的框框全選後複製'); });
+    };
+  }
+
   // ---------- 手機通知（ntfy） ----------
   const newTopic = () => 'wikirace-' + Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
   const ntMsg = (t) => { $('#nt-msg').textContent = t || ''; };
-  const ntFail = () => ntMsg('存不進去：請先到 Firebase 規則加上 config（見 README）');
+  const ntFail = () => ntMsg('存不進去：沒有權限，請先在上面用 Google 登入');
   function renderNotify() {
     const c = notifyCfg;
     const on = !!(c && c.topic);
@@ -291,7 +359,7 @@
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=70');
+      const { sendNtfy } = await import('./notify.js?v=71');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -323,8 +391,8 @@
         + `<div class="ctl"><button class="kick" data-code="${esc(r.code)}">踢人</button><button class="close" data-code="${esc(r.code)}">關閉房間</button></div>`;
       $('#rooms').appendChild(el);
     }
-    $('#rooms').querySelectorAll('.close').forEach((b) => b.onclick = () => { if (confirm(`確定關閉房間 ${b.dataset.code}？`)) db.ref('control/' + b.dataset.code).set({ type: 'close', at: Date.now() }); });
-    $('#rooms').querySelectorAll('.kick').forEach((b) => b.onclick = () => { const name = prompt('要踢出哪位玩家？（輸入暱稱）'); if (name) db.ref('control/' + b.dataset.code).set({ type: 'kick', name: name.trim(), at: Date.now() }); });
+    $('#rooms').querySelectorAll('.close').forEach((b) => b.onclick = () => { if (confirm(`確定關閉房間 ${b.dataset.code}？`)) db.ref('control/' + b.dataset.code).set({ type: 'close', at: Date.now() }).catch(denied); });
+    $('#rooms').querySelectorAll('.kick').forEach((b) => b.onclick = () => { const name = prompt('要踢出哪位玩家？（輸入暱稱）'); if (name) db.ref('control/' + b.dataset.code).set({ type: 'kick', name: name.trim(), at: Date.now() }).catch(denied); });
   }
 
   function renderStats() {

@@ -1,13 +1,14 @@
-import { Net } from './net.js?v=70';
-import { initPresence } from './presence.js?v=70';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=70';
-import { initNotify, notify } from './notify.js?v=70';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=70';
-import * as wiki from './wiki.js?v=70';
-import { tw, twTree, zhReady } from './zh.js?v=70';
-import { makeShareImage } from './share.js?v=70';
-import { solve } from './solver.js?v=70';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=70';
+import { Net } from './net.js?v=71';
+import { initPresence } from './presence.js?v=71';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=71';
+import { initNotify, notify } from './notify.js?v=71';
+import { getUid } from './fb.js?v=71';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=71';
+import * as wiki from './wiki.js?v=71';
+import { tw, twTree, zhReady } from './zh.js?v=71';
+import { makeShareImage } from './share.js?v=71';
+import { solve } from './solver.js?v=71';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=71';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -174,6 +175,16 @@ function avatarEl(p, cls = '') {
 
 const cleanAvatar = (id) => (AVATAR_IDS.has(id) ? id : null);
 const cleanKey = (k) => (typeof k === 'string' && /^[a-z0-9]{6,20}$/.test(k) ? k : null);
+// 玩家的 key 是私密的，只有自己（存在這個分頁）和房主看得到；大家看到的是用 SHA-256 從 key 算出來的公開 id。
+// 名單、聊天、進度裡只會出現公開 id，看到了也推不回 key，所以沒辦法拿別人的 id 冒充他「重新連線」把他擠掉。
+async function publicId(key) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`wikirace-player:${key}`));
+    return [...new Uint8Array(buf)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return key;  // 不支援 crypto.subtle 的舊瀏覽器（只有非 https 才會）：退回舊做法
+  }
+}
 
 function fillPath(ol, path, target) {
   ol.replaceChildren(...path.map((t) => {
@@ -532,7 +543,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=70').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=71').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1072,15 +1083,18 @@ function kickPlayer(pid) {
 const stillRacing = (id) => { const o = state.game?.others.get(id); return !!o && !o.finished && !o.left; };
 const onlineGuests = () => [...state.players.values()].filter((p) => !p.host && p.online !== false && !stillRacing(p.id));
 
-function migrateHost(toId, { leaving = false } = {}) {
+async function migrateHost(toId, { leaving = false } = {}) {
   const to = state.players.get(toId);
   if (!to || !net.isHost || state.view !== 'room') return;
   const code = net.code;
+  // 舊房主之後當一般玩家：新的私密 key 留在自己這裡，名單上只放公開 id
   const myNewKey = randomKey();
+  const myNewId = await publicId(myNewKey);
+  if (!net.isHost || state.view !== 'room' || !state.players.has(toId)) return;
   const players = [...state.players.values()]
     .filter((p) => !(leaving && p.id === state.myId))
     .map((p) => {
-      if (p.id === state.myId) return { ...p, id: myNewKey, host: false, ready: false };
+      if (p.id === state.myId) return { ...p, id: myNewId, host: false, ready: false };
       if (p.id === toId) return { ...p, host: true, ready: true };
       return { ...p };
     });
@@ -1088,7 +1102,7 @@ function migrateHost(toId, { leaving = false } = {}) {
   stopControlWatch();
   sysChat(leaving ? `${state.myName} 離開了，房主交給 ${to.name}` : `${state.myName} 把房主交給 ${to.name}`);
   const wins = { ...state.roomScore.wins };
-  if (wins[state.myId] !== undefined) { wins[myNewKey] = wins[state.myId]; delete wins[state.myId]; }
+  if (wins[state.myId] !== undefined) { wins[myNewId] = wins[state.myId]; delete wins[state.myId]; }
   state.roomScore = { games: state.roomScore.games, wins };
   net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned], score: state.roomScore, started: notifiedStart === code });
   state.hostLocked = true;
@@ -1100,7 +1114,7 @@ function migrateHost(toId, { leaving = false } = {}) {
     if (leaving) { location.href = location.pathname; return; }
     // 自己改用一般玩家的身分回到同一個房間
     state.myKey = myNewKey;
-    state.myId = myNewKey;
+    state.myId = myNewId;
     state.myReady = false;
     state.players = new Map(players.map((p) => [p.id, p]));
     netBanner(`房主交給 ${to.name}，重新連線中…`);
@@ -1350,12 +1364,18 @@ function openDaily() {
   resendDaily(key).finally(() => renderDailyBoard(key));
 }
 
+// 排行榜上「我」是哪一筆：登入身分（資料庫規則只准本人交、不能覆蓋）；沒有登入時用手機代號
+let boardId = null;
+const myBoardId = async () => (boardId ||= (await getUid()) || deviceId);
+
 // 第一次完成時網路不通、成績沒送出去：之後打開時再補送
 let resending = null;
 function resendDaily(key) {
   const m = myDay(key);
   if (!m?.win || m.sent) return Promise.resolve();
-  resending ||= submit(key, deviceId, { n: m.n || $('#nickname').value.trim() || '玩家', a: m.a || '', s: m.s, t: m.t, h: m.h ? 1 : 0 })
+  const rec = { n: m.n || $('#nickname').value.trim() || '玩家', a: m.a || '', s: m.s, t: m.t, h: m.h ? 1 : 0 };
+  resending ||= myBoardId()
+    .then((id) => submit(key, id, rec))
     .then((ok) => { if (ok) saveDay(key, { ...myDay(key), sent: true }); })
     .finally(() => { resending = null; });
   return resending;
@@ -1374,13 +1394,14 @@ function renderDailyMine(key) {
 async function renderDailyBoard(key) {
   const list = $('#daily-board');
   const rows = await board(key);
+  const myId = await myBoardId();
   if (todayKey() !== key) return;
   const msg = (t) => list.replaceChildren(Object.assign(document.createElement('li'), { className: 'daily-empty', textContent: t }));
   if (!rows) { $('#daily-count').textContent = '–'; $('#daily-best').textContent = '–'; msg('排行榜需要網路連線，暫時讀不到'); return; }
   $('#daily-count').textContent = rows.length;
   $('#daily-best').textContent = rows.length ? rows[0].s : '–';
   if (!rows.length) { msg('還沒有人完成，搶第一個！'); return; }
-  const me = rows.findIndex((r) => r.id === deviceId);
+  const me = rows.findIndex((r) => r.id === myId);
   const m = myDay(key);
   if (me >= 0 && m?.win && (m.rank !== me + 1 || m.of !== rows.length)) { saveDay(key, { ...m, rank: me + 1, of: rows.length }); renderDailyMine(key); }
   const medal = ['🥇', '🥈', '🥉'];
@@ -1476,10 +1497,11 @@ function renderDailyResult(g) {
 
 async function refreshDailyRank(d) {
   const rows = await board(d.key);
+  const myId = await myBoardId();
   const m = myDay(d.key);
   if (!m?.win) { $('#dres-rank').textContent = ''; return; }
   if (!rows) { $('#dres-rank').textContent = '排行榜暫時連不上'; return; }
-  const i = rows.findIndex((r) => r.id === deviceId);
+  const i = rows.findIndex((r) => r.id === myId);
   if (i < 0) { $('#dres-rank').textContent = ''; return; }
   saveDay(d.key, { ...m, rank: i + 1, of: rows.length });
   if (state.daily === d) $('#dres-rank').textContent = `🏆 第 ${i + 1} 名 / ${rows.length} 人`;
@@ -3642,58 +3664,66 @@ function cleanFinish(msg) {
   return { t: 'finish', reason: msg.reason, elapsed: cleanNum(msg.elapsed), clicks: Math.floor(cleanNum(msg.clicks)), path: cleanPath(msg.path) };
 }
 
+// 房主：處理玩家加入或重新連線。用玩家私密 key 算出的公開 id 認人（見 publicId）
+async function hostJoin(msg, cid) {
+  const secret = cleanKey(msg.key);
+  const key = secret ? await publicId(secret) : cid;  // 以下的 key 都是公開 id
+  if (!net.isHost || !net.conns.has(cid)) return;  // 算 id 的這一下連線斷了，或已經不是房主
+  const bound = net.alias.get(cid);
+  if (bound && bound !== key) return;  // 已經報到過的連線不能再用別的身分 join 一次
+  const name = String(msg.name || '玩家').slice(0, 16);
+  const avatar = cleanAvatar(msg.avatar);
+  const device = cleanKey(msg.device);
+  if (state.banned.has(key) || (device && state.banned.has(device))) { net.reject(cid, { t: 'full', kicked: true }); return; }
+  if (device) state.devices.set(key, device);
+  const existing = state.players.get(key);
+  if (existing && !existing.host) {
+    // 同一位玩家重新連線
+    net.bind(cid, key);
+    clearTimeout(graceTimers.get(key));
+    graceTimers.delete(key);
+    const wasOffline = existing.online === false;
+    existing.online = true;
+    existing.name = name;
+    existing.avatar = avatar;
+    existing.leaving = false;
+    // 房主已經回到房間，但這個人還在比上一局：一樣把比賽狀態給他，重新整理才接得回去
+    const snap = state.game && (state.view !== 'room' || stillRacing(key)) ? gameSnapshot() : null;
+    net.send({ t: 'welcome', you: key, game: snap, gameId: state.game?.id || null, chat: state.chat.slice(-30) }, key);
+    net.send({ t: 'presence', id: key, online: true }, null, key);
+    if (wasOffline) {
+      onPresence(key, true);
+      // 轉移房主後大家本來就會連回來，不用一一宣布
+      if (!existing.migrating) sysChat(`${name} 重新連線了`);
+    }
+    existing.migrating = false;
+    broadcastLobby();
+    setConn('已連線', true);
+    return;
+  }
+  const max = MAX_PLAYERS[state.mode];
+  if (state.hostLocked) { net.reject(cid, { t: 'full', started: true }); return; }
+  if (state.players.size >= max) { net.reject(cid, { t: 'full' }); return; }
+  net.bind(cid, key);
+  const used = new Set([...state.players.values()].map((p) => p.color));
+  const color = COLORS.find((c) => !used.has(c)) || COLORS[state.players.size % COLORS.length];
+  state.players.set(key, { id: key, name, avatar, ready: false, host: false, color, online: true });
+  net.send({ t: 'welcome', you: key, game: null, chat: state.chat.slice(-30) }, key);
+  broadcastLobby();
+  toast(`${name} 加入了房間`);
+  sysChat(`${name} 加入了房間`);
+  sfx.ready();
+  haptic('medium');
+  setConn('已連線', true);
+}
+
 function handleGuestMessage(msg, from, cid) {
   // 還沒報上名字的連線只接受 join
   if (msg.t !== 'join' && !state.players.has(from)) return;
   switch (msg.t) {
-    case 'join': {
-      const key = cleanKey(msg.key) || cid;
-      const name = String(msg.name || '玩家').slice(0, 16);
-      const avatar = cleanAvatar(msg.avatar);
-      const device = cleanKey(msg.device);
-      if (state.banned.has(key) || (device && state.banned.has(device))) { net.reject(cid, { t: 'full', kicked: true }); return; }
-      if (device) state.devices.set(key, device);
-      const existing = state.players.get(key);
-      if (existing && !existing.host) {
-        // 同一位玩家重新連線
-        net.bind(cid, key);
-        clearTimeout(graceTimers.get(key));
-        graceTimers.delete(key);
-        const wasOffline = existing.online === false;
-        existing.online = true;
-        existing.name = name;
-        existing.avatar = avatar;
-        existing.leaving = false;
-        // 房主已經回到房間，但這個人還在比上一局：一樣把比賽狀態給他，重新整理才接得回去
-        const snap = state.game && (state.view !== 'room' || stillRacing(key)) ? gameSnapshot() : null;
-        net.send({ t: 'welcome', you: key, game: snap, gameId: state.game?.id || null, chat: state.chat.slice(-30) }, key);
-        net.send({ t: 'presence', id: key, online: true }, null, key);
-        if (wasOffline) {
-          onPresence(key, true);
-          // 轉移房主後大家本來就會連回來，不用一一宣布
-          if (!existing.migrating) sysChat(`${name} 重新連線了`);
-        }
-        existing.migrating = false;
-        broadcastLobby();
-        setConn('已連線', true);
-        return;
-      }
-      const max = MAX_PLAYERS[state.mode];
-      if (state.hostLocked) { net.reject(cid, { t: 'full', started: true }); return; }
-      if (state.players.size >= max) { net.reject(cid, { t: 'full' }); return; }
-      net.bind(cid, key);
-      const used = new Set([...state.players.values()].map((p) => p.color));
-      const color = COLORS.find((c) => !used.has(c)) || COLORS[state.players.size % COLORS.length];
-      state.players.set(key, { id: key, name, avatar, ready: false, host: false, color, online: true });
-      net.send({ t: 'welcome', you: key, game: null, chat: state.chat.slice(-30) }, key);
-      broadcastLobby();
-      toast(`${name} 加入了房間`);
-      sysChat(`${name} 加入了房間`);
-      sfx.ready();
-      haptic('medium');
-      setConn('已連線', true);
+    case 'join':
+      hostJoin(msg, cid);
       break;
-    }
     case 'bye': {
       const p = state.players.get(from);
       if (p) { p.leaving = true; removePlayer(from); }
