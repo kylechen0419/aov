@@ -1,0 +1,29 @@
+name: Solve check
+
+# 在真的維基百科上測試某一題的最佳解答找不找得到（手動執行）
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: 起點
+        required: true
+      target:
+        description: 終點
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/solvecheck.mjs
+        env:
+          START: ${{ inputs.start }}
+          TARGET: ${{ inputs.target }}
