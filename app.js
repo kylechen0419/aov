@@ -97,6 +97,28 @@ const hosted = {
   clear() { try { localStorage.removeItem(HOSTED_KEY); } catch { /* 忽略 */ } },
 };
 
+// 玩家：記下自己在哪個房間用哪個身分（存在這支手機）。不小心關掉 App 再用連結或代碼回來，
+// 會回到原本的位子，不會被當成新的人（1 對 1 會被擋成房間已滿、派對會多出一個自己）
+const GUEST_KEY = 'wikirace-guest';
+const TAB_ID = Math.random().toString(36).slice(2, 10);
+// 同一支手機開兩個分頁各當一個玩家時，別拿到同一個身分互相擠掉：還開著的分頁每 2 秒報一次平安
+const guestMem = {
+  all() { try { const v = JSON.parse(localStorage.getItem(GUEST_KEY) || '[]'); return Array.isArray(v) ? v.filter((e) => e && Date.now() - e.at < 6 * 3600e3) : []; } catch { return []; } },
+  write(list) { try { localStorage.setItem(GUEST_KEY, JSON.stringify(list.slice(-6))); } catch { /* 忽略 */ } },
+  load(code) {
+    code = String(code || '').toUpperCase();
+    const e = this.all().reverse().find((x) => x.code === code && cleanKey(x.key) && (x.tab === TAB_ID || !(Date.now() - x.alive < 7000)));
+    return e ? e.key : null;
+  },
+  save(code, key, alive = Date.now()) {
+    const list = this.all().filter((x) => !(x.code === code && x.key === key));
+    list.push({ code, key, tab: TAB_ID, at: Date.now(), alive });
+    this.write(list);
+  },
+};
+setInterval(() => { if (net.code && !net.isHost && state.myKey && state.view !== 'home') guestMem.save(net.code, state.myKey); }, 2000);
+window.addEventListener('pagehide', () => { if (net.code && !net.isHost && state.myKey) guestMem.save(net.code, state.myKey, 0); });
+
 // 「上一頁」要回去的堆疊存在這個分頁裡：重新整理後照原本的樣子接回來。
 // 不能用走過的路線（path）去推：按上一頁回到的條目也會記進路線，推出來會回錯地方。
 const NAV_KEY = 'wikirace-nav';
@@ -572,6 +594,7 @@ async function joinAsGuest(code, { auto = false } = {}) {
 }
 
 function sendJoin() {
+  if (net.code && state.myKey) guestMem.save(net.code, state.myKey);
   net.send({ t: 'join', name: state.myName, avatar: state.myAvatar, key: state.myKey, device: deviceId, gameId: state.game?.id || null });
 }
 
@@ -685,7 +708,7 @@ function initHome() {
     const code = $('#join-code').value.trim().toUpperCase();
     if (!code) { showError('#home-error', '請輸入房間代碼'); return; }
     state.myName = name;
-    state.myKey = randomKey();
+    state.myKey = guestMem.load(code) || randomKey();
     joinAsGuest(code);
   };
   $('#btn-join').onclick = join;
