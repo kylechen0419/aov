@@ -1436,3 +1436,8 @@ body.replaying { overflow: hidden; }
 .admin-say .btn { flex: none; padding: 8px 14px; font-size: 14px; }
 /* 後台的多人觀戰（嵌在格子裡）：只留畫面，切換玩家和返回交給後台 */
 .admin-embed #watch-tabs, .admin-embed #btn-watch-back, .admin-embed .admin-say { display: none !important; }
+/* 每日挑戰開始前的提醒：一天只有一次，跳掉就不能重來 */
+.daily-warn { margin: 0 0 10px; padding: 10px 12px; border-radius: 14px; background: #fff4cc; border: 2px solid #ffd23f; color: #6b4a00; font-size: 13px; font-weight: 700; line-height: 1.55; }
+.daily-warn > b:first-child { display: block; font-size: 15px; font-weight: 900; color: #a05a00; margin-bottom: 2px; }
+.daily-warn .u { color: #c2410c; font-weight: 900; }
+.daily-warn[hidden] { display: none; }

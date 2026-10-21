@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=91';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=91';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=91';
-import { initNotify, notify } from './notify.js?v=91';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=91';
-import { reportError, catchErrors } from './errors.js?v=91';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=91';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=91';
-import * as wiki from './wiki.js?v=91';
-import { tw, twTree, zhReady } from './zh.js?v=91';
-import { makeShareImage } from './share.js?v=91';
-import { solve } from './solver.js?v=91';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=91';
+import { Net } from './net.js?v=92';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=92';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=92';
+import { initNotify, notify } from './notify.js?v=92';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=92';
+import { reportError, catchErrors } from './errors.js?v=92';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=92';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=92';
+import * as wiki from './wiki.js?v=92';
+import { tw, twTree, zhReady } from './zh.js?v=92';
+import { makeShareImage } from './share.js?v=92';
+import { solve } from './solver.js?v=92';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=92';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=91').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=92').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1797,6 +1797,7 @@ function renderDailyMine(key) {
   box.classList.toggle('miss', !!m && !m.win);
   if (m) box.textContent = m.win ? `✅ 你今天：${m.s} 步 · ${fmtTime(m.t)}${m.h ? ' · 💡' : ''}${m.rank ? `　🏆 第 ${m.rank} 名` : ''}` : '今天的正式挑戰沒有完成，明天再來！';
   $('#daily-go').textContent = m ? '再玩一次（練習，不計成績）' : '開始挑戰';
+  $('#daily-warn').hidden = !!m;  // 還沒用掉今天的正式挑戰：先提醒只有一次
   $('#daily-share').hidden = !m?.win;
 }
 
