@@ -1311,12 +1311,11 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .daily-board li.has-route { cursor: pointer; }
 .daily-board li.has-route .sc::after { content: '›'; display: inline-block; margin-left: 6px; transition: transform .2s; }
 .daily-board li.has-route.open .sc::after { transform: rotate(90deg); }
-.daily-route { grid-column: 1 / -1; list-style: none; margin: 4px 0 2px; padding: 8px 10px; background: var(--card); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 4px 2px; font-size: 13px; font-weight: 700; }
-.daily-route li { display: inline; background: none; padding: 0; border-radius: 0; font-size: 13px; }
-.daily-route li + li::before { content: '›'; margin: 0 6px 0 4px; color: var(--muted); }
-.daily-route li.start { color: var(--blue, #3a6cf4); }
-.daily-route li.goal { color: #c98a00; }
-.daily-board li.daily-route-note { display: block; background: none; padding: 0 2px; font-size: 12px; color: var(--muted); font-weight: 700; }
+.board-route { grid-column: 1 / -1; margin: 4px 0 2px; padding: 8px 10px; background: var(--card); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 4px 2px; font-size: 13px; font-weight: 700; }
+.board-route span + span::before { content: '›'; margin: 0 6px 0 4px; color: var(--muted); }
+.board-route .start { color: var(--blue, #3a6cf4); }
+.board-route .goal { color: #c98a00; }
+.daily-route-note { margin: -4px 2px 0; font-size: 12px; color: var(--muted); font-weight: 700; }
 .daily-board li.gap, .daily-board li.daily-empty { display: block; background: none; text-align: center; color: var(--muted); padding: 2px 0; }
 .daily-name { display: grid; gap: 4px; }
 .daily-result { background: linear-gradient(135deg, #fff3e6, #ffe3c9); border: 2px solid #ffc89c; display: grid; gap: 6px; }

@@ -1778,8 +1778,8 @@ async function renderDailyBoard(key) {
       li.tabIndex = 0;
       li.setAttribute('role', 'button');
       li.setAttribute('aria-expanded', 'false');
-      const route = Object.assign(document.createElement('ol'), { className: 'daily-route', hidden: true });
-      route.append(...r.p.map((t, k) => Object.assign(document.createElement('li'), { className: k === 0 ? 'start' : k === r.p.length - 1 ? 'goal' : '', textContent: tw(t) })));
+      const route = Object.assign(document.createElement('div'), { className: 'board-route', hidden: true });
+      route.append(...r.p.map((t, k) => Object.assign(document.createElement('span'), { className: k === 0 ? 'start' : k === r.p.length - 1 ? 'goal' : '', textContent: tw(t) })));
       li.append(route);
       const toggle = () => { route.hidden = !route.hidden; li.setAttribute('aria-expanded', String(!route.hidden)); li.classList.toggle('open', !route.hidden); };
       li.onclick = toggle;
@@ -1790,7 +1790,8 @@ async function renderDailyBoard(key) {
   const items = rows.slice(0, 10).map(row);
   if (me >= 10) items.push(Object.assign(document.createElement('li'), { className: 'gap', textContent: '⋯' }), row(rows[me], me));
   const hasRoutes = rows.some((r) => r.p.length > 1);
-  if (hasRoutes) items.unshift(Object.assign(document.createElement('li'), { className: 'daily-route-note', textContent: canSee ? '點一下名字，看他是怎麼走的' : '🔒 完成今天的挑戰後，就能看到大家的路線' }));
+  $('#daily-route-note').hidden = !hasRoutes;
+  $('#daily-route-note').textContent = canSee ? '點一下名字，看他是怎麼走的' : '🔒 完成今天的挑戰後，就能看到大家的路線';
   list.replaceChildren(...items);
 }
 
