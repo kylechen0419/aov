@@ -61,6 +61,12 @@ export async function suggest(lang, text) {
 let topicsPromise = null;
 const loadTopics = () => (topicsPromise ||= import('./topics.js?v=83').then((m) => m.TOPICS));
 const recent = [];
+// 管理員從題庫拿掉的條目（後台「題庫管理」，config/topicBan，一行一個）：隨機抽題時跳過
+let banned = new Set();
+export function setTopicBan(text) {
+  banned = new Set(String(text || '').split('\n').map(normTitle).filter(Boolean));
+}
+export const topicBanned = (t) => banned.has(normTitle(t));
 
 // 隨機抽到的條目至少要有這麼多瀏覽量（近 30 天），太冷門、大概看不懂的就跳過
 const MIN_VIEWS = { zh: 3000, en: 15000 };
@@ -99,17 +105,17 @@ export async function randomTitle(lang, trueRandom) {
     const topics = await loadTopics();
     for (let i = 0; i < 12; i++) {
       const pick = topics[Math.floor(Math.random() * topics.length)];
-      if (recent.includes(pick)) continue;
+      if (recent.includes(pick) || banned.has(pick)) continue;
       const title = lang === 'zh' ? await checkTitle('zh', pick) : await toEnglish(pick);
-      if (title) {
+      if (title && !banned.has(title)) {
         recent.push(pick);
         if (recent.length > 50) recent.shift();
         return title;
       }
     }
   } catch { /* 網路錯誤時退回內建清單 */ }
-  const list = POPULAR[lang];
-  return list[Math.floor(Math.random() * list.length)];
+  const list = POPULAR[lang].filter((t) => !banned.has(t));
+  return list[Math.floor(Math.random() * list.length)] || POPULAR[lang][0];
 }
 
 // 取得非主命名空間的前綴（例如 File:、檔案:、Category:），用來判斷連結是否為一般條目

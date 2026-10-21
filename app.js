@@ -4930,6 +4930,8 @@ if (new URLSearchParams(location.search).has('_u')) { try { const u = new URL(lo
 
 catchErrors();
 watchBadWords();
+// 管理員從題庫拿掉的條目：隨機抽題時跳過
+getDb().then((db) => db?.ref('config/topicBan').on('value', (snap) => wiki.setTopicBan(snap.val()), () => {})).catch(() => {});
 getUid().then((u) => { myUid ||= u || ''; }, () => {});
 onAuth((u) => { if (u) myUid = u; });
 initSound();

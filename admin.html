@@ -115,10 +115,6 @@
   .gm-p .path { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
   .gm-p .h { flex-wrap: wrap; }
   .gl-more { width: 100%; margin-top: 8px; border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 8px; border-radius: 10px; background: var(--line); color: var(--ink); cursor: pointer; }
-  .pstat { display: grid; grid-template-columns: 1fr auto auto auto; gap: 4px 10px; font-size: 13px; }
-  .pstat .hd { color: var(--muted); font-size: 11px; font-weight: 800; }
-  .pstat .nm { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pstat .n { text-align: right; font-variant-numeric: tabular-nums; }
   .who-watch { margin-left: auto; font-size: 12px; font-weight: 800; color: #fff; background: var(--blue); padding: 4px 10px; border-radius: 999px; text-decoration: none; }
   .tag.solo { background: #5b2bbf; }
   .tag.daily { background: #b8561a; }
@@ -162,6 +158,47 @@
   .log-row .w { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .log-row .d { overflow-wrap: anywhere; }
   .log-row .d span { color: var(--muted); }
+  .viz { position: relative; --heat0: #2d2457; --heat1: #184f95; --heat2: #256abf; --heat3: #3987e5; --heat4: #6da7ec; --heat5: #b7d3f6; --bar: #3987e5; }
+  .viz-head { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+  .viz-head b { font-size: 24px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .viz-delta { font-weight: 800; color: var(--muted); }
+  .viz-box { width: 100%; min-width: 0; }
+  .viz-box svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .viz-box text { fill: var(--muted); font-size: 11px; font-family: inherit; font-variant-numeric: tabular-nums; }
+  .viz-box .grid { stroke: var(--line); stroke-width: 1; }
+  .viz-box .bar { fill: var(--bar); pointer-events: none; }
+  .viz-box .hit { fill: transparent; cursor: pointer; }
+  .viz-box .bar.on { fill: #6da7ec; }
+  .viz-box .cell.on { stroke: var(--ink); stroke-width: 2; }
+  .viz-legend { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); margin-top: 6px; justify-content: flex-end; }
+  .viz-legend i { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+  .viz-legend span { margin: 0 4px; }
+  .viz-tip { position: absolute; pointer-events: none; background: #0f0b22; border: 1px solid var(--line); color: var(--ink); font-size: 12px; font-weight: 800; padding: 6px 9px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -100%); z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+  .viz-tip span { color: var(--muted); font-weight: 500; }
+  .ttable { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 14px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .ttable .hd { color: var(--muted); font-size: 11px; font-weight: 800; }
+  .ttable .n { text-align: right; }
+  .pz-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .pz-meta b { color: var(--ink); }
+  .pz-x { margin-top: 8px; display: grid; gap: 6px; }
+  .pz-x .path { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .mini { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mini button { border: 0; font: inherit; font-weight: 800; font-size: 12px; padding: 6px 10px; border-radius: 999px; cursor: pointer; background: var(--line); color: var(--ink); }
+  .mini button.bad { background: #4a1530; color: var(--red); }
+  .mini button[disabled] { opacity: .5; cursor: default; }
+  .pf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+  .pf-grid .kv { background: var(--card); padding: 6px 8px; }
+  .pf-grid .kv b { font-size: 16px; }
+  .pf-note { width: 100%; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); resize: vertical; min-height: 54px; }
+  .pf-g { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag.on { background: #1d4a33; color: #bff3d2; }
+  .tag.ban { background: #4a1530; color: var(--red); }
+  .dc-day { background: var(--card2); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
+  .dc-day .t { font-weight: 800; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .dc-day .r { font-size: 15px; font-weight: 800; margin: 4px 0; overflow-wrap: anywhere; }
+  .dc-day .m { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .dc-edit { display: grid; gap: 6px; margin-top: 8px; }
+  .dc-edit input { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); min-width: 0; }
   .bw-try { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; }
   .bw-try input { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink); }
 </style>
@@ -222,8 +259,6 @@
         <div id="modes"></div>
         <p class="nt-head">😵 最難的題目（最常沒人抵達）</p>
         <div id="hard"><p class="empty">還沒有資料</p></div>
-        <p class="nt-head">🏅 玩家戰績</p>
-        <div id="pstats"><p class="empty">還沒有資料</p></div>
         <p class="nt-head">📜 所有對局 <span class="gl-sum" id="gl-sum"></span></p>
         <div class="gl-tools">
           <input id="gl-q" class="gl-q" placeholder="找玩家暱稱或題目…" autocomplete="off">
@@ -235,7 +270,62 @@
       </div>
     </details>
 
+    <details class="sec" data-sec="trend">
+      <summary><span class="sec-t">📈 趨勢</span><span class="sec-s" id="trend-sum">–</span></summary>
+      <div class="sec-b viz">
+        <div class="toolbar">
+          <span class="seg" id="trend-days"><button data-days="7" class="on">7 天</button><button data-days="30">30 天</button></span>
+          <span class="seg" id="trend-metric"><button data-metric="games" class="on">對局</button><button data-metric="players">玩家人次</button></span>
+        </div>
+        <p class="viz-head"><b id="trend-total">0</b> <span id="trend-label">局</span> <span class="viz-delta" id="trend-delta"></span></p>
+        <div class="viz-box" id="trend-chart"></div>
+        <p class="nt-head">🕒 什麼時候最多人玩（台灣時間）</p>
+        <div class="viz-box" id="heat-chart"></div>
+        <div class="viz-legend"><span>少</span><i style="background:var(--heat0)"></i><i style="background:var(--heat1)"></i><i style="background:var(--heat2)"></i><i style="background:var(--heat3)"></i><i style="background:var(--heat4)"></i><i style="background:var(--heat5)"></i><span>多</span></div>
+        <details class="sub-d" style="margin-top:8px"><summary>看表格</summary><div id="trend-table"></div></details>
+        <div class="viz-tip" id="viz-tip" hidden></div>
+      </div>
+    </details>
+
+    <details class="sec" data-sec="puzzles">
+      <summary><span class="sec-t">🧩 題目分析</span><span class="sec-s" id="pz-sum">–</span></summary>
+      <div class="sec-b">
+        <div class="toolbar"><span class="seg" id="pz-sort"><button data-sort="n" class="on">最常玩</button><button data-sort="hard">最難</button><button data-sort="recent">最近</button></span></div>
+        <input id="pz-q" class="gl-q" placeholder="找題目…" autocomplete="off">
+        <div id="pzlist" class="glist"><p class="empty">還沒有資料</p></div>
+        <button id="pz-more" class="gl-more" type="button" hidden>顯示更多</button>
+      </div>
+    </details>
+
+    <details class="sec" data-sec="players">
+      <summary><span class="sec-t">🧑 玩家檔案</span><span class="sec-s" id="pf-sum">–</span></summary>
+      <div class="sec-b">
+        <div class="toolbar"><span class="seg" id="pf-sort"><button data-sort="n" class="on">最常玩</button><button data-sort="recent">最近</button><button data-sort="sus">可疑</button></span></div>
+        <input id="pf-q" class="gl-q" placeholder="找暱稱…" autocomplete="off">
+        <div id="pflist" class="glist"><p class="empty">還沒有資料</p></div>
+        <button id="pf-more" class="gl-more" type="button" hidden>顯示更多</button>
+      </div>
+    </details>
+
     <p class="group">設定</p>
+
+    <details class="sec" data-sec="dailyctl">
+      <summary><span class="sec-t">📅 每日題目</span><span class="sec-s" id="dc-sum">–</span></summary>
+      <div class="sec-b">
+        <div id="dc-days"></div>
+        <p class="nt-msg" id="dc-msg"></p>
+      </div>
+    </details>
+
+    <details class="sec" data-sec="topics">
+      <summary><span class="sec-t">📚 題庫管理</span><span class="sec-s" id="tp-sum">–</span></summary>
+      <div class="sec-b">
+        <p class="nt-steps" style="padding:0;margin:0 0 8px">隨機出題會從題庫抽條目。太難、太冷門或不適合的條目可以拿掉（玩家自己輸入的題目不受影響）。在「題目分析」點開一題也可以直接拿掉。</p>
+        <div class="bw-try" style="margin:0 0 10px"><input id="tp-add" placeholder="要拿掉的條目名稱…" autocomplete="off"><button id="tp-go" class="gl-btn" type="button" style="padding:8px 12px">拿掉</button></div>
+        <div id="tplist"></div>
+        <p class="nt-msg" id="tp-msg"></p>
+      </div>
+    </details>
 
     <details class="sec" data-sec="ann">
       <summary><span class="sec-t">📢 全站公告</span><span class="sec-s" id="ann-sum">–</span></summary>
@@ -369,6 +459,7 @@
   const STATE = { room: ['room', '房間中'], game: ['game', '比賽中'], result: ['result', '結算中'] };
   const dist = (d) => ({ 1: '差 1 步', 2: '約差 2 步', 3: '還很遠' }[d] || '');
   const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };
+  const agoLong = (ms) => { const m = Math.max(0, (Date.now() - ms) / 60000); return m < 60 ? ago(ms) : m < 1440 ? `${Math.floor(m / 60)} 小時` : `${Math.floor(m / 1440)} 天`; };
   const dur = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
   const ADMIN_V = Number((document.querySelector('script[src*="firebase-config.js"]')?.getAttribute('src') || '').match(/v=(\d+)/)?.[1]) || 0;
@@ -407,7 +498,7 @@
         wireSecurity(auth);
         db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); }, () => { $('#status').textContent = '讀不到房間：資料庫已上鎖，請先用 Google 登入'; });
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
-        db.ref('ban').on('value', (snap) => { bans = snap.val() || {}; renderBans(); }, () => { $('#ban-sum').textContent = '讀不到'; });
+        db.ref('ban').on('value', (snap) => { bans = snap.val() || {}; renderBans(); renderProfiles(); }, () => { $('#ban-sum').textContent = '讀不到'; });
         db.ref('who').on('value', (snap) => { lastWho = snap.val() || {}; renderWho(); }, () => { lastWho = null; $('#who-sum').textContent = '讀不到'; $('#who').innerHTML = '<p class="empty">讀不到在線玩家：請先用 Google 登入；已登入的話，到上面「資料庫保護」重新複製規則、到 Firebase 發布一次（新版規則才有這個列表）</p>'; });
         // 每日挑戰：台灣時間的今天有幾個人完成（跟遊戲端 daily.js 的日期算法一樣）；後台開著過了午夜會自動換到新的一天
         let dailyRef = null;
@@ -422,7 +513,11 @@
         watchDaily();
         setInterval(watchDaily, 60000);
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
-        db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); }, () => {});
+        db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); renderTrend(); renderPuzzles(); renderProfiles(); }, () => {});
+        db.ref('notes').on('value', (snap) => { notes = snap.val() || {}; renderProfiles(); }, () => {});
+        db.ref('config/topicBan').on('value', (snap) => { topicBan = snap.val() || ''; renderTopics(); }, () => {});
+        watchDailyCtl();
+        setInterval(watchDailyCtl, 60000);
         db.ref('config/notify').on('value', (snap) => { notifyCfg = snap.val(); renderNotify(); }, () => { $('#nt-msg').textContent = '讀不到通知設定：請到 Firebase 規則加上 config（見 README）'; });
         db.ref('broadcast').on('value', (snap) => { lastBcast = snap.val(); renderAnn(); });
         db.ref('errors').limitToLast(500).on('value', (snap) => { errs = Object.values(snap.val() || {}); renderErrors(); }, () => { $('#err-sum').textContent = '讀不到（規則要更新）'; $('#errlist').innerHTML = '<p class="empty">讀不到：到「資料庫保護」重新複製規則、發布一次</p>'; });
@@ -796,18 +891,6 @@
   }
   function renderGames(g) {
     const list = g.filter((x) => x && x.at).sort((a, b) => b.at - a.at);
-    // 玩家戰績：依暱稱合計（同一個暱稱算同一人）
-    const per = {};
-    for (const x of list) for (const p of (Array.isArray(x.list) ? x.list : Object.values(x.list || {}))) {
-      if (!p || !p.n) continue;
-      const r = (per[p.n] ||= { n: p.n, games: 0, wins: 0, arrive: 0, steps: 0 });
-      r.games++;
-      if (p.r === 'win') { r.arrive++; r.steps += p.k || 0; }
-      if (p.pl === 1 && p.r === 'win' && x.players > 1) r.wins++;
-    }
-    const prow = Object.values(per).sort((a, b) => b.games - a.games).slice(0, 30);
-    $('#pstats').innerHTML = prow.length ? `<div class="pstat"><span class="hd">暱稱</span><span class="hd n">局數</span><span class="hd n">多人第一</span><span class="hd n">平均步數</span>`
-      + prow.map((r) => `<span class="nm">${esc(r.n)}</span><span class="n">${r.games}</span><span class="n">${r.wins}</span><span class="n">${r.arrive ? (r.steps / r.arrive).toFixed(1) : '–'}</span>`).join('') + '</div>' : '<p class="empty">還沒有資料</p>';
     // 所有對局（可以用暱稱或題目搜尋）
     const q = ($('#gl-q').value || '').trim();
     let hit = q ? list.filter((x) => `${x.start} ${x.target} ${roster(x).map((p) => p.n).join(' ')}`.includes(q)) : list;
@@ -857,6 +940,300 @@
     audit('匯出對局', `${lastHit.length} 局`);
   }
   $('#gl-more').onclick = () => { glShow += 30; renderStats(); };
+
+  // ---------- 趨勢（台灣時間） ----------
+  const twDate = (ms) => new Date(ms + 8 * 3600e3);
+  const twDay = (ms) => twDate(ms).toISOString().slice(0, 10);
+  const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+  let trendDays = 7, trendMetric = 'games';
+  const svgEl = (w, h, inner) => `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${inner}</svg>`;
+  // 長條：上面兩角圓、貼著底線
+  const barPath = (x, y, w, h) => { const r = Math.min(4, w / 2, h); return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; };
+  const niceMax = (v) => { if (v <= 4) return 4; const p = 10 ** Math.floor(Math.log10(v)); const m = [1, 2, 2.5, 5, 10].find((k) => k * p >= v); return m * p; };
+  function showTip(box, x, y, html) {
+    const tip = $('#viz-tip'); const root = box.closest('.viz').getBoundingClientRect(); const b = box.getBoundingClientRect();
+    tip.innerHTML = html; tip.hidden = false;
+    const left = Math.max(60, Math.min(root.width - 60, b.left - root.left + x));
+    tip.style.left = left + 'px'; tip.style.top = (b.top - root.top + y - 6) + 'px';
+  }
+  const hideTip = () => { $('#viz-tip').hidden = true; document.querySelectorAll('.viz-box .on').forEach((x) => x.classList.remove('on')); };
+  function renderTrend() {
+    const now = Date.now();
+    const unit = trendMetric === 'games' ? '局' : '人次';
+    const amount = (x) => (trendMetric === 'games' ? 1 : (x.players || 1));
+    const days = []; for (let i = trendDays - 1; i >= 0; i--) days.push(twDay(now - i * 864e5));
+    const val = Object.fromEntries(days.map((d) => [d, 0]));
+    const prevFrom = twDay(now - (2 * trendDays - 1) * 864e5);
+    let prev = 0;
+    const heat = Array.from({ length: 7 }, () => new Array(24).fill(0));
+    for (const x of games) {
+      if (!x || !x.at) continue;
+      const d = twDay(x.at);
+      if (d in val) { val[d] += amount(x); const t = twDate(x.at); heat[(t.getUTCDay() + 6) % 7][t.getUTCHours()] += amount(x); }
+      else if (d >= prevFrom && d < days[0]) prev += amount(x);
+    }
+    const total = days.reduce((n, d) => n + val[d], 0);
+    $('#trend-total').textContent = total;
+    $('#trend-label').textContent = `${unit}（最近 ${trendDays} 天）`;
+    const pct = prev ? Math.round((total - prev) / prev * 100) : null;
+    $('#trend-delta').textContent = pct == null ? '' : `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}%　比前 ${trendDays} 天`;
+    const today = days[days.length - 1];
+    $('#trend-sum').textContent = `今天 ${val[today]} ${unit} · ${trendDays} 天 ${total} ${unit}`;
+    // 長條圖
+    const box = $('#trend-chart');
+    const W = Math.max(280, box.clientWidth || 320), H = 180, L = 30, B = 34, T = 8;
+    const n = days.length, slot = (W - L) / n, bw = Math.max(3, slot - (n > 10 ? 2 : 8));
+    const max = niceMax(Math.max(1, ...days.map((d) => val[d])));
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    let g = '';
+    for (const v of [0, max / 2, max]) g += `<line class="grid" x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+    days.forEach((d, i) => {
+      const x = L + i * slot + (slot - bw) / 2, v = val[d];
+      g += `<rect class="hit" data-i="${i}" x="${L + i * slot}" y="${T}" width="${slot}" height="${H - T - B}"/>`;
+      if (v) g += `<path class="bar" data-i="${i}" d="${barPath(x, y(v), bw, H - B - y(v))}"/>`;
+      const every = n > 10 ? 5 : 1;
+      const cx = L + i * slot + slot / 2;
+      if ((n - 1 - i) % every === 0) g += `<text x="${cx}" y="${H - 19}" text-anchor="middle">${Number(d.slice(5, 7))}/${Number(d.slice(8))}</text>${n > 10 ? '' : `<text x="${cx}" y="${H - 4}" text-anchor="middle">${WEEK[new Date(d).getUTCDay()]}</text>`}`;
+    });
+    box.innerHTML = svgEl(W, H, g);
+    box.querySelectorAll('.hit').forEach((h) => {
+      const i = Number(h.dataset.i), d = days[i];
+      const on = () => { hideTip(); box.querySelector(`.bar[data-i="${i}"]`)?.classList.add('on'); showTip(box, L + i * slot + slot / 2, y(val[d]), `${Number(d.slice(5, 7))}/${Number(d.slice(8))}（${WEEK[new Date(d).getUTCDay()]}）<span> · </span>${val[d]} ${unit}`); };
+      h.addEventListener('pointerenter', on); h.addEventListener('click', on); h.addEventListener('pointerleave', hideTip);
+    });
+    // 星期 × 時段熱力圖
+    const hb = $('#heat-chart');
+    const HW = Math.max(280, hb.clientWidth || 320), HL = 22, HT = 4, HB = 18, gap = 2;
+    const cw = (HW - HL) / 24, ch = 16;
+    const hmax = Math.max(0, ...heat.flat());
+    const color = (v) => (!v ? 'var(--heat0)' : `var(--heat${Math.min(5, Math.max(1, Math.ceil(v / hmax * 5)))})`);
+    let h = '';
+    heat.forEach((row, r) => {
+      h += `<text x="${HL - 6}" y="${HT + r * ch + ch / 2 + 4}" text-anchor="end">${WEEK[(r + 1) % 7]}</text>`;
+      row.forEach((v, c) => { h += `<rect class="cell" data-r="${r}" data-c="${c}" x="${HL + c * cw + gap / 2}" y="${HT + r * ch + gap / 2}" width="${cw - gap}" height="${ch - gap}" rx="2" fill="${color(v)}"/>`; });
+    });
+    for (const c of [0, 6, 12, 18, 23]) h += `<text x="${HL + c * cw + cw / 2}" y="${HT + 7 * ch + 13}" text-anchor="middle">${c}</text>`;
+    hb.innerHTML = svgEl(HW, HT + 7 * ch + HB, h);
+    hb.querySelectorAll('.cell').forEach((el) => {
+      const r = Number(el.dataset.r), c = Number(el.dataset.c);
+      const on = () => { hideTip(); el.classList.add('on'); showTip(hb, HL + c * cw + cw / 2, HT + r * ch, `週${WEEK[(r + 1) % 7]} ${c}:00–${c + 1}:00<span> · </span>${heat[r][c]} ${unit}`); };
+      el.addEventListener('pointerenter', on); el.addEventListener('click', on); el.addEventListener('pointerleave', hideTip);
+    });
+    // 表格
+    $('#trend-table').innerHTML = `<div class="ttable"><span class="hd">日期</span><span class="hd n">對局</span><span class="hd n">玩家人次</span>${days.slice().reverse().map((d) => {
+      const gs = games.filter((x) => x && x.at && twDay(x.at) === d);
+      return `<span>${d}（${WEEK[new Date(d).getUTCDay()]}）</span><span class="n">${gs.length}</span><span class="n">${gs.reduce((s, x) => s + (x.players || 1), 0)}</span>`;
+    }).join('')}</div>`;
+  }
+  $('#trend-days').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; trendDays = Number(b.dataset.days); sel('#trend-days', b); renderTrend(); };
+  $('#trend-metric').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; trendMetric = b.dataset.metric; sel('#trend-metric', b); renderTrend(); };
+  document.querySelector('[data-sec="trend"]').addEventListener('toggle', () => renderTrend());
+  let trendW = 0;
+  window.addEventListener('resize', () => { const w = $('#trend-chart').clientWidth; if (w && w !== trendW) { trendW = w; renderTrend(); } });
+
+  // ---------- 題目分析 ----------
+  let pzSort = 'n', pzShow = 20, pzOpen = new Set();
+  function puzzleStats() {
+    const map = {};
+    for (const x of games) {
+      if (!x || !x.start || !x.target) continue;
+      const k = `${x.start}→${x.target}`;
+      const r = (map[k] ||= { k, start: x.start, target: x.target, n: 0, pl: 0, arr: 0, steps: [], best: null, give: 0, hint: 0, last: 0, lang: x.lang });
+      r.n++; r.last = Math.max(r.last, x.at || 0);
+      if (x.hint) r.hint++;
+      const ps = roster(x);
+      if (!ps.length) { r.pl += x.players || 1; if (x.win) { r.arr++; if (x.steps != null) r.steps.push(x.steps); } }
+      for (const p of ps) {
+        r.pl++;
+        if (p.r === 'win') { r.arr++; r.steps.push(p.k || 0); if (!r.best || (p.k || 0) < (r.best.k || 0)) r.best = p; }
+        if (p.r === 'giveup') r.give++;
+      }
+    }
+    return Object.values(map);
+  }
+  function renderPuzzles() {
+    let list = puzzleStats();
+    $('#pz-sum').textContent = list.length ? `${list.length} 題` : '還沒有資料';
+    const q = $('#pz-q').value.trim();
+    if (q) list = list.filter((r) => r.k.includes(q));
+    const rate = (r) => (r.pl ? r.arr / r.pl : 0);
+    list.sort((a, b) => pzSort === 'recent' ? b.last - a.last : pzSort === 'hard' ? (rate(a) - rate(b)) || (b.n - a.n) : (b.n - a.n) || (b.last - a.last));
+    $('#pz-more').hidden = list.length <= pzShow;
+    $('#pzlist').innerHTML = list.length ? list.slice(0, pzShow).map((r) => {
+      const avg = r.steps.length ? (r.steps.reduce((s, v) => s + v, 0) / r.steps.length).toFixed(1) : '–';
+      const min = r.steps.length ? Math.min(...r.steps) : '–';
+      const open = pzOpen.has(r.k);
+      const bs = (t) => topicSet().has(t);
+      const x = open ? `<div class="pz-x">${r.best ? `<div class="path">最少步數的走法（${esc(r.best.n)}）：${pathOf(r.best).map(esc).join(' › ')}</div>` : '<div class="path">還沒有人走到</div>'}
+        <div class="mini"><button data-ban="${esc(r.start)}" class="bad" ${bs(r.start) ? 'disabled' : ''}>${bs(r.start) ? '起點已拿掉' : '🚫 起點拿出題庫'}</button><button data-ban="${esc(r.target)}" class="bad" ${bs(r.target) ? 'disabled' : ''}>${bs(r.target) ? '終點已拿掉' : '🚫 終點拿出題庫'}</button>${r.lang === 'en' ? '' : `<button data-daily="${esc(r.k)}">📅 設成明天的每日題目</button>`}</div></div>` : '';
+      return `<div class="gm" data-k="${esc(r.k)}"><div class="gm-route">《${esc(r.start)}》→《${esc(r.target)}》</div>`
+        + `<div class="pz-meta"><b>${r.n}</b> 局 · 完成 <b>${r.pl ? Math.round(rate(r) * 100) : 0}%</b>（${r.arr}/${r.pl} 人）· 平均 ${avg} 步 · 最少 ${min} 步${r.give ? ` · 投降 ${r.give}` : ''}${r.hint ? ` · 💡 ${r.hint}` : ''}</div>${x}</div>`;
+    }).join('') : '<p class="empty">沒有符合的題目</p>';
+    $('#pzlist').querySelectorAll('.gm').forEach((el) => { el.onclick = (e) => {
+      const ban = e.target.closest('[data-ban]'), dly = e.target.closest('[data-daily]');
+      if (ban) { e.stopPropagation(); if (!ban.disabled) banTopic(ban.dataset.ban); return; }
+      if (dly) { e.stopPropagation(); const [a, b] = dly.dataset.daily.split('→'); setDaily(1, a, b); return; }
+      const k = el.dataset.k; if (pzOpen.has(k)) pzOpen.delete(k); else pzOpen.add(k); renderPuzzles();
+    }; });
+  }
+  $('#pz-sort').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; pzSort = b.dataset.sort; sel('#pz-sort', b); renderPuzzles(); };
+  $('#pz-q').addEventListener('input', () => { pzShow = 20; renderPuzzles(); });
+  $('#pz-more').onclick = () => { pzShow += 20; renderPuzzles(); };
+
+  // ---------- 題庫管理（config/topicBan：一行一個） ----------
+  let topicBan = '', topicCount = 0;
+  import('./topics.js?v=83').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
+  const topicList = () => String(topicBan || '').split('\n').map((t) => t.trim()).filter(Boolean);
+  const topicSet = () => new Set(topicList());
+  const saveTopics = (list, what) => db.ref('config/topicBan').set(list.join('\n') || null).then(() => { $('#tp-msg').textContent = '已儲存，之後的隨機出題會跳過'; audit(what[0], what[1]); }, () => { $('#tp-msg').textContent = '存不進去：請先用 Google 登入'; });
+  function banTopic(t) {
+    t = String(t || '').trim();
+    if (!t || topicSet().has(t)) return;
+    saveTopics([...topicList(), t], ['題庫拿掉', t]);
+  }
+  function renderTopics() {
+    const list = topicList();
+    $('#tp-sum').textContent = `${topicCount ? topicCount.toLocaleString('en-US') + ' 個條目' : '題庫'}${list.length ? ` · 拿掉 ${list.length} 個` : ''}`;
+    $('#tplist').innerHTML = list.length ? list.map((t) => `<div class="ban-row"><b>${esc(t)}</b>${window.__topics && !window.__topics.has(t) ? '<span>（不在題庫裡）</span>' : ''}<button data-t="${esc(t)}">放回去</button></div>`).join('') : '<p class="empty">沒有拿掉任何條目</p>';
+    $('#tplist').querySelectorAll('button').forEach((b) => { b.onclick = () => saveTopics(topicList().filter((t) => t !== b.dataset.t), ['題庫放回', b.dataset.t]); });
+    renderPuzzles();
+  }
+  $('#tp-go').onclick = () => { banTopic($('#tp-add').value); $('#tp-add').value = ''; };
+  $('#tp-add').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#tp-go').click(); });
+
+  // ---------- 每日題目（今天、明天；跟遊戲 daily.js 同樣的日期算法） ----------
+  let dcData = {}, dcCount = {}, dcEdit = null, wikiMod = null;
+  const dayOf = (key) => Math.round(Date.parse(key) / 864e5);
+  const dcKeys = () => [twDay(Date.now()), twDay(Date.now() + 864e5)];
+  const dailyNo = (key) => Math.round((Date.parse(key) - Date.parse('2026-10-21')) / 864e5) + 1;
+  let dcRefs = [];
+  function watchDailyCtl() {
+    const keys = dcKeys();
+    if (dcRefs.length && dcRefs[0].key === keys[0]) return;
+    dcRefs.forEach((r) => r.refs.forEach((x) => x.off()));
+    dcRefs = keys.map((key) => {
+      const a = db.ref(`stats/dailyPuzzle/d${dayOf(key)}`), b = db.ref(`stats/daily/${key}`);
+      a.on('value', (s) => { dcData[key] = s.val(); renderDailyCtl(); }, () => {});
+      b.on('value', (s) => { dcCount[key] = s.numChildren(); renderDailyCtl(); }, () => {});
+      return { key, refs: [a, b] };
+    });
+  }
+  function renderDailyCtl() {
+    const keys = dcKeys();
+    const t = dcData[keys[0]];
+    $('#dc-sum').textContent = t ? `今天：${t.start} → ${t.target}` : '今天的還沒產生';
+    $('#dc-days').innerHTML = keys.map((key, i) => {
+      const v = dcData[key], n = dcCount[key] || 0;
+      const edit = dcEdit === i ? `<div class="dc-edit"><input id="dc-s" placeholder="起點" value="${esc(v ? v.start : '')}"><input id="dc-t" placeholder="終點" value="${esc(v ? v.target : '')}"><div class="mini"><button id="dc-save">儲存</button><button id="dc-cancel">取消</button></div></div>` : '';
+      return `<div class="dc-day"><div class="t">${i ? '明天' : '今天'} <span class="tag">#${dailyNo(key)}</span>${v && v.by === 'admin' ? '<span class="tag host">管理員指定</span>' : ''}</div>`
+        + `<div class="r">${v ? `《${esc(v.start)}》→《${esc(v.target)}》` : '還沒產生'}</div>`
+        + `<div class="m">${v ? '' : '第一個打開每日挑戰的人會自動抽，也可以先指定 · '}${i ? '' : `已經 ${n} 人完成`}</div>`
+        + `<div class="mini"><button data-dc-edit="${i}">✏️ 指定題目</button><button data-dc-roll="${i}">🎲 重抽一題</button></div>${edit}</div>`;
+    }).join('');
+    $('#dc-days').querySelectorAll('[data-dc-edit]').forEach((b) => { b.onclick = () => { dcEdit = dcEdit === Number(b.dataset.dcEdit) ? null : Number(b.dataset.dcEdit); renderDailyCtl(); }; });
+    $('#dc-days').querySelectorAll('[data-dc-roll]').forEach((b) => { b.onclick = () => rollDaily(Number(b.dataset.dcRoll)); });
+    if ($('#dc-save')) {
+      $('#dc-cancel').onclick = () => { dcEdit = null; renderDailyCtl(); };
+      $('#dc-save').onclick = () => setDaily(dcEdit, $('#dc-s').value, $('#dc-t').value);
+    }
+  }
+  const dcMsg = (t) => { $('#dc-msg').textContent = t || ''; };
+  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=83'));
+  async function setDaily(i, start, target) {
+    const key = dcKeys()[i];
+    const n = dcCount[key] || 0;
+    if (i === 0 && n && !confirm(`今天已經有 ${n} 人完成每日挑戰，換題目後排行榜會混在一起（已經打開題目的人也還是舊題目）。確定要換？`)) return;
+    dcMsg('確認條目中…');
+    try {
+      const wiki = await loadWiki();
+      const [s, t] = await Promise.all([wiki.resolveTitle('zh', start), wiki.resolveTitle('zh', target)]);
+      if (s === t) { dcMsg('起點和終點不能一樣'); return; }
+      await db.ref(`stats/dailyPuzzle/d${dayOf(key)}`).set({ start: s, target: t, at: Date.now(), by: 'admin' });
+      dcEdit = null; dcMsg(`已設定${i ? '明天' : '今天'}的題目：${s} → ${t}`);
+      audit(`指定${i ? '明天' : '今天'}的每日題目`, `${s} → ${t}`);
+    } catch (e) { dcMsg(e && e.code === 'PERMISSION_DENIED' ? '存不進去：請先用 Google 登入' : `沒辦法設定：${e.message || e}`); }
+  }
+  async function rollDaily(i) {
+    dcMsg('抽題中…');
+    try {
+      const wiki = await loadWiki();
+      wiki.setTopicBan(topicBan);
+      const s = await wiki.randomTitle('zh');
+      let t = s;
+      for (let k = 0; k < 6 && t === s; k++) t = await wiki.randomTitle('zh');
+      await setDaily(i, s, t);
+    } catch (e) { dcMsg(`沒辦法抽題：${e.message || e}`); }
+  }
+
+  // ---------- 玩家檔案（有帳號 id 的照帳號合併，舊紀錄照暱稱） ----------
+  let pfSort = 'n', pfShow = 20, pfOpen = null, notes = {};
+  function profiles() {
+    const per = {};
+    for (const x of games) {
+      if (!x || !x.at) continue;
+      const ps = roster(x), us = Array.isArray(x.us) ? x.us : Object.values(x.us || {});
+      ps.forEach((p, i) => {
+        if (!p.n) return;
+        const uid = us[i] || '';
+        const id = uid || 'n:' + p.n;
+        const r = (per[id] ||= { id, uid, names: {}, games: 0, arr: 0, wins: 0, steps: 0, time: 0, first: x.at, last: 0, modes: {}, sus: 0, recent: [] });
+        r.names[p.n] = (r.names[p.n] || 0) + 1;
+        r.games++;
+        r.first = Math.min(r.first, x.at); r.last = Math.max(r.last, x.at);
+        r.modes[x.mode] = (r.modes[x.mode] || 0) + 1;
+        if (p.r === 'win') { r.arr++; r.steps += p.k || 0; r.time += p.t || 0; }
+        if (p.pl === 1 && p.r === 'win' && x.players > 1) r.wins++;
+        if (sus(p)) r.sus++;
+        r.recent.push({ x, p });
+      });
+    }
+    return Object.values(per).map((r) => ({ ...r, name: Object.entries(r.names).sort((a, b) => b[1] - a[1])[0][0] }));
+  }
+  function renderProfiles() {
+    let list = profiles();
+    $('#pf-sum').textContent = list.length ? `${list.length} 位玩家` : '還沒有資料';
+    const q = $('#pf-q').value.trim();
+    if (q) list = list.filter((r) => Object.keys(r.names).some((n) => n.includes(q)));
+    list.sort((a, b) => pfSort === 'recent' ? b.last - a.last : pfSort === 'sus' ? (b.sus - a.sus) || (b.games - a.games) : (b.games - a.games) || (b.last - a.last));
+    if (pfSort === 'sus') list = list.filter((r) => r.sus);
+    $('#pf-more').hidden = list.length <= pfShow;
+    const online = new Set(Object.values(lastWho || {}).map((w) => w && w.u).filter(Boolean));
+    $('#pflist').innerHTML = list.length ? list.slice(0, pfShow).map((r) => {
+      const banned = r.uid && bans[r.uid] && bans[r.uid].until > Date.now();
+      const others = Object.keys(r.names).filter((n) => n !== r.name);
+      const tags = `${r.uid && online.has(r.uid) ? '<span class="tag on">🟢 在線</span>' : ''}${banned ? '<span class="tag ban">🚫 踢出中</span>' : ''}${r.sus ? `<span class="tag sus">⚠️ ${r.sus}</span>` : ''}${notes[r.uid] ? '<span class="tag">📝</span>' : ''}`;
+      let x = '';
+      if (pfOpen === r.id) {
+        const modes = Object.entries(r.modes).map(([m, n]) => `${MODE[m] || m} ${n}`).join(' · ');
+        const recent = r.recent.sort((a, b) => b.x.at - a.x.at).slice(0, 8).map(({ x: g, p }) => `<div class="pf-g">${when(g.at)} · ${MODE[g.mode] || g.mode} · 《${esc(g.start)}》→《${esc(g.target)}》 · ${p.pl ? medal(p.pl) : esc(RES[p.r] || p.r || '')} · ${p.k || 0} 步${sus(p) ? ' · ⚠️' : ''}</div>`).join('');
+        x = `<div class="pz-x">${others.length ? `<div class="path">也用過：${others.map(esc).join('、')}</div>` : ''}
+          <div class="pf-grid"><div class="kv"><b>${r.games}</b><span>局數</span></div><div class="kv"><b>${Math.round(r.arr / r.games * 100)}%</b><span>抵達率</span></div><div class="kv"><b>${r.wins}</b><span>多人第一</span></div>
+          <div class="kv"><b>${r.arr ? (r.steps / r.arr).toFixed(1) : '–'}</b><span>平均步數</span></div><div class="kv"><b>${r.arr ? dur(r.time / r.arr) : '–'}</b><span>平均時間</span></div><div class="kv"><b>${r.sus}</b><span>可疑</span></div></div>
+          <div class="path">${modes}　·　第一次 ${when(r.first)}　·　最近 ${when(r.last)}</div>${recent}
+          ${r.uid ? `<textarea class="pf-note" id="pf-note" maxlength="500" placeholder="備註（只有你看得到）">${esc((notes[r.uid] || {}).t || '')}</textarea>
+          <div class="mini"><button id="pf-save">儲存備註</button>${banned ? '' : '<button class="bad" data-pf-ban="10">踢出 10 分鐘</button><button class="bad" data-pf-ban="1440">1 天</button><button class="bad" data-pf-ban="0">永久</button>'}</div>` : '<div class="path">舊紀錄沒有帳號 id，只能照暱稱合計</div>'}</div>`;
+      }
+      return `<div class="gm" data-id="${esc(r.id)}"><div class="gm-top"><b style="font-size:14px">${esc(r.name)}</b>${tags}<span class="when" style="margin-left:auto">${agoLong(r.last)}前</span></div>`
+        + `<div class="pz-meta">${r.games} 局 · 抵達 ${r.arr} · 多人第一 ${r.wins} · 平均 ${r.arr ? (r.steps / r.arr).toFixed(1) : '–'} 步</div>${x}</div>`;
+    }).join('') : `<p class="empty">${pfSort === 'sus' ? '沒有可疑的玩家 👍' : '沒有符合的玩家'}</p>`;
+    $('#pflist').querySelectorAll('.gm').forEach((el) => { el.onclick = (e) => {
+      if (e.target.closest('textarea')) return;
+      const r = list.find((p) => p.id === el.dataset.id);
+      if (e.target.id === 'pf-save') { e.stopPropagation(); const t = $('#pf-note').value.trim().slice(0, 500); db.ref('notes/' + r.uid).set(t ? { t, at: Date.now() } : null).then(() => audit('玩家備註', `${r.name}：${t || '（清空）'}`), denied); return; }
+      const b = e.target.closest('[data-pf-ban]');
+      if (b) {
+        e.stopPropagation();
+        const min = Number(b.dataset.pfBan);
+        if (!confirm(`確定踢出 ${r.name}（${b.textContent}）？`)) return;
+        db.ref('ban/' + r.uid).set({ until: min ? Date.now() + min * 60000 : 4102444800000, at: Date.now(), n: r.name.slice(0, 16) }).then(() => audit('踢出伺服器', `${r.name} · ${b.textContent.replace('踢出 ', '')}`), denied);
+        return;
+      }
+      pfOpen = pfOpen === el.dataset.id ? null : el.dataset.id; renderProfiles();
+    }; });
+  }
+  $('#pf-sort').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; pfSort = b.dataset.sort; sel('#pf-sort', b); pfShow = 20; renderProfiles(); };
+  $('#pf-q').addEventListener('input', () => { pfShow = 20; renderProfiles(); });
+  $('#pf-more').onclick = () => { pfShow += 20; renderProfiles(); };
 
   // 自動更新：後台開著的時候網站更新了，偵測到就換新版（正在打字就先顯示提示，不打斷）
   (() => {
