@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=94">
+  <link rel="stylesheet" href="style.css?v=95">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=94"></script>
+  <script src="firebase-config.js?v=95"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -566,7 +566,6 @@
       <div id="daily-mine" class="daily-mine" hidden></div>
       <label class="field daily-name" for="daily-name" id="daily-name-row" hidden><span class="field-label">排行榜上的暱稱</span><input id="daily-name" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname"></label>
       <p id="daily-error" class="error" hidden></p>
-      <div id="daily-warn" class="daily-warn" role="note"><b>⚠️ 每天只有一次正式挑戰</b>按下「開始挑戰」、起點出現後就算開始。中途關掉、跳出 App、重新整理、斷網或沒電，這次機會就用掉了，<b class="u">不能重來，也不會上排行榜</b>。請在網路穩定、有空檔的時候再開始！</div>
       <button id="daily-go" class="btn orange wide" type="button">開始挑戰</button>
       <button id="daily-share" class="btn pink" type="button" hidden><svg class="ic"><use href="#i-share"/></svg>分享成績</button>
       <div class="daily-stats">
@@ -577,6 +576,21 @@
       <p class="daily-board-head">🏆 今日排行榜</p>
       <p class="daily-route-note" id="daily-route-note" hidden></p>
       <ol id="daily-board" class="daily-board"><li class="daily-empty">讀取中…</li></ol>
+    </div>
+  </div>
+
+  <div id="daily-confirm" class="modal" hidden>
+    <div class="modal-card daily-confirm" role="alertdialog" aria-modal="true" aria-labelledby="daily-confirm-title">
+      <div class="dcf-icon" aria-hidden="true">⚠️</div>
+      <h2 id="daily-confirm-title">每天只有一次正式挑戰</h2>
+      <p class="dcf-lead">按下「開始」、起點出現後就算開始，只有第一次的成績會上排行榜。</p>
+      <ul class="dcf-list">
+        <li><span>📵</span><div>中途關掉、跳出 App、重新整理、斷網或沒電：<b>3 分鐘內回來</b>可以接著玩（計時照算，離開的時間也算進去）。</div></li>
+        <li><span>⛔</span><div>超過 3 分鐘沒回來，這次機會就用掉了，<b class="u">不能重來，也不會上排行榜</b>。</div></li>
+        <li><span>📶</span><div>請在網路穩定、有空檔的時候再開始！</div></li>
+      </ul>
+      <button id="daily-confirm-go" class="btn orange wide" type="button">我知道了，開始挑戰</button>
+      <button id="daily-confirm-no" class="btn ghost wide" type="button">等一下再玩</button>
     </div>
   </div>
 
@@ -704,6 +718,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=94"></script>
+  <script type="module" src="app.js?v=95"></script>
 </body>
 </html>

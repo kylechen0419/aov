@@ -1436,8 +1436,15 @@ body.replaying { overflow: hidden; }
 .admin-say .btn { flex: none; padding: 8px 14px; font-size: 14px; }
 /* 後台的多人觀戰（嵌在格子裡）：只留畫面，切換玩家和返回交給後台 */
 .admin-embed #watch-tabs, .admin-embed #btn-watch-back, .admin-embed .admin-say { display: none !important; }
-/* 每日挑戰開始前的提醒：一天只有一次，跳掉就不能重來 */
-.daily-warn { margin: 0 0 10px; padding: 10px 12px; border-radius: 14px; background: #fff4cc; border: 2px solid #ffd23f; color: #6b4a00; font-size: 13px; font-weight: 700; line-height: 1.55; }
-.daily-warn > b:first-child { display: block; font-size: 15px; font-weight: 900; color: #a05a00; margin-bottom: 2px; }
-.daily-warn .u { color: #c2410c; font-weight: 900; }
-.daily-warn[hidden] { display: none; }
+/* 每日挑戰：按開始時跳出的提醒（一天只有一次；跳掉 3 分鐘內可以接著玩） */
+.daily-confirm { text-align: center; max-width: 360px; }
+.daily-confirm .dcf-icon { font-size: 46px; line-height: 1; margin: 4px 0 6px; }
+.daily-confirm h2 { margin: 0 0 6px; font-size: 20px; font-weight: 900; color: #a05a00; }
+.daily-confirm .dcf-lead { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--muted); line-height: 1.5; }
+.dcf-list { list-style: none; margin: 0 0 14px; padding: 10px 12px; display: grid; gap: 8px; text-align: left; background: #fff4cc; border: 2px solid #ffd23f; border-radius: 14px; }
+.dcf-list li { display: grid; grid-template-columns: 24px 1fr; gap: 6px; font-size: 13px; font-weight: 700; color: #6b4a00; line-height: 1.5; }
+.dcf-list span { font-size: 17px; line-height: 1.3; }
+.dcf-list .u { color: #c2410c; font-weight: 900; }
+.daily-confirm .btn + .btn { margin-top: 8px; }
+/* 每日挑戰中途離開：繼續的按鈕 */
+.daily-mine.resume { background: #e6f9ff; color: #0b7fa8; border-color: var(--sky-3, #7fd3f0); }

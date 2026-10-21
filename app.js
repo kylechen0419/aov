@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=94';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=94';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=94';
-import { initNotify, notify } from './notify.js?v=94';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=94';
-import { reportError, catchErrors } from './errors.js?v=94';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=94';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, loadLog } from './daily.js?v=94';
-import * as wiki from './wiki.js?v=94';
-import { tw, twTree, zhReady } from './zh.js?v=94';
-import { makeShareImage } from './share.js?v=94';
-import { solve } from './solver.js?v=94';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=94';
+import { Net } from './net.js?v=95';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=95';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=95';
+import { initNotify, notify } from './notify.js?v=95';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=95';
+import { reportError, catchErrors } from './errors.js?v=95';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=95';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=95';
+import * as wiki from './wiki.js?v=95';
+import { tw, twTree, zhReady } from './zh.js?v=95';
+import { makeShareImage } from './share.js?v=95';
+import { solve } from './solver.js?v=95';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=95';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=94').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=95').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1027,6 +1027,9 @@ function saveHosted() {
 }
 setInterval(saveHosted, 20000);
 window.addEventListener('pagehide', saveHosted);
+// 每日挑戰：切到別的 App、關掉分頁的那一刻也記一次進度
+window.addEventListener('pagehide', () => saveDailyRun());
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveDailyRun(); });
 
 // 房主回來了：用同一個代碼重新開房，其他人會自動連回來
 async function reclaimHost(rec) {
@@ -1796,13 +1799,84 @@ function resendDaily(key) {
 
 function renderDailyMine(key) {
   const m = myDay(key);
+  const run = dailyRun(key);
   const box = $('#daily-mine');
   box.hidden = !m;
-  box.classList.toggle('miss', !!m && !m.win);
-  if (m) box.textContent = m.win ? `✅ 你今天：${m.s} 步 · ${fmtTime(m.t)}${m.h ? ' · 💡' : ''}${m.rank ? `　🏆 第 ${m.rank} 名` : ''}` : '今天的正式挑戰沒有完成，明天再來！';
-  $('#daily-go').textContent = m ? '再玩一次（練習，不計成績）' : '開始挑戰';
-  $('#daily-warn').hidden = !!m;  // 還沒用掉今天的正式挑戰：先提醒只有一次
+  box.classList.toggle('miss', !!m && !m.win && !run);
+  box.classList.toggle('resume', !!run);
+  clearInterval(resumeTicker);
+  if (run) {
+    // 中途跳掉、3 分鐘內回來：可以接著玩
+    const paint = () => {
+      const left = Math.ceil((run.at + RESUME_MS - Date.now()) / 1000);
+      if (left <= 0) { clearInterval(resumeTicker); renderDailyMine(key); return; }
+      box.textContent = `⏸ 你剛剛中途離開了（走了 ${run.clicks} 步）。${left} 秒內可以接著玩，計時照算`;
+    };
+    paint();
+    resumeTicker = setInterval(paint, 1000);
+  } else if (m) box.textContent = m.win ? `✅ 你今天：${m.s} 步 · ${fmtTime(m.t)}${m.h ? ' · 💡' : ''}${m.rank ? `　🏆 第 ${m.rank} 名` : ''}` : '今天的正式挑戰沒有完成，明天再來！';
+  $('#daily-go').textContent = run ? '▶ 接著剛才的挑戰' : m ? '再玩一次（練習，不計成績）' : '開始挑戰';
   $('#daily-share').hidden = !m?.win;
+}
+
+// ---------- 每日挑戰中途跳掉：3 分鐘內回來可以接著玩 ----------
+// 正式挑戰進行中每走一步、每隔幾秒就把進度存在這支手機。計時照算：離開的那段時間也算進去，所以不能拿來暫停偷查
+const RUN_KEY = 'wikirace-daily-run';
+const RESUME_MS = 180000;
+let resumeTicker = null;
+function saveDailyRun(g = state.game) {
+  const d = state.daily;
+  if (!d || !d.first || !d.started || !g || g !== state.game || g.finished || !g.current) return;
+  store.set(RUN_KEY, JSON.stringify({
+    key: d.key, r: roundOf(d.key), id: g.id, start: g.settings.start, target: g.settings.target,
+    el: Math.round(elapsed()), clicks: g.clicks, path: g.path.slice(-200), cur: g.current,
+    stack: g.stack.slice(-200), hint: !!g.hint?.shown, at: Date.now(),
+  }));
+}
+const clearDailyRun = () => { try { localStorage.removeItem(RUN_KEY); } catch { /* 忽略 */ } };
+// 這一天、這一輪、正式挑戰開始了但沒結束、離開還不到 3 分鐘：回傳存的進度
+function dailyRun(key) {
+  let run = null;
+  try { run = JSON.parse(store.get(RUN_KEY) || 'null'); } catch { return null; }
+  const m = myDay(key);
+  if (!run || run.key !== key || (run.r || 1) !== roundOf(key) || !m || m.win !== undefined) return null;
+  if (!(Date.now() - run.at < RESUME_MS) || typeof run.cur !== 'string' || !Array.isArray(run.path)) return null;
+  return run;
+}
+
+// 接著剛才的正式挑戰：步數、路線、上一頁都照舊，計時從離開那一刻一直算到現在
+async function resumeDaily(run) {
+  const p = await puzzle(run.key);
+  dailyPuzzles[p.key] = p;
+  const name = ($('#daily-name').value || $('#nickname').value).trim() || myDay(run.key)?.n || '玩家';
+  soloSetup(name);
+  state.daily = { ...p, first: true, started: true, recorded: false };
+  const s = { ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed', allowBack: true, trueRandom: false, start: run.start, target: run.target };
+  createGame(s, run.id);
+  const g = state.game;
+  g.startAt = performance.now() - run.el - Math.max(0, Date.now() - run.at);
+  g.clicks = run.clicks;
+  g.path = run.path.slice();
+  g.stack = Array.isArray(run.stack) ? run.stack.slice() : g.path.slice(0, -1);
+  g.spots = g.stack.map(() => null);
+  $('#daily-modal').hidden = true;
+  setConn(`每日挑戰 #${p.no}`);
+  show('game');
+  $('#countdown').hidden = true;
+  if (run.hint) setTimeout(() => showHint({ quiet: true }), 800);
+  music.play('race');
+  g.timer = setInterval(tick, 200);
+  toast('接著剛才的挑戰！計時照算', 2500);
+  goTo(run.cur, { restore: true });
+}
+
+// 按「開始挑戰」：正式挑戰先跳一個提醒（只有一次、跳掉 3 分鐘內可以回來）；接著玩、練習就直接開始
+function dailyGo() {
+  const key = todayKey();
+  const run = dailyRun(key);
+  if (run && key === dailyModalKey) { resumeDaily(run).catch((e) => { reportError('daily', e); showError('#daily-error', e.message || '接不回去，再試一次'); }); return; }
+  if (myDay(key)) { startDaily(); return; }
+  $('#daily-confirm').hidden = false;
 }
 
 async function renderDailyBoard(key) {
@@ -1904,6 +1978,7 @@ function settleDaily(g) {
   const d = state.daily;
   if (!d || !g?.finished || g !== state.game || !d.first || !d.started || d.recorded) return;
   d.recorded = true;
+  clearDailyRun();
   const f = g.finished;
   const win = f.reason === 'win';
   const path = cleanPath(f.path || g.path).map((t) => t.slice(0, 100));  // 走過的路線：排行榜上給完成的人看
@@ -1990,7 +2065,10 @@ function initDaily() {
   $('#btn-daily').onclick = openDaily;
   $('#daily-close').onclick = () => { $('#daily-modal').hidden = true; };
   $('#daily-modal').addEventListener('click', (e) => { if (e.target.id === 'daily-modal') $('#daily-modal').hidden = true; });
-  $('#daily-go').onclick = startDaily;
+  $('#daily-go').onclick = dailyGo;
+  $('#daily-confirm-go').onclick = () => { $('#daily-confirm').hidden = true; startDaily(); };
+  $('#daily-confirm-no').onclick = () => { $('#daily-confirm').hidden = true; };
+  $('#daily-confirm').addEventListener('click', (e) => { if (e.target.id === 'daily-confirm') $('#daily-confirm').hidden = true; });
   $('#daily-share').onclick = () => shareDaily(todayKey());
   $('#dres-share').onclick = () => { const k = $('#daily-result').dataset.key; if (k) shareDaily(k); };
   $('#dres-board').onclick = openDaily;
@@ -2270,9 +2348,12 @@ function elapsed() {
   return g && g.startAt ? performance.now() - g.startAt : 0;
 }
 
+let runSavedAt = 0;
 function tick() {
   const g = state.game;
   if (!g || g.finished) return;
+  // 每日挑戰：每 5 秒記一次進度（中途跳掉 3 分鐘內可以接著玩）
+  if (state.daily?.started && performance.now() - runSavedAt > 5000) { runSavedAt = performance.now(); saveDailyRun(g); }
   const ms = elapsed();
   const limit = g.settings.timeLimit * 1000;
   const timer = $('#hud-timer');
@@ -2342,13 +2423,14 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
     }
     g.current = art.title;
     saveNav(g);
+    if (state.daily) saveDailyRun(g);
     reportActivity();
     renderArticle(art);
     if (spot) restoreSpot(spot);
     if (first && state.daily && !state.daily.started) {
       state.daily.started = true;
       // 起點載入了才算正式開始：從這一刻起中途離開、投降都不能重來
-      if (state.daily.first) saveDay(state.daily.key, { tried: 1, n: state.myName, a: state.myAvatar || '' });
+      if (state.daily.first) { saveDay(state.daily.key, { tried: 1, n: state.myName, a: state.myAvatar || '' }); saveDailyRun(g); }
     }
     renderBreadcrumb(g);
     $('#hud-clicks').textContent = g.clicks;
@@ -5209,6 +5291,8 @@ if (!store.get('wikirace-tutorial-done') && !session.load() && !adminWatchKey &&
   if (new URLSearchParams(location.search).get('room') || fromDaily) $('#tut-hint').hidden = false;
   else openTutorial();
 }
+// 每日挑戰中途跳掉、3 分鐘內回來：直接打開每日挑戰，按一下就能接著玩
+if (!fromDaily && !adminWatchKey && !fromReplay && !session.load() && dailyRun(todayKey())) openDaily();
 if (fromDaily && !session.load()) {
   openDaily();
   try { history.replaceState(null, '', location.pathname); } catch { /* 忽略 */ }
