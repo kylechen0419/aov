@@ -5,11 +5,13 @@
 // 沒有步數上限：只要路線存在，遲早會碰到。兩邊都是一整層一整層地展開，
 // 第一次碰到的那條就一定是最短的（之前的層都沒碰到，表示更短的路線不存在）。
 // 重新導向（例如「台灣」→「臺灣」）不算一步：連到重新導向頁就等於連到它指向的條目。
-import { api } from './wiki.js?v=87';
+import { api as wikiApi } from './wiki.js?v=88';
+// 找解答時被擋（429）或網路不穩：每個請求多等幾次（最久等一分多鐘），不要整個放棄
+const api = (lang, params) => wikiApi(lang, params, { retries: 7 });
 
 const BATCH = 50;          // 一次問 50 個條目（API 上限）
-const PARALLEL = 4;        // 同時發幾個請求
-const TIME_LIMIT = 150000; // 最多找 2.5 分鐘
+const PARALLEL = 3;        // 同時發幾個請求（太多會被維基百科擋：429）
+const TIME_LIMIT = 240000; // 一輪最多找 4 分鐘（找不到會再接著找，見 app.js findSolution）
 
 // banned：驗證時發現「其實點不到」的步驟（`${key(從)}→${key(到)}`），重找時避開
 export async function solve(lang, start, target, { key = (t) => t, onProgress = () => {}, banned = new Set(), signal = null } = {}) {

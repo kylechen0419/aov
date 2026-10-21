@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=87';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=87';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=87';
-import { initNotify, notify } from './notify.js?v=87';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=87';
-import { reportError, catchErrors } from './errors.js?v=87';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=87';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=87';
-import * as wiki from './wiki.js?v=87';
-import { tw, twTree, zhReady } from './zh.js?v=87';
-import { makeShareImage } from './share.js?v=87';
-import { solve } from './solver.js?v=87';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=87';
+import { Net } from './net.js?v=88';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=88';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=88';
+import { initNotify, notify } from './notify.js?v=88';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=88';
+import { reportError, catchErrors } from './errors.js?v=88';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=88';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=88';
+import * as wiki from './wiki.js?v=88';
+import { tw, twTree, zhReady } from './zh.js?v=88';
+import { makeShareImage } from './share.js?v=88';
+import { solve } from './solver.js?v=88';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=88';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=87').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=88').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -3363,12 +3363,13 @@ const SOLVE_STAGE = {
   start: '讀取起點和終點…',
   search: (s) => `找路線中…已看過 ${s.checked || 0} 個條目${s.depth ? `，正在找 ${s.depth} 步的路線` : ''}`,
   verify: '確認每一步在遊戲裡都點得到…',
+  busy: '維基百科有點忙，休息幾秒再接著找…',
 };
 const SOLVE_FAIL = {
   'no-links': '起點這一頁沒有任何可以點的條目連結，沒辦法出發。',
   'no-backlinks': '沒有任何條目連到終點，從哪裡出發都到不了。',
   unreachable: '從起點出發，怎麼點都到不了終點（這兩頁之間真的沒有路）。',
-  timeout: '這題很難，找了兩分半還沒找到，按「再找一次」繼續找。',
+  timeout: '這題很難，找了很久還沒找到，按「再找一次」繼續找。',
 };
 
 function renderSolution(g) {
@@ -3397,7 +3398,7 @@ function renderSolution(g) {
   } else {
     $('#btn-solve').hidden = false;
     $('#btn-solve').lastChild.textContent = '再找一次';
-    $('#solution-note').textContent = sol.error ? `找不到：${sol.error}` : SOLVE_FAIL[sol.reason] || SOLVE_FAIL.timeout;
+    $("#solution-note").textContent = sol.error ? `維基百科現在太忙或連不上（${sol.error}），等一分鐘再按「再找一次」` : SOLVE_FAIL[sol.reason] || SOLVE_FAIL.timeout;
   }
 }
 
@@ -3469,37 +3470,51 @@ async function findSolution(g) {
   renderSolution(g);
   const key = g.settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
   const show = () => { if (state.game === g && state.view === 'result') renderSolution(g); };
-  try {
-    await zhReady;
-    const banned = new Set();
-    let found = null;
-    for (let attempt = 0; attempt < 8 && !found; attempt++) {
-      const res = await solve(g.settings.lang, g.settings.start, g.settings.target, {
-        key, banned,
-        onProgress: ({ stage, checked, depth }) => {
-          if (state.game !== g || !g.solution?.running) return;
-          Object.assign(g.solution, { stage, checked, depth });
-          show();
-        },
-      });
-      if (!g.solution?.running) return;  // 等的時候別人已經把解答傳過來了
-      if (!res.path) { g.solution = { path: null, reason: res.reason }; break; }
-      Object.assign(g.solution, { stage: 'verify' });
+  await zhReady;
+  const banned = new Set();
+  let found = null;
+  let final = null;  // 確定找不到的原因（真的沒有路）
+  let lastErr = null;
+  // 一定要找到：維基百科太忙（429）、網路斷掉、找太久，都休息一下接著找，最多 4 輪（大約 20 分鐘）
+  for (let round = 0; round < 4 && !found && !final; round++) {
+    if (round) {
+      Object.assign(g.solution, { stage: 'busy' });
       show();
-      const v = await verifyPath(g.settings, res.path, key);
+      await wait(5000 * round);
       if (!g.solution?.running) return;
-      if (v.bad) { banned.add(`${key(v.bad[0])}→${key(v.bad[1])}`); continue; }
-      found = { path: res.path, exact: res.exact, via: v.via };
     }
-    if (found) {
-      g.solution = { ...found, by: state.myName };
-      shareSolution(g);
-    } else if (g.solution?.running) {
-      g.solution = { path: null, reason: 'timeout' };
+    try {
+      for (let attempt = 0; attempt < 8 && !found; attempt++) {
+        const res = await solve(g.settings.lang, g.settings.start, g.settings.target, {
+          key, banned,
+          onProgress: ({ stage, checked, depth }) => {
+            if (state.game !== g || !g.solution?.running) return;
+            Object.assign(g.solution, { stage, checked, depth });
+            show();
+          },
+        });
+        if (!g.solution?.running) return;  // 等的時候別人已經把解答傳過來了
+        if (!res.path) {
+          if (res.reason !== 'timeout' && res.reason !== 'aborted') final = res.reason;
+          break;  // 找太久：下一輪接著找
+        }
+        Object.assign(g.solution, { stage: 'verify' });
+        show();
+        const v = await verifyPath(g.settings, res.path, key);
+        if (!g.solution?.running) return;
+        if (v.bad) { banned.add(`${key(v.bad[0])}→${key(v.bad[1])}`); continue; }
+        found = { path: res.path, exact: res.exact, via: v.via };
+      }
+    } catch (e) {
+      lastErr = e;  // 維基百科一直不回應：下一輪再試
     }
-  } catch (e) {
-    reportError('solution', e);
-    if (g.solution?.running) g.solution = { path: null, error: e.message };
+  }
+  if (found) {
+    g.solution = { ...found, by: state.myName };
+    shareSolution(g);
+  } else if (g.solution?.running) {
+    if (lastErr && !final) reportError('solution', lastErr);
+    g.solution = final ? { path: null, reason: final } : lastErr ? { path: null, error: lastErr.message } : { path: null, reason: 'timeout' };
   }
   show();
 }

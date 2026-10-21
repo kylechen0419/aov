@@ -25,16 +25,38 @@ const POPULAR = {
 
 const nsCache = {};
 
-export function api(lang, params) {
+// 維基百科說「太多請求了」（429）或暫時出錯（5xx、網路斷掉）時：等一下再試，不要直接放棄。
+// 被擋的時候整個頁面一起放慢（coolUntil），其他同時在發的請求也先等，才不會一直被擋。
+let coolUntil = 0;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const backoff = (i) => Math.min(16000, 1000 * 2 ** i) * (0.75 + Math.random() * 0.5);
+export async function api(lang, params, { retries = 3 } = {}) {
   const { host, variant } = LANGS[lang];
   const url = new URL(`https://${host}/w/api.php`);
   const all = { format: 'json', formatversion: '2', origin: '*', ...params };
   if (variant) { all.variant = variant; all.uselang = variant; }
   for (const [k, v] of Object.entries(all)) url.searchParams.set(k, v);
-  return fetch(url).then((r) => {
-    if (!r.ok) throw new Error(`維基百科回應錯誤（${r.status}）`);
-    return r.json();
-  });
+  for (let i = 0; ; i++) {
+    const wait = coolUntil - Date.now();
+    if (wait > 0) await sleep(wait);
+    let r;
+    try {
+      r = await fetch(url);
+    } catch {
+      if (i >= retries) throw new Error('連不上維基百科，請檢查網路');
+      await sleep(backoff(i));
+      continue;
+    }
+    if (r.ok) return r.json();
+    if ((r.status === 429 || r.status >= 500) && i < retries) {
+      const after = Number(r.headers.get('retry-after')) * 1000;
+      const ms = after > 0 ? Math.min(after, 30000) : backoff(i);
+      if (r.status === 429) coolUntil = Math.max(coolUntil, Date.now() + ms);
+      await sleep(ms);
+      continue;
+    }
+    throw new Error(`維基百科回應錯誤（${r.status}）`);
+  }
 }
 
 export function normTitle(t) {
@@ -59,7 +81,7 @@ export async function suggest(lang, text) {
 }
 
 let topicsPromise = null;
-const loadTopics = () => (topicsPromise ||= import('./topics.js?v=87').then((m) => m.TOPICS));
+const loadTopics = () => (topicsPromise ||= import('./topics.js?v=88').then((m) => m.TOPICS));
 const recent = [];
 // 管理員從題庫拿掉的條目（後台「題庫管理」，config/topicBan，一行一個）：隨機抽題時跳過
 let banned = new Set();
