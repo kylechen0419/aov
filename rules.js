@@ -1,5 +1,9 @@
 // Firebase Realtime Database 的安全規則。後台用你的 Google 帳號 UID 產生完整規則，貼到 Firebase 主控台。
 // 原則：玩家（匿名登入）只能寫自己的東西、成績不能覆蓋、欄位要合理；公告、踢人、關房、通知設定只有管理員能改。
+// 規則的版本：每次改規則就加一。後台會試著讀 rulesv/v<版本>（只有這一版的規則開放這個路徑），
+// 讀得到就是 Firebase 上已經發布最新的規則，讀不到就提醒管理員重新複製發布
+export const RULES_VERSION = 2;
+
 export function rulesFor(adminUid) {
   const uid = String(adminUid || '').replace(/[^A-Za-z0-9_-]/g, '');
   const admin = `auth != null && auth.uid === '${uid}'`;
@@ -153,6 +157,8 @@ export function rulesFor(adminUid) {
           '.validate': "newData.child('until').isNumber() && (!newData.child('n').exists() || (newData.child('n').isString() && newData.child('n').val().length <= 16))",
         },
       },
+      // 規則版本標記（見 RULES_VERSION）
+      rulesv: { [`v${RULES_VERSION}`]: { '.read': true } },
       // 全站公告：大家讀、管理員寫
       broadcast: {
         '.read': true,

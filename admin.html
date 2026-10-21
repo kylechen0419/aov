@@ -38,6 +38,7 @@
   .sub-d { margin: 0 0 10px; }
   .sub-d > summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 800; padding: 4px 0; }
   .sub-d[open] > summary { margin-bottom: 4px; }
+  .rules-alert { background: #4a3a10; color: var(--yellow); border: 1px solid #7a5a12; border-radius: 12px; padding: 10px 12px; font-size: 13px; font-weight: 800; margin: 0 0 12px; }
   .group { font-size: 12px; color: var(--muted); font-weight: 800; letter-spacing: .1em; margin: 22px 4px 8px; }
   .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
   .ann { display: flex; gap: 8px; margin-top: 6px; }
@@ -161,6 +162,8 @@
       <div class="box"><b id="s-peak">–</b><span>史上尖峰</span></div>
     </div>
 
+    <p class="rules-alert" id="rules-alert" hidden>⚠️ 資料庫規則需要更新：到下面「🔐 資料庫保護」按「複製規則」，再到 Firebase 發布一次。</p>
+
     <!-- 每一塊都可以收合（記在這支手機）；標題列右邊是一行摘要，收起來也看得到重點 -->
     <details class="sec" data-sec="who" open>
       <summary><span class="sec-t">👥 在線玩家</span><span class="sec-s" id="who-sum">讀取中…</span></summary>
@@ -260,6 +263,7 @@
       <summary><span class="sec-t">🔐 資料庫保護</span><span class="sec-s" id="sec-sum">檢查中…</span></summary>
       <div class="sec-b">
         <p class="nt-state" id="sec-state">檢查中…</p>
+        <p class="nt-state" id="sec-rules-state"></p>
         <details class="sub-d" id="sec-howto" open>
           <summary>設定步驟</summary>
           <ol class="nt-steps">
@@ -391,6 +395,14 @@
     'auth/popup-closed-by-user': '登入視窗被關掉了，再按一次「用 Google 登入」',
     'auth/cancelled-popup-request': '',
   };
+  function rulesState(current) {
+    $('#sec-sum').textContent = current ? '✅ 規則是最新的' : '⚠️ 規則需要更新';
+    $('#sec-sum').className = 'sec-s ' + (current ? 'on' : 'warn');
+    $('#rules-alert').hidden = current;
+    $('#sec-rules-state').textContent = current ? '✅ Firebase 上的規則是最新的版本。' : '⚠️ Firebase 上的規則不是最新的：按「複製規則」→ Realtime Database → 規則 → 整段換掉 → 發布。發布完回到這頁會自動重新檢查。';
+    $('#sec-rules-state').className = 'nt-state' + (current ? ' on' : '');
+  }
+
   function wireSecurity(auth) {
     $('#sec-domain').textContent = location.host || 'kylechen0419.github.io';
     if (!auth) { $('#sec-state').textContent = '這裡沒有載入登入功能（連不上 Google）'; $('#sec-sum').textContent = '連不上 Google'; return; }
@@ -409,10 +421,17 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=77').then(({ rulesFor }) => {
+    import('./rules.js?v=77').then(({ rulesFor, RULES_VERSION }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
+      // Firebase 上的規則是不是最新的：讀得到這一版的標記才是
+      // 另外讀一個沒有任何版本開放的路徑：讀得到表示規則還是「任何人都能讀寫」的舊設定
+      const can = (path) => db.ref(path).once('value').then(() => true, () => false);
+      const check = () => Promise.all([can(`rulesv/v${RULES_VERSION}`), can('rulesv/never')]).then(([mark, open]) => rulesState(mark && !open));
+      check();
+      setInterval(check, 60000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });  // 從 Firebase 發布完回來就重新檢查
     });
     $('#sec-copy').onclick = () => {
       const box = $('#sec-rules');
