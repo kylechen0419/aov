@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=82';
-import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=82';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=82';
-import { initNotify, notify } from './notify.js?v=82';
-import { getDb, getUid, authOff } from './fb.js?v=82';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=82';
-import * as wiki from './wiki.js?v=82';
-import { tw, twTree, zhReady } from './zh.js?v=82';
-import { makeShareImage } from './share.js?v=82';
-import { solve } from './solver.js?v=82';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=82';
+import { Net } from './net.js?v=83';
+import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=83';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=83';
+import { initNotify, notify } from './notify.js?v=83';
+import { getDb, getUid, authOff } from './fb.js?v=83';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=83';
+import * as wiki from './wiki.js?v=83';
+import { tw, twTree, zhReady } from './zh.js?v=83';
+import { makeShareImage } from './share.js?v=83';
+import { solve } from './solver.js?v=83';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=83';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -626,7 +626,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=82').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=83').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -3446,69 +3446,106 @@ function receiveSolution(m) {
   if (state.view === 'result') renderSolution(g);
 }
 
-// ---------- 解答示範：一步一步播放「在哪一頁點哪個連結」 ----------
-let replayToken = 0;
+// ---------- 解答影片：一步一步播放「在哪一頁點哪個連結」，可以暫停、上一步、下一步、調速度 ----------
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-async function playReplay(g) {
+const player = { g: null, i: 0, playing: true, speed: 1, token: 0, arts: [] };
+function playReplay(g) {
   const sol = g.solution;
   if (!sol?.path || sol.path.length < 2) return;
-  const token = ++replayToken;
-  const alive = () => token === replayToken && !$('#replay').hidden;
-  const { path } = sol;
-  const settings = { ...g.settings };
-  const key = settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
-  const n = path.length - 1;
+  const n = sol.path.length - 1;
+  Object.assign(player, { g, i: 0, playing: true, arts: sol.path.map((t) => getArticle(g.settings.lang, t).catch(() => null)) });
   $('#replay').hidden = false;
   document.body.classList.add('replaying');
+  $('#replay-dots').replaceChildren(...sol.path.map((t, i) => {
+    const li = Object.assign(document.createElement('li'), { textContent: tw(t), className: i === 0 ? 'start' : i === n ? 'goal' : '' });
+    li.onclick = () => replayGo(i);
+    return li;
+  }));
+  paintSpeed();
+  replayGo(0);
+}
+
+// 跳到第 i 頁：顯示那一頁、捲到要點的連結、手指點一下；播放中就接著下一頁
+async function replayGo(i) {
+  const { g } = player;
+  const sol = g?.solution;
+  if (!sol?.path) return;
+  const { path } = sol;
+  const n = path.length - 1;
+  i = Math.max(0, Math.min(n, i));
+  player.i = i;
+  const token = ++player.token;
+  const alive = () => token === player.token && !$('#replay').hidden;
+  const slow = (ms) => wait(ms / player.speed);
+  const settings = { ...g.settings };
+  const key = settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
   $('#replay-finger').hidden = true;
-  $('#replay-dots').replaceChildren(...path.map((t, i) => Object.assign(document.createElement('li'), { textContent: tw(t), className: i === 0 ? 'start' : i === n ? 'goal' : '' })));
-  const arts = path.map((t) => getArticle(settings.lang, t).catch(() => null));
-  const box = $('#replay-scroll');
-  for (let i = 0; i <= n; i++) {
+  $('#replay-dots').querySelectorAll('li').forEach((li, k) => { li.classList.toggle('on', k === i); li.classList.toggle('past', k < i); });
+  $('#replay-dots').children[i]?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  $('#replay-step').textContent = i < n ? `第 ${i + 1} 步 / 共 ${n} 步` : '🎉 抵達終點！';
+  $('#replay-hint').textContent = i < n ? `在《${tw(path[i])}》找到「${tw(path[i + 1])}」` : `《${tw(path[i])}》`;
+  $('#replay-prev').disabled = i === 0;
+  $('#replay-next').disabled = i === n;
+  paintPlay();
+  $('#replay-loading').hidden = false;
+  const art = await player.arts[i];
+  if (!alive()) return;
+  $('#replay-loading').hidden = true;
+  if (art) fillArticle($('#replay-article'), $('#replay-title'), art, settings);
+  else { $('#replay-title').textContent = tw(path[i]); $('#replay-article').replaceChildren(); }
+  $('#replay-scroll').scrollTo(0, 0);
+  if (i === n) { player.playing = false; paintPlay(); confetti(); return; }
+  await slow(700);
+  if (!alive()) return;
+  // 要點的連結：驗證時記下的那一個，或任何連到下一站（含重新導向名稱）的連結
+  const links = [...$('#replay-article').querySelectorAll('a.wl')];
+  let a = sol.via?.[i] ? links.find((x) => x.dataset.title === sol.via[i]) : null;
+  if (!a) {
+    const names = await namesOf(settings.lang, path[i + 1], key).catch(() => new Set([key(path[i + 1])]));
     if (!alive()) return;
-    $('#replay-dots').querySelectorAll('li').forEach((li, k) => { li.classList.toggle('on', k === i); li.classList.toggle('past', k < i); });
-    $('#replay-step').textContent = i < n ? `第 ${i + 1} 步 / 共 ${n} 步` : '🎉 抵達終點！';
-    $('#replay-hint').textContent = i < n ? `在《${tw(path[i])}》找到「${tw(path[i + 1])}」` : `《${tw(path[i])}》`;
-    $('#replay-loading').hidden = false;
-    const art = await arts[i];
-    if (!alive()) return;
-    $('#replay-loading').hidden = true;
-    if (art) fillArticle($('#replay-article'), $('#replay-title'), art, settings);
-    else { $('#replay-title').textContent = tw(path[i]); $('#replay-article').replaceChildren(); }
-    box.scrollTo(0, 0);
-    if (i === n) { confetti(); break; }
-    await wait(800);
-    if (!alive()) return;
-    // 找到要點的連結：驗證時記下的那一個，或任何連到下一站（含重新導向名稱）的連結
-    const links = [...$('#replay-article').querySelectorAll('a.wl')];
-    let a = sol.via?.[i] ? links.find((x) => x.dataset.title === sol.via[i]) : null;
-    if (!a) {
-      const names = await namesOf(settings.lang, path[i + 1], key).catch(() => new Set([key(path[i + 1])]));
-      a = links.find((x) => names.has(key(x.dataset.title)));
-    }
-    if (a) {
-      a.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      await wait(1000);
-      if (!alive()) return;
-      a.classList.add('replay-hit');
-      const r = a.getBoundingClientRect();
-      const f = $('#replay-finger');
-      f.style.left = `${r.left + Math.min(r.width / 2, 60)}px`;
-      f.style.top = `${r.bottom - 6}px`;
-      f.hidden = false;
-      f.classList.remove('tap');
-      void f.offsetWidth;
-      f.classList.add('tap');
-      await wait(1300);
-      f.hidden = true;
-    } else {
-      $('#replay-hint').textContent += '（連結在頁面裡比較隱蔽）';
-      await wait(1500);
-    }
+    a = links.find((x) => names.has(key(x.dataset.title)));
   }
+  if (a) {
+    a.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    await slow(900);
+    if (!alive()) return;
+    a.classList.add('replay-hit');
+    const r = a.getBoundingClientRect();
+    const f = $('#replay-finger');
+    f.style.left = `${r.left + Math.min(r.width / 2, 60)}px`;
+    f.style.top = `${r.bottom - 6}px`;
+    f.hidden = false;
+    f.classList.remove('tap');
+    void f.offsetWidth;
+    f.classList.add('tap');
+    await slow(1400);
+  } else {
+    $('#replay-hint').textContent += '（連結在頁面裡比較隱蔽）';
+    await slow(1500);
+  }
+  if (alive() && player.playing) replayGo(i + 1);
+}
+
+function paintPlay() {
+  const end = player.g?.solution?.path && player.i >= player.g.solution.path.length - 1;
+  const b = $('#replay-play');
+  const label = player.playing ? ['⏸', '暫停'] : end ? ['⟲', '重播'] : ['▶', '播放'];
+  b.firstChild.textContent = label[0];
+  b.querySelector('small').textContent = label[1];
+  b.setAttribute('aria-label', label[1]);
+}
+function paintSpeed() {
+  $('#replay-speed').firstChild.textContent = `${player.speed}×`;
+}
+function replayToggle() {
+  const n = (player.g?.solution?.path.length || 1) - 1;
+  if (!player.playing && player.i >= n) { player.playing = true; replayGo(0); return; }  // 播完了：從頭再播
+  player.playing = !player.playing;
+  paintPlay();
+  if (player.playing) replayGo(player.i);  // 從這一頁接著播
 }
 function closeReplay() {
-  replayToken++;
+  player.token++;
   $('#replay').hidden = true;
   document.body.classList.remove('replaying');
 }
@@ -4146,7 +4183,12 @@ function initResult() {
   $('#btn-solve').onclick = () => { if (state.game) findSolution(state.game); };
   $('#btn-replay').onclick = () => { if (state.game) playReplay(state.game); };
   $('#replay-close').onclick = closeReplay;
-  $('#replay-again').onclick = () => { if (state.game) playReplay(state.game); };
+  $('#replay-again').onclick = () => { player.playing = true; replayGo(0); };
+  $('#replay-play').onclick = replayToggle;
+  // 上一步、下一步：停在那一頁讓人看清楚（不自動往下播）
+  $('#replay-prev').onclick = () => { player.playing = false; replayGo(player.i - 1); };
+  $('#replay-next').onclick = () => { player.playing = false; replayGo(player.i + 1); };
+  $('#replay-speed').onclick = () => { player.speed = player.speed === 1 ? 2 : player.speed === 2 ? 0.5 : 1; paintSpeed(); };
   // 示範畫面裡的連結只是給人看，不能點
   $('#replay-article').addEventListener('click', (e) => { if (e.target.closest('a')) e.preventDefault(); });
   $('#btn-watch').onclick = () => openWatch();

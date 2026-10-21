@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=82">
+  <link rel="stylesheet" href="style.css?v=83">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=82"></script>
+  <script src="firebase-config.js?v=83"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -351,7 +351,7 @@
         <div class="replay-info"><b id="replay-step">第 1 步</b><span id="replay-hint"></span></div>
         <button id="replay-again" class="replay-again" type="button">⟲ 重播</button>
       </div>
-      <ol id="replay-dots" class="replay-dots"></ol>
+      <ol id="replay-dots" class="replay-dots" aria-label="點一下跳到那一步"></ol>
     </header>
     <div id="replay-scroll" class="replay-scroll">
       <article class="paper replay-paper">
@@ -361,6 +361,12 @@
       </article>
     </div>
     <div id="replay-finger" class="replay-finger" aria-hidden="true" hidden>👆</div>
+    <div class="replay-ctrl">
+      <button id="replay-prev" type="button" aria-label="上一步">⏮<small>上一步</small></button>
+      <button id="replay-play" class="main" type="button" aria-label="暫停">⏸<small>暫停</small></button>
+      <button id="replay-next" type="button" aria-label="下一步">⏭<small>下一步</small></button>
+      <button id="replay-speed" type="button" aria-label="播放速度">1×<small>速度</small></button>
+    </div>
   </div>
   <div id="ban-screen" class="ban-screen" role="alertdialog" aria-labelledby="ban-title" hidden>
     <div class="ban-card">
@@ -439,12 +445,12 @@
       <div class="card solution" id="solution">
         <div class="solution-head">
           <h2 class="card-title"><svg class="ic"><use href="#i-bulb"/></svg>正確解答</h2>
-          <small id="solution-note"></small>
+          <button id="btn-replay" class="sol-video" type="button" hidden>🎬 觀看影片</button>
         </div>
+        <small id="solution-note" class="solution-note"></small>
         <button id="btn-solve" class="btn blue wide" type="button"><svg class="ic"><use href="#i-route"/></svg>看最短路線</button>
         <div id="solution-progress" class="solution-progress" hidden><span class="spinner sm"></span><span id="solution-status">搜尋中…</span></div>
         <ol id="solution-path" class="metro" hidden></ol>
-        <button id="btn-replay" class="btn primary wide replay-btn" type="button" hidden>▶ 看怎麼點（一步一步示範）</button>
         <p class="sol-tip">點路線上的條目可以直接打開維基百科</p>
       </div>
       <div class="result-actions">
@@ -682,6 +688,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=82"></script>
+  <script type="module" src="app.js?v=83"></script>
 </body>
 </html>
