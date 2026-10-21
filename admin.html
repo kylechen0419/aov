@@ -443,6 +443,7 @@
           <summary>查看規則內容</summary>
           <textarea id="sec-rules" class="sec-rules" readonly></textarea>
         </details>
+        <p class="nt-steps" id="sec-ios" hidden style="margin:8px 0 0;padding:0">📱 iPhone 選完帳號又跳回來、還是沒登入？iPhone 預設會擋住跨網站的登入資料：到 iPhone 的「設定」→「Chrome」打開「允許跨網站追蹤」（用 Safari 的話是「設定」→「Safari」關掉「防止跨網站追蹤」），再按一次「用 Google 登入」。登入一次之後會記住，設定可以再改回來。</p>
         <p class="nt-msg" id="sec-msg"></p>
       </div>
     </details>
@@ -468,7 +469,7 @@
     <div id="multi-grid" class="multi-grid"></div>
   </div>
 
-  <script src="firebase-config.js?v=84"></script>
+  <script src="firebase-config.js?v=85"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -623,6 +624,9 @@
     $('#sec-sum').className = 'sec-s ' + (google ? 'on' : 'warn');
     $('#sec-howto').open = !google;  // 設定好之後步驟收起來
     $('#sec-login').hidden = google;
+    // iPhone、iPad（所有瀏覽器都用 Safari 的核心）：登入資料跨網站會被擋，先說明怎麼解決
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    $('#sec-ios').hidden = google || !ios;
     $('#sec-logout').hidden = !google;
     $('#sec-login').onclick = () => {
       secMsg('');
