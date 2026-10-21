@@ -5024,7 +5024,8 @@ initHome();
 // 線上人數（有設定 firebase-config.js 才會顯示）
 // 管理員從後台打開觀戰（?adminwatch=<玩家 key>）：這個分頁只用來觀戰，不算一個在線玩家
 const adminWatchKey = new URLSearchParams(location.search).get('adminwatch');
-if (!adminWatchKey) {
+// 從後台打開的重播連結（#replay=…）也不算一個在線玩家
+if (!adminWatchKey && !location.hash.startsWith('#replay=')) {
   initPresence((n) => {
     $('#online-count').textContent = n.toLocaleString('en-US');
     $('#online-chip').hidden = !(n > 0);
