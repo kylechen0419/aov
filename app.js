@@ -1966,7 +1966,8 @@ async function shareDaily(key) {
 
 // 首頁按鈕下的小字：今天玩了沒、第幾名、幾個人完成
 let dailyHomeAt = -Infinity;
-const roundAsked = new Set();  // 每一天只為了查輪數讀一次題目（讀不到也不會一直重試）
+const roundAsked = new Set();
+let dailyHomeN = { key: '', n: 0 };  // 上次查到今天有幾個人完成（重畫的時候沿用，不要蓋掉）  // 每一天只為了查輪數讀一次題目（讀不到也不會一直重試）
 function refreshDailyHome() {
   const key = todayKey();
   // 這支手機今天有紀錄、但還不知道是第幾輪（管理員可能重置過）：先讀題目再判斷
@@ -1975,11 +1976,12 @@ function refreshDailyHome() {
   const sub = $('#daily-sub');
   if (m?.win) sub.textContent = `✅ ${m.s} 步${m.rank ? ` · 第 ${m.rank} 名` : ''}`;
   else if (m) sub.textContent = '今天已挑戰 · 明天再來';
-  else sub.textContent = `#${dailyNo(key)} · 每天一題比排名`;
+  else sub.textContent = dailyHomeN.key === key && dailyHomeN.n ? `#${dailyNo(key)} · 已有 ${dailyHomeN.n} 人完成` : `#${dailyNo(key)} · 每天一題比排名`;
   if (m?.win && !m.sent) resendDaily(key);
   if (m || performance.now() - dailyHomeAt < 60000) return;
   dailyHomeAt = performance.now();
   board(key).then((rows) => {
+    if (rows) dailyHomeN = { key, n: rows.length };
     if (rows && rows.length && !myDay(key) && todayKey() === key) sub.textContent = `#${dailyNo(key)} · 已有 ${rows.length} 人完成`;
   });
 }
