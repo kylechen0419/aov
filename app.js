@@ -1,13 +1,13 @@
-import { Net } from './net.js?v=66';
-import { initPresence } from './presence.js?v=66';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=66';
-import { initNotify, notify } from './notify.js?v=66';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=66';
-import * as wiki from './wiki.js?v=66';
-import { tw, twTree, zhReady } from './zh.js?v=66';
-import { makeShareImage } from './share.js?v=66';
-import { solve } from './solver.js?v=66';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=66';
+import { Net } from './net.js?v=67';
+import { initPresence } from './presence.js?v=67';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=67';
+import { initNotify, notify } from './notify.js?v=67';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=67';
+import * as wiki from './wiki.js?v=67';
+import { tw, twTree, zhReady } from './zh.js?v=67';
+import { makeShareImage } from './share.js?v=67';
+import { solve } from './solver.js?v=67';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=67';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -532,7 +532,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=67').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1305,10 +1305,20 @@ function soloSetup(name) {
 
 // ---------- 每日挑戰 ----------
 // 全台灣每天同一題；按下開始就算用掉今天的正式機會（中途關掉、投降都不能重來刷成績），之後再玩只算練習
+// 視窗正在顯示哪一天的題目（過了午夜按開始，要換成新的一天重新顯示，不能偷偷玩到別題）
+let dailyModalKey = null;
+// 題目讀到後先記著：分享時要馬上組出文字（iPhone 的分享和複製必須在點擊當下呼叫，不能先等網路）
+const dailyPuzzles = {};
 function openDaily() {
   const key = todayKey();
+  dailyModalKey = key;
   $('#daily-modal').hidden = false;
   showError('#daily-error');
+  $('#daily-start').textContent = '讀取中…';
+  $('#daily-target').textContent = '';
+  $('#daily-board').replaceChildren(Object.assign(document.createElement('li'), { className: 'daily-empty', textContent: '讀取中…' }));
+  $('#daily-count').textContent = '–';
+  $('#daily-best').textContent = '–';
   $('#daily-name').value = $('#nickname').value.trim();
   $('#daily-name-row').hidden = !!$('#daily-name').value;
   $('#daily-title').textContent = `📅 每日挑戰 #${dailyNo(key)}`;
@@ -1316,7 +1326,8 @@ function openDaily() {
   renderDailyMine(key);
   puzzle(key).then(async (p) => {
     await zhReady;
-    if (todayKey() !== key) return;
+    dailyPuzzles[key] = p;
+    if (dailyModalKey !== key) return;
     $('#daily-start').textContent = tw(p.start);
     $('#daily-target').textContent = tw(p.target);
   }, (e) => {
@@ -1324,7 +1335,18 @@ function openDaily() {
     $('#daily-target').textContent = '';
     showError('#daily-error', e.message);
   });
-  renderDailyBoard(key);
+  resendDaily(key).finally(() => renderDailyBoard(key));
+}
+
+// 第一次完成時網路不通、成績沒送出去：之後打開時再補送
+let resending = null;
+function resendDaily(key) {
+  const m = myDay(key);
+  if (!m?.win || m.sent) return Promise.resolve();
+  resending ||= submit(key, deviceId, { n: m.n || $('#nickname').value.trim() || '玩家', a: m.a || '', s: m.s, t: m.t, h: m.h ? 1 : 0 })
+    .then((ok) => { if (ok) saveDay(key, { ...myDay(key), sent: true }); })
+    .finally(() => { resending = null; });
+  return resending;
 }
 
 function renderDailyMine(key) {
@@ -1374,23 +1396,28 @@ async function startDaily() {
     $('#daily-name').focus();
     return;
   }
+  if (todayKey() !== dailyModalKey) {
+    openDaily();
+    showError('#daily-error', '已經過了午夜，換成今天的新題目囉！');
+    return;
+  }
   const btn = $('#daily-go');
   btn.disabled = true;
   btn.textContent = '準備路線中…';
   showError('#daily-error');
   try {
-    const p = await puzzle(todayKey());
+    const p = await puzzle(dailyModalKey);
+    dailyPuzzles[p.key] = p;
     const s = { ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed', allowBack: true, trueRandom: false };
     s.start = await wiki.resolveTitle('zh', p.start);
     s.target = await wiki.resolveTitle('zh', p.target);
     $('#nickname').value = name;
     soloSetup(name);
-    const first = !myDay(p.key);
-    state.daily = { ...p, first, recorded: false };
-    if (first) saveDay(p.key, { tried: 1 });
+    // 正式機會要等起點條目真的載入後才算用掉（訊號不好載不出來不算）
+    state.daily = { ...p, first: !myDay(p.key), started: false, recorded: false };
     state.settings = s;
     $('#daily-modal').hidden = true;
-    setConn(first ? `每日挑戰 #${p.no}` : '每日挑戰・練習');
+    setConn(state.daily.first ? `每日挑戰 #${p.no}` : '每日挑戰・練習');
     startGame(s, randomKey());
     notify('solo', '有人在玩每日挑戰', `#${p.no}　${tw(s.start)} → ${tw(s.target)}`);
   } catch (e) {
@@ -1407,15 +1434,22 @@ function renderDailyResult(g) {
   const f = g.finished;
   const win = f.reason === 'win';
   $('#daily-result').hidden = false;
+  $('#daily-result').dataset.key = d.key;
   $('#dres-title').textContent = `📅 每日挑戰 #${d.no}`;
   $('#dres-rank').textContent = '';
+  if (d.first && !d.started) {
+    // 起點根本沒載入（訊號不好）：這次不算，還可以重新挑戰
+    $('#dres-sub').textContent = '起點條目沒有載入成功，這次不算，可以回首頁重新挑戰。';
+    $('#dres-share').hidden = true;
+    return;
+  }
   if (d.first && !d.recorded) {
     d.recorded = true;
-    const rec = { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown };
+    const rec = { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown, n: state.myName, a: state.myAvatar || '', sent: false };
     saveDay(d.key, rec);
     if (win) {
       $('#dres-rank').textContent = '排名計算中…';
-      submit(d.key, deviceId, { n: state.myName, a: state.myAvatar || '', s: rec.s, t: rec.t, h: rec.h ? 1 : 0 }).then(() => refreshDailyRank(d));
+      resendDaily(d.key).then(() => refreshDailyRank(d));
     }
   } else {
     refreshDailyRank(d);
@@ -1443,8 +1477,7 @@ async function refreshDailyRank(d) {
 async function shareDaily(key) {
   const m = myDay(key);
   if (!m?.win) return;
-  const p = await puzzle(key);
-  await zhReady;
+  const p = dailyPuzzles[key] || await puzzle(key);
   const blocks = m.s <= 15 ? '🟦'.repeat(Math.max(0, m.s - 1)) + '🎯' : `🟦 ×${m.s - 1} 🎯`;
   const rank = m.rank ? `　🏆 第 ${m.rank} 名／${m.of} 人` : '';
   const url = `${location.origin}${location.pathname}?daily`;
@@ -1456,7 +1489,7 @@ async function shareDaily(key) {
 }
 
 // 首頁按鈕下的小字：今天玩了沒、第幾名、幾個人完成
-let dailyHomeAt = 0;
+let dailyHomeAt = -Infinity;
 function refreshDailyHome() {
   const key = todayKey();
   const m = myDay(key);
@@ -1464,6 +1497,7 @@ function refreshDailyHome() {
   if (m?.win) sub.textContent = `✅ ${m.s} 步${m.rank ? ` · 第 ${m.rank} 名` : ''}`;
   else if (m) sub.textContent = '今天已挑戰 · 明天再來';
   else sub.textContent = `#${dailyNo(key)} · 每天一題比排名`;
+  if (m?.win && !m.sent) resendDaily(key);
   if (m || performance.now() - dailyHomeAt < 60000) return;
   dailyHomeAt = performance.now();
   board(key).then((rows) => {
@@ -1477,7 +1511,7 @@ function initDaily() {
   $('#daily-modal').addEventListener('click', (e) => { if (e.target.id === 'daily-modal') $('#daily-modal').hidden = true; });
   $('#daily-go').onclick = startDaily;
   $('#daily-share').onclick = () => shareDaily(todayKey());
-  $('#dres-share').onclick = () => { if (state.daily) shareDaily(state.daily.key); };
+  $('#dres-share').onclick = () => { const k = $('#daily-result').dataset.key; if (k) shareDaily(k); };
   $('#dres-board').onclick = openDaily;
   refreshDailyHome();
 }
@@ -1818,6 +1852,11 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
     g.current = art.title;
     renderArticle(art);
     if (spot) restoreSpot(spot);
+    if (first && state.daily && !state.daily.started) {
+      state.daily.started = true;
+      // 起點載入了才算正式開始：從這一刻起中途離開、投降都不能重來
+      if (state.daily.first) saveDay(state.daily.key, { tried: 1, n: state.myName, a: state.myAvatar || '' });
+    }
     renderBreadcrumb(g);
     $('#hud-clicks').textContent = g.clicks;
     fillPath($('#hud-path'), g.path, g.settings.target);
@@ -2575,7 +2614,7 @@ function showSoloResult(g) {
   $('#btn-share').hidden = true;
   $('#btn-solo-home').hidden = false;
   $('#btn-rematch').disabled = false;
-  $('#btn-rematch').textContent = '🎯 再練一題';
+  $('#btn-rematch').textContent = state.daily ? '📅 再挑戰一次' : '🎯 再練一題';
   if (state.view !== 'result') show('result');
   if (win) { sfx.win(); confetti(); haptic('success'); }
   else { sfx.lose(); shake($('#result-hero').querySelector('.medal')); haptic('error'); }
@@ -3276,7 +3315,7 @@ async function openShare() {
 
 function initResult() {
   $('#btn-rematch').onclick = () => {
-    if (state.solo) { openSolo(); return; }  // 單人訓練：再出一題
+    if (state.solo) { if (state.daily) openDaily(); else openSolo(); return; }  // 單人訓練：再出一題；每日挑戰：回到今天的題目
     // 派對還沒全部比完就先回房間：用目前的名次記進最近對戰
     const g = state.game;
     if (g?.finished && !loadHistory().some((h) => h.id === g.id)) saveHistory(g, resultInfo(g));
@@ -3939,5 +3978,8 @@ if (!store.get('wikirace-tutorial-done') && !session.load()) {
   if (new URLSearchParams(location.search).get('room') || fromDaily) $('#tut-hint').hidden = false;
   else openTutorial();
 }
-if (fromDaily && !session.load()) openDaily();
+if (fromDaily && !session.load()) {
+  openDaily();
+  try { history.replaceState(null, '', location.pathname); } catch { /* 忽略 */ }
+}
 $('#tut-hint').onclick = () => { $('#tut-hint').hidden = true; openTutorial(); };

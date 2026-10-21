@@ -1,8 +1,10 @@
 // 每日挑戰：全台灣每天同一題（台灣時間午夜換題），每支手機第一次完成的成績進今日排行榜。
-// 題目用日期當種子從題庫抽，只看「條目存在、不是消歧義頁」這種每個人查都一樣的條件，所以大家算出來的題目相同。
-// 排行榜存在 Firebase 的 stats/daily/<日期>/<手機代號>；沒設定 Firebase 時一樣能玩，只是沒有排行榜。
-import { getDb } from './fb.js?v=66';
-import { api } from './wiki.js?v=66';
+// 題目用日期當種子從題庫抽，只看「條目存在、不是消歧義頁」這種每個人查都一樣的條件。
+// 第一個算出今天題目的人會把它存進 Firebase（stats/dailyPuzzle/<日期>），之後大家都讀這一份，
+// 所以就算當天維基百科有人改了條目、或題庫更新，同一天的題目也不會變。
+// 排行榜存在 stats/daily/<日期>/<手機代號>；沒設定 Firebase 時一樣能玩（題目靠自己算），只是沒有排行榜。
+import { getDb } from './fb.js?v=67';
+import { api } from './wiki.js?v=67';
 
 const LAUNCH = '2026-10-21';  // 第 1 期
 const LOG = 'wikirace-daily-log';
@@ -25,9 +27,21 @@ function seeded(text) {
   };
 }
 
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
+// Firebase SDK 載不下來也不要卡住
+const database = () => withTimeout(getDb(), 8000).catch(() => null);
+
+// 維基百科有時回 200 但內容是錯誤（太忙、維護中）：一定要當成失敗重試，
+// 不能當成「條目不存在」跳過，不然這支手機抽到的題目會跟別人不一樣
+async function ask(params) {
+  const d = await api('zh', params);
+  if (!d || d.error || !d.query) throw new Error('維基百科暫時沒有回應，請稍後再試');
+  return d;
+}
+
 // 條目存在、在主命名空間、不是消歧義頁：回傳正式標題，否則 null
 async function realTitle(title) {
-  const d = await api('zh', { action: 'query', titles: title, redirects: '1', converttitles: '1', prop: 'pageprops', ppprop: 'disambiguation' });
+  const d = await ask({ action: 'query', titles: title, redirects: '1', converttitles: '1', prop: 'pageprops', ppprop: 'disambiguation' });
   const p = d.query?.pages?.[0];
   if (!p || p.missing || p.invalid || p.ns !== 0) return null;
   if (p.pageprops && 'disambiguation' in p.pageprops) return null;
@@ -36,28 +50,54 @@ async function realTitle(title) {
 
 // 起點那一頁是不是直接就有終點的連結（一步就到太無聊，換一題）
 async function linksDirectly(from, to) {
-  const d = await api('zh', { action: 'query', titles: from, prop: 'links', pltitles: to, plnamespace: '0', redirects: '1' });
+  const d = await ask({ action: 'query', titles: from, prop: 'links', pltitles: to, plnamespace: '0', redirects: '1' });
   return !!d.query?.pages?.[0]?.links?.length;
 }
 
+// 自己從題庫算出今天的題目
+async function compute(key) {
+  const { TOPICS } = await import('./topics.js?v=67');
+  const rnd = seeded(`wikirace-daily-${key}`);
+  const pick = async (avoid) => {
+    for (let i = 0; i < 25; i++) {
+      const t = await realTitle(TOPICS[Math.floor(rnd() * TOPICS.length)]);
+      if (t && !avoid.includes(t)) return t;
+    }
+    throw Object.assign(new Error('今天的題目讀取失敗，請稍後再試'), { exhausted: true });
+  };
+  const start = await pick([]);
+  let target = await pick([start]);
+  for (let i = 0; i < 6 && await linksDirectly(start, target); i++) {
+    // 真的換不到就用原本的；網路錯誤要整個重來，不能各手機各自決定
+    try { target = await pick([start, target]); } catch (e) { if (!e.exhausted) throw e; break; }
+  }
+  return { start, target };
+}
+
+const okPuzzle = (v) => !!(v && typeof v.start === 'string' && typeof v.target === 'string' && v.start && v.target && v.start !== v.target && v.start.length < 200 && v.target.length < 200);
 const puzzles = {};
 export function puzzle(key = todayKey()) {
   puzzles[key] ||= (async () => {
-    const { TOPICS } = await import('./topics.js?v=66');
-    const rnd = seeded(`wikirace-daily-${key}`);
-    const pick = async (avoid) => {
-      for (let i = 0; i < 25; i++) {
-        const t = await realTitle(TOPICS[Math.floor(rnd() * TOPICS.length)]);
-        if (t && !avoid.includes(t)) return t;
-      }
-      throw new Error('今天的題目讀取失敗，請稍後再試');
-    };
-    const start = await pick([]);
-    let target = await pick([start]);
-    for (let i = 0; i < 6 && await linksDirectly(start, target); i++) {
-      try { target = await pick([start, target]); } catch { break; }  // 換不到就用原本的
+    const base = { key, no: dailyNo(key) };
+    const db = await database();
+    const ref = db && db.ref(`stats/dailyPuzzle/${key}`);
+    // 已經有人算好今天的題目：直接用那一份
+    if (ref) {
+      try {
+        const v = (await withTimeout(ref.once('value'), 6000)).val();
+        if (okPuzzle(v)) return { ...base, start: v.start, target: v.target };
+      } catch { /* 讀不到就自己算 */ }
     }
-    return { key, no: dailyNo(key), start, target };
+    const mine = await compute(key);
+    // 搶著存：如果有人剛好先存了，就用他的（transaction 保證只會有一份）
+    if (ref) {
+      try {
+        const res = await withTimeout(ref.transaction((cur) => (okPuzzle(cur) ? undefined : { start: mine.start, target: mine.target, at: Date.now() })), 6000);
+        const v = res?.snapshot?.val();
+        if (okPuzzle(v)) return { ...base, start: v.start, target: v.target };
+      } catch { /* 存不進去也照樣用自己算的 */ }
+    }
+    return { ...base, ...mine };
   })();
   puzzles[key].catch(() => { delete puzzles[key]; });
   return puzzles[key];
@@ -88,14 +128,12 @@ export function streak(key = todayKey()) {
 const clean = (id, r) => {
   if (!r || typeof r !== 'object') return null;
   const s = Math.round(Number(r.s)), t = Math.round(Number(r.t));
-  if (!(s >= 1 && s <= 500 && t >= 1000 && t <= 6 * 3600e3)) return null;
+  if (!(s >= 1 && s <= 999 && t >= 1000 && t <= 24 * 3600e3)) return null;
   return { id, n: String(r.n || '').trim().slice(0, 16) || '玩家', a: typeof r.a === 'string' ? r.a.slice(0, 32) : '', s, t, h: !!r.h };
 };
-const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
-
 // 回傳依「步數少→時間短」排好的成績；沒有 Firebase 或連不上回傳 null
 export async function board(key) {
-  const db = await getDb();
+  const db = await database();
   if (!db) return null;
   try {
     const snap = await withTimeout(db.ref(`stats/daily/${key}`).once('value'), 6000);
@@ -106,7 +144,7 @@ export async function board(key) {
 
 // 送出今天的成績（只有第一次完成會呼叫）
 export async function submit(key, id, rec) {
-  const db = await getDb();
+  const db = await database();
   if (!db) return false;
   try { await withTimeout(db.ref(`stats/daily/${key}/${id}`).set({ ...rec, at: Date.now() }), 6000); return true; } catch { return false; }
 }
