@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=78';
-import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=78';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=78';
-import { initNotify, notify } from './notify.js?v=78';
-import { getDb, getUid, authOff } from './fb.js?v=78';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=78';
-import * as wiki from './wiki.js?v=78';
-import { tw, twTree, zhReady } from './zh.js?v=78';
-import { makeShareImage } from './share.js?v=78';
-import { solve } from './solver.js?v=78';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=78';
+import { Net } from './net.js?v=79';
+import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=79';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=79';
+import { initNotify, notify } from './notify.js?v=79';
+import { getDb, getUid, authOff } from './fb.js?v=79';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=79';
+import * as wiki from './wiki.js?v=79';
+import { tw, twTree, zhReady } from './zh.js?v=79';
+import { makeShareImage } from './share.js?v=79';
+import { solve } from './solver.js?v=79';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=79';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -626,7 +626,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=78').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=79').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -892,6 +892,9 @@ function renderRoom() {
   renderRoomScore();
   $('#row-lastcall').hidden = !party;
   $('#btn-transfer').hidden = !(host && onlineGuests().length);
+  $('#btn-change-goal').hidden = !host;
+  // 房主第一次進房間：「玩法」先展開，讓人知道可以在這裡換（之後照自己上次的開關）
+  if (host && store.get('wikirace-fold-goal') === null) { const d = form().querySelector('details[data-fold="goal"]'); if (d && !d.open) d.open = true; }
   $('.versus').hidden = party;
   $('#party-board').hidden = !party;
   if (party) renderPartyBoard(); else renderDuelSlots();
@@ -1232,6 +1235,15 @@ function initRoom() {
     }
   });
   form().addEventListener('change', () => { paintOppViewDesc(); if (net.isHost) broadcastSettings(); paintFoldSummaries(); });
+  // 房主：上方的「換玩法」直接打開「玩法」那一段
+  $('#btn-change-goal').onclick = () => {
+    const d = form().querySelector('details[data-fold="goal"]');
+    d.open = true;
+    d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    d.classList.remove('glow');
+    void d.offsetWidth;
+    d.classList.add('glow');
+  };
   // 收合／展開記在這支手機
   for (const d of form().querySelectorAll('details.fold')) {
     const k = `wikirace-fold-${d.dataset.fold}`;

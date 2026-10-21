@@ -114,6 +114,8 @@ symbol .fill { fill: currentColor; stroke: none; }
 .fold[open] .fold-sum::after { transform: rotate(-135deg); margin-top: 3px; }
 .fold[open] .fold-sum span { display: none; }
 .fold > .card { margin-top: 10px; }
+.fold.glow > .card { animation: foldFlash 1.2s ease-out; }
+@keyframes foldFlash { 0%, 40% { box-shadow: 0 0 0 4px var(--yellow), var(--shadow); } 100% { box-shadow: var(--shadow); } }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .14em; }
 
 /* 首頁主視覺 */
@@ -996,6 +998,7 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 }
 .room-goal.steps { background: #fff4cc; color: #a06a00; }
 .room-goal:empty { display: none; }
+.room-change { margin: 6px 0 0 6px; border: 0; font: inherit; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 999px; background: var(--blue); color: #fff; cursor: pointer; vertical-align: middle; box-shadow: 0 2px 0 var(--blue-d); }
 .hud-goal {
   margin-left: auto; flex: none; font-size: 12px; font-weight: 900; white-space: nowrap;
   background: #fff; color: var(--yellow-ink); padding: 3px 9px; border-radius: 999px;
