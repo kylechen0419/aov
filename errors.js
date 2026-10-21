@@ -1,6 +1,6 @@
 // 錯誤回報：遊戲出錯時記一筆到 errors/（只有管理員讀得到），後台看得到是哪一版、在哪裡、多少人遇到。
 // 同一個錯誤只報一次、一個分頁最多報 10 筆，不會洗版；沒設定 Firebase 就什麼都不做
-import { getDb, getUid } from './fb.js?v=89';
+import { getDb, getUid } from './fb.js?v=90';
 
 const VERSION = Number(new URL(import.meta.url).searchParams.get('v')) || 0;
 const sent = new Set();
@@ -18,7 +18,7 @@ export async function reportError(where, err) {
     const u = db && (await getUid());
     if (!u) return;
     const st = String(err?.stack || '').split('\n').slice(0, 5).map((x) => x.trim()).join(' | ').slice(0, 600);
-    import('./rooms.js?v=89').then((m) => m.countToday('errors', 1)).catch(() => {});
+    import('./rooms.js?v=90').then((m) => m.countToday('errors', 1)).catch(() => {});
     await db.ref('errors').push({ at: Date.now(), v: VERSION, msg, where: String(where).slice(0, 40), ua: navigator.userAgent.slice(0, 200), u, ...(st ? { st } : {}) });
   } catch { /* 回報失敗就算了 */ }
 }

@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=89';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=89';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=89';
-import { initNotify, notify } from './notify.js?v=89';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=89';
-import { reportError, catchErrors } from './errors.js?v=89';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=89';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=89';
-import * as wiki from './wiki.js?v=89';
-import { tw, twTree, zhReady } from './zh.js?v=89';
-import { makeShareImage } from './share.js?v=89';
-import { solve } from './solver.js?v=89';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=89';
+import { Net } from './net.js?v=90';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=90';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=90';
+import { initNotify, notify } from './notify.js?v=90';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=90';
+import { reportError, catchErrors } from './errors.js?v=90';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=90';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=90';
+import * as wiki from './wiki.js?v=90';
+import { tw, twTree, zhReady } from './zh.js?v=90';
+import { makeShareImage } from './share.js?v=90';
+import { solve } from './solver.js?v=90';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=90';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=89').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=90').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1555,6 +1555,8 @@ async function autoTakeOver() {
   else { renderOppHud(); syncRoom(true); }
   setConn(onlineGuests().length ? '已連線' : (isParty() ? '等待玩家' : '等待對手'), true);
   sysChat(`${oldName} 離線了，${state.myName} 成為新房主`);
+  // 舊房主在找的最佳解答跟著斷了：新房主接著找
+  if (g && !g.solution?.path) { if (g.solution?.remote) g.solution = null; prefetchSolution(g); }
   toast(`${oldName} 離線了，你成為新房主`, 4000);
   sfx.ready();
   haptic('success');
@@ -2111,6 +2113,8 @@ function startGame(settings, id) {
     g.timer = setInterval(tick, 200);
     syncRoom(true);
     goTo(settings.start, { first: true, preload });
+    // 起點讀完之後就開始在背景找最佳解答（不跟第一頁搶網路）
+    setTimeout(() => prefetchSolution(g), 4000);
   }, 1000);
 }
 
@@ -3368,6 +3372,7 @@ const SOLVE_STAGE = {
   start: '讀取起點和終點…',
   search: (s) => `找路線中…已看過 ${s.checked || 0} 個條目${s.depth ? `，正在找 ${s.depth} 步的路線` : ''}`,
   verify: '確認每一步在遊戲裡都點得到…',
+  host: '房主那邊正在找最佳路線，找到會直接出現…',
   busy: '維基百科有點忙，休息幾秒再接著找…',
 };
 const SOLVE_FAIL = {
@@ -3387,6 +3392,8 @@ function renderSolution(g) {
   $('#btn-replay').hidden = !(sol && sol.path && sol.path.length > 1);
   if (!sol) {
     $('#solution-note').textContent = nobody ? '沒有人抵達，看看可以怎麼走' : '';
+    // 房間裡的玩家：房主比賽一開始就在找了，等它傳過來
+    if (!state.solo && net.code && !net.isHost && g.mode) { waitHostSolution(g); renderSolution(g); return; }
     if (nobody && done) findSolution(g);
     return;
   }
@@ -3453,28 +3460,49 @@ function namesOf(lang, title, key) {
 }
 
 // 逐步確認路線點得到；回傳每一步要點的連結（給示範播放用），或第一個點不到的步驟
-async function verifyPath(settings, path, key) {
-  const checks = path.slice(0, -1).map(async (from, i) => {
+// limit：比賽中在背景找的時候，一步一步慢慢確認（跟找路線一樣讓玩家換頁優先）
+async function verifyPath(settings, path, key, limit = null) {
+  const check = async (i) => {
+    const from = path[i];
     const to = path[i + 1];
     try {
-      const [links, names] = await Promise.all([clickableLinks(settings, from), namesOf(settings.lang, to, key)]);
+      const [links, names] = limit
+        ? [await limit(() => clickableLinks(settings, from)), await limit(() => namesOf(settings.lang, to, key))]
+        : await Promise.all([clickableLinks(settings, from), namesOf(settings.lang, to, key)]);
       const via = links.find((t) => names.has(key(t)));
       return via ? { via } : { bad: [from, to] };
     } catch {
       return { via: null };  // 網路問題沒辦法確認：先當作可以（示範時再找）
     }
-  });
-  const res = await Promise.all(checks);
+  };
+  const steps = path.slice(0, -1).map((_, i) => i);
+  const res = [];
+  if (limit) for (const i of steps) res.push(await check(i));
+  else res.push(...await Promise.all(steps.map(check)));
   const bad = res.find((r) => r.bad);
   return bad ? { bad: bad.bad } : { via: res.map((r) => r.via) };
 }
 
-async function findSolution(g) {
-  if (g.solution?.running) return;
+// background：比賽一開始就在背景找（見 prefetchSolution）。自己還在比的時候放慢：一次只問一個、
+// 自己正在換頁就先讓路，比賽才不會因為找答案變卡；自己比完就全速找完
+async function findSolution(g, { background = false } = {}) {
+  if (g.solution?.running && !g.solution.remote) return;
   g.solution = { running: true, stage: 'start', checked: 0 };
-  renderSolution(g);
   const key = g.settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
   const show = () => { if (state.game === g && state.view === 'result') renderSolution(g); };
+  show();
+  const gentle = () => background && state.game === g && !g.finished;
+  let chain = Promise.resolve();
+  const limit = (fn) => {
+    if (!gentle()) return fn();
+    const run = chain.then(async () => {
+      while (gentle() && g.loading) await wait(200);
+      if (gentle()) await wait(150);
+      return fn();
+    });
+    chain = run.catch(() => {});
+    return run;
+  };
   await zhReady;
   const banned = new Set();
   let found = null;
@@ -3491,7 +3519,8 @@ async function findSolution(g) {
     try {
       for (let attempt = 0; attempt < 8 && !found; attempt++) {
         const res = await solve(g.settings.lang, g.settings.start, g.settings.target, {
-          key, banned,
+          key, banned, limit,
+          timeLimit: background ? 1800000 : undefined,  // 背景找可以慢慢來（比賽可能很久）
           onProgress: ({ stage, checked, depth }) => {
             if (state.game !== g || !g.solution?.running) return;
             Object.assign(g.solution, { stage, checked, depth });
@@ -3505,7 +3534,7 @@ async function findSolution(g) {
         }
         Object.assign(g.solution, { stage: 'verify' });
         show();
-        const v = await verifyPath(g.settings, res.path, key);
+        const v = await verifyPath(g.settings, res.path, key, background ? limit : null);
         if (!g.solution?.running) return;
         if (v.bad) { banned.add(`${key(v.bad[0])}→${key(v.bad[1])}`); continue; }
         found = { path: res.path, exact: res.exact, via: v.via };
@@ -3522,6 +3551,25 @@ async function findSolution(g) {
     g.solution = final ? { path: null, reason: final } : lastErr ? { path: null, error: lastErr.message } : { path: null, reason: 'timeout' };
   }
   show();
+}
+
+// 比賽開始就先找最佳解答：多人房間只有房主找（一間房找一次，找到後只傳給比完的人），單人訓練、每日挑戰自己找
+function prefetchSolution(g) {
+  if (!g || state.game !== g || g.solution || state.adminWatch) return;
+  if (!state.solo && !net.isHost) return;
+  findSolution(g, { background: true });
+}
+
+// 玩家比完了：房主那邊已經在找，先等它傳過來；等太久（例如房主是舊版、或房主斷線）就自己找
+const REMOTE_WAIT = 60000;
+function waitHostSolution(g) {
+  g.solution = { running: true, stage: 'host', remote: true };
+  setTimeout(() => {
+    if (state.game === g && g.solution?.remote && g.solution.running) {
+      g.solution = null;
+      findSolution(g);
+    }
+  }, REMOTE_WAIT);
 }
 
 // ---------- 解答分享：一個人找到，房間裡比完的人都看得到 ----------

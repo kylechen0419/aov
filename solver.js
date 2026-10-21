@@ -5,7 +5,7 @@
 // 沒有步數上限：只要路線存在，遲早會碰到。兩邊都是一整層一整層地展開，
 // 第一次碰到的那條就一定是最短的（之前的層都沒碰到，表示更短的路線不存在）。
 // 重新導向（例如「台灣」→「臺灣」）不算一步：連到重新導向頁就等於連到它指向的條目。
-import { api as wikiApi } from './wiki.js?v=89';
+import { api as wikiApi } from './wiki.js?v=90';
 // 找解答時被擋（429）或網路不穩：每個請求多等幾次（最久等一分多鐘），不要整個放棄
 const api = (lang, params) => wikiApi(lang, params, { retries: 7 });
 
@@ -14,9 +14,11 @@ const PARALLEL = 3;        // 同時發幾個請求（太多會被維基百科�
 const TIME_LIMIT = 240000; // 一輪最多找 4 分鐘（找不到會再接著找，見 app.js findSolution）
 
 // banned：驗證時發現「其實點不到」的步驟（`${key(從)}→${key(到)}`），重找時避開
-export async function solve(lang, start, target, { key = (t) => t, onProgress = () => {}, banned = new Set(), signal = null } = {}) {
+// limit：每個請求都交給它發（比賽中在背景找時，用它放慢速度、讓玩家換頁優先）；timeLimit：這一輪最多找多久
+export async function solve(lang, start, target, { key = (t) => t, onProgress = () => {}, banned = new Set(), signal = null, limit = null, timeLimit = TIME_LIMIT } = {}) {
   const t0 = performance.now();
-  const late = () => performance.now() - t0 > TIME_LIMIT || !!signal?.aborted;
+  const late = () => performance.now() - t0 > timeLimit || !!signal?.aborted;
+  const ask = (params) => (limit ? limit(() => api(lang, params)) : api(lang, params));
   let checked = 0;
   let depthF = 0;
   let depthB = 0;
@@ -24,7 +26,7 @@ export async function solve(lang, start, target, { key = (t) => t, onProgress = 
   const isBanned = (from, to) => banned.size > 0 && banned.has(`${from}→${to}`);
 
   // 起點、終點先換成正式標題（處理重新導向和簡繁寫法）
-  const ends = await api(lang, { action: 'query', titles: `${start}|${target}`, redirects: '1', converttitles: '1' });
+  const ends = await ask({ action: 'query', titles: `${start}|${target}`, redirects: '1', converttitles: '1' });
   const resolved = resolveMap(ends.query);
   start = resolved(start);
   target = resolved(target);
@@ -61,7 +63,7 @@ export async function solve(lang, start, target, { key = (t) => t, onProgress = 
         const titles = batch.map((k) => fwd.get(k).title);
         let cont = {};
         do {
-          const d = await api(lang, { action: 'query', titles: titles.join('|'), prop: 'links', plnamespace: '0', pllimit: 'max', redirects: '1', ...cont });
+          const d = await ask({ action: 'query', titles: titles.join('|'), prop: 'links', plnamespace: '0', pllimit: 'max', redirects: '1', ...cont });
           const res = resolveMap(d.query);
           // 回應裡的條目是正式標題：對回當初查的是哪一個節點
           const nodeOf = new Map();
@@ -114,7 +116,7 @@ export async function solve(lang, start, target, { key = (t) => t, onProgress = 
         const byKey = new Map(batch.map((n) => [key(n.title), n.to]));
         let cont = {};
         do {
-          const d = await api(lang, { action: 'query', titles: batch.map((n) => n.title).join('|'), prop: 'linkshere', lhnamespace: '0', lhprop: 'title|redirect', lhlimit: 'max', ...cont });
+          const d = await ask({ action: 'query', titles: batch.map((n) => n.title).join('|'), prop: 'linkshere', lhnamespace: '0', lhprop: 'title|redirect', lhlimit: 'max', ...cont });
           for (const p of d.query?.pages || []) {
             const to = byKey.get(key(p.title));
             if (!to || !p.linkshere) continue;
@@ -148,7 +150,7 @@ export async function solve(lang, start, target, { key = (t) => t, onProgress = 
         const batch = queue.shift();
         let cont = {};
         do {
-          const d = await api(lang, { action: 'query', titles: batch.map((k) => bwd.get(k).title).join('|'), prop: 'redirects', rdnamespace: '0', rdlimit: 'max', ...cont }).catch(() => null);
+          const d = await ask({ action: 'query', titles: batch.map((k) => bwd.get(k).title).join('|'), prop: 'redirects', rdnamespace: '0', rdlimit: 'max', ...cont }).catch(() => null);
           if (!d) break;
           for (const p of d.query?.pages || []) {
             const to = key(p.title);
