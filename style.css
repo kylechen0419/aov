@@ -106,14 +106,37 @@ symbol .fill { fill: currentColor; stroke: none; }
 .section-note { font-weight: 500; font-size: 12px; opacity: .85; }
 /* 房間設定：每一段可以收合，標題右邊是目前選了什麼 */
 .fold { min-width: 0; }
-.fold > summary { list-style: none; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; margin: 6px 6px 0; align-items: center; gap: 10px; }
+/* 收起來時是一張白色卡片：左邊圖示、中間標題和目前設定（小標籤）、右邊「調整」按鈕；打開後跟內容連成同一張卡 */
+.fold > summary {
+  list-style: none; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  display: flex; align-items: center; gap: 12px; margin: 0;
+  background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 14px 14px 14px;
+  transition: transform .12s;
+}
+.fold > summary:active { transform: scale(.985); }
 .fold > summary::-webkit-details-marker { display: none; }
-.fold-sum { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 700; font-size: 12px; opacity: .92; text-shadow: none; }
-.fold-sum span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fold-sum::after { content: ''; flex: none; width: 7px; height: 7px; border-right: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(45deg); margin-top: -4px; transition: transform .2s; }
-.fold[open] .fold-sum::after { transform: rotate(-135deg); margin-top: 3px; }
-.fold[open] .fold-sum span { display: none; }
-.fold > .card { margin-top: 10px; }
+.fold[open] > summary { border-radius: var(--r) var(--r) 0 0; box-shadow: none; padding-bottom: 6px; }
+.fold-ico { flex: none; width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-size: 21px; background: var(--card-2); }
+.fold-main { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.fold-title { font-size: 17px; font-weight: 900; color: var(--ink); line-height: 1.2; }
+.fold-note { font-size: 12px; font-weight: 700; color: var(--muted); margin-left: 4px; }
+.fold-sum { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.fold-sum span {
+  font-size: 13.5px; font-weight: 800; line-height: 1.25; color: var(--blue-d); background: #eaf1ff;
+  padding: 4px 10px; border-radius: 999px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fold[open] .fold-sum { display: none; }
+.fold-btn {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 900; color: #fff;
+  background: var(--blue); padding: 8px 13px; border-radius: 999px; box-shadow: 0 3px 0 var(--blue-d);
+}
+.fold-btn::before { content: '調整'; }
+.settings.readonly .fold-btn::before { content: '查看'; }
+.fold-btn::after { content: ''; width: 7px; height: 7px; border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; transform: rotate(45deg); margin: -4px 1px 0 0; transition: transform .2s; }
+.fold[open] .fold-btn { background: var(--card-2); color: var(--muted); box-shadow: none; }
+.fold[open] .fold-btn::before { content: '收起'; }
+.fold[open] .fold-btn::after { transform: rotate(-135deg); margin-top: 4px; }
+.fold > .card { margin-top: 0; border-radius: 0 0 var(--r) var(--r); }
 .fold.glow > .card { animation: foldFlash 1.2s ease-out; }
 @keyframes foldFlash { 0%, 40% { box-shadow: 0 0 0 4px var(--yellow), var(--shadow); } 100% { box-shadow: var(--shadow); } }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .14em; }

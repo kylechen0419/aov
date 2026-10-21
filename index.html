@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=80">
+  <link rel="stylesheet" href="style.css?v=81">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=80"></script>
+  <script src="firebase-config.js?v=81"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -186,7 +186,7 @@
 
     <form id="settings-form" class="page settings" autocomplete="off">
       <details class="fold" data-fold="route" open>
-        <summary class="section-title fold-head"><span>路線 <span id="host-only-hint" class="section-note" hidden>只有房主可以修改</span></span><span class="fold-sum" id="fold-route"></span></summary>
+        <summary class="fold-head"><span class="fold-ico" aria-hidden="true">🗺️</span><span class="fold-main"><span class="fold-title">路線 <span id="host-only-hint" class="fold-note" hidden>只有房主可以修改</span></span><span class="fold-sum" id="fold-route"></span></span><span class="fold-btn" aria-hidden="true"></span></summary>
       <div class="card route-card">
         <div class="route-line" aria-hidden="true"></div>
         <label class="route-stop" for="set-start">
@@ -211,7 +211,7 @@
       </details>
 
       <details class="fold" data-fold="goal">
-        <summary class="section-title fold-head"><span>玩法</span><span class="fold-sum" id="fold-goal"></span></summary>
+        <summary class="fold-head"><span class="fold-ico" aria-hidden="true">🎮</span><span class="fold-main"><span class="fold-title">玩法</span><span class="fold-sum" id="fold-goal"></span></span><span class="fold-btn" aria-hidden="true"></span></summary>
       <div class="card group">
         <div class="row stack">
           <span class="row-label">比賽方式</span>
@@ -232,7 +232,7 @@
       </details>
 
       <details class="fold" data-fold="rule">
-        <summary class="section-title fold-head"><span>規則</span><span class="fold-sum" id="fold-rule"></span></summary>
+        <summary class="fold-head"><span class="fold-ico" aria-hidden="true">⚙️</span><span class="fold-main"><span class="fold-title">規則</span><span class="fold-sum" id="fold-rule"></span></span><span class="fold-btn" aria-hidden="true"></span></summary>
       <div class="card group">
         <div class="row">
           <span class="row-label">語言</span>
@@ -662,6 +662,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=80"></script>
+  <script type="module" src="app.js?v=81"></script>
 </body>
 </html>

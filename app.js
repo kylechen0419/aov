@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=80';
-import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=80';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=80';
-import { initNotify, notify } from './notify.js?v=80';
-import { getDb, getUid, authOff } from './fb.js?v=80';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=80';
-import * as wiki from './wiki.js?v=80';
-import { tw, twTree, zhReady } from './zh.js?v=80';
-import { makeShareImage } from './share.js?v=80';
-import { solve } from './solver.js?v=80';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=80';
+import { Net } from './net.js?v=81';
+import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=81';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=81';
+import { initNotify, notify } from './notify.js?v=81';
+import { getDb, getUid, authOff } from './fb.js?v=81';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=81';
+import * as wiki from './wiki.js?v=81';
+import { tw, twTree, zhReady } from './zh.js?v=81';
+import { makeShareImage } from './share.js?v=81';
+import { solve } from './solver.js?v=81';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=81';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -626,7 +626,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=80').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=81').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -863,12 +863,13 @@ function renderPartyBoard() {
 // 房間設定收起來時，標題右邊顯示目前選了什麼
 function paintFoldSummaries() {
   const st = state.settings;
-  const sum = (key, text) => { const el = $(`#fold-${key}`); if (el) el.replaceChildren(Object.assign(document.createElement('span'), { textContent: text })); };
-  sum('route', `${tw(st.start) || '隨機'} → ${tw(st.target) || '隨機'}`);
-  sum('goal', `${goalText(st.goal)} · ${isParty() ? '派對' : '1 對 1'}`);
-  const time = Number(st.timeLimit) ? `${Number(st.timeLimit) / 60} 分鐘` : '不限時';
-  const view = { dist: '只看遠近', hint: '模糊位置', full: '完整條目' }[oppViewOf(st)];
-  sum('rule', [st.lang === 'en' ? 'English' : '中文', time, view, st.allowBack ? '可上一頁' : '不能上一頁', st.trueRandom ? '地獄模式' : ''].filter(Boolean).join(' · '));
+  // 每一項是一個小標籤
+  const sum = (key, items) => { const el = $(`#fold-${key}`); if (el) el.replaceChildren(...items.filter(Boolean).map((t) => Object.assign(document.createElement('span'), { textContent: t }))); };
+  sum('route', [`${tw(st.start) || '隨機'} → ${tw(st.target) || '隨機'}`]);
+  sum('goal', [goalText(st.goal), isParty() ? '🎉 派對 2–8 人' : '⚔️ 1 對 1']);
+  const time = Number(st.timeLimit) ? `⏱ ${Number(st.timeLimit) / 60} 分鐘` : '⏱ 不限時';
+  const view = { dist: '👀 只看遠近', hint: '👀 模糊位置', full: '👀 完整條目' }[oppViewOf(st)];
+  sum('rule', [st.lang === 'en' ? '🌐 English' : '🌐 中文', time, view, st.allowBack ? '↩️ 可上一頁' : '🚫 不能上一頁', st.trueRandom ? '🔥 地獄模式' : '']);
 }
 
 function paintRoomGoal() {
@@ -893,6 +894,7 @@ function renderRoom() {
   $('#row-lastcall').hidden = !party;
   $('#btn-transfer').hidden = !(host && onlineGuests().length);
   $('#btn-change-goal').hidden = !host;
+  form().classList.toggle('readonly', !host);  // 玩家：收合按鈕寫「查看」
   // 房主第一次進房間：「玩法」先展開，讓人知道可以在這裡換（之後照自己上次的開關）
   if (host && store.get('wikirace-fold-goal') === null) { const d = form().querySelector('details[data-fold="goal"]'); if (d && !d.open) d.open = true; }
   $('.versus').hidden = party;
