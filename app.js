@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=95';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=95';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=95';
-import { initNotify, notify } from './notify.js?v=95';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=95';
-import { reportError, catchErrors } from './errors.js?v=95';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=95';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=95';
-import * as wiki from './wiki.js?v=95';
-import { tw, twTree, zhReady } from './zh.js?v=95';
-import { makeShareImage } from './share.js?v=95';
-import { solve } from './solver.js?v=95';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=95';
+import { Net } from './net.js?v=96';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=96';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=96';
+import { initNotify, notify } from './notify.js?v=96';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=96';
+import { reportError, catchErrors } from './errors.js?v=96';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=96';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=96';
+import * as wiki from './wiki.js?v=96';
+import { tw, twTree, zhReady } from './zh.js?v=96';
+import { makeShareImage } from './share.js?v=96';
+import { solve } from './solver.js?v=96';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=96';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -660,7 +660,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=95').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=96').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -4150,7 +4150,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=95')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=96')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5057,7 +5057,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=95').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=96').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {
