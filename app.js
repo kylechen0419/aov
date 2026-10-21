@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=79';
-import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=79';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=79';
-import { initNotify, notify } from './notify.js?v=79';
-import { getDb, getUid, authOff } from './fb.js?v=79';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=79';
-import * as wiki from './wiki.js?v=79';
-import { tw, twTree, zhReady } from './zh.js?v=79';
-import { makeShareImage } from './share.js?v=79';
-import { solve } from './solver.js?v=79';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=79';
+import { Net } from './net.js?v=80';
+import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=80';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=80';
+import { initNotify, notify } from './notify.js?v=80';
+import { getDb, getUid, authOff } from './fb.js?v=80';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=80';
+import * as wiki from './wiki.js?v=80';
+import { tw, twTree, zhReady } from './zh.js?v=80';
+import { makeShareImage } from './share.js?v=80';
+import { solve } from './solver.js?v=80';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=80';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -626,7 +626,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=79').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=80').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -4605,6 +4605,37 @@ window.addEventListener('pagehide', (e) => { if (!e.persisted) net.destroy(); })
 
 // 測試用：讓自動化測試可以模擬斷線
 window.__wikirace = { net, state };
+
+// ---------- 自動更新：網站更新後，開著的分頁（或加到主畫面的捷徑）不會自己換新版 ----------
+// 每隔一下、或切回這個分頁時，偷看伺服器上的 index.html 用的是第幾版；比自己新就更新：
+// 在首頁直接重新載入；在房間或比賽中不打斷，顯示一條「有新版本」讓玩家自己點
+const MY_VERSION = Number(new URL(import.meta.url).searchParams.get('v')) || 0;
+let updateShown = false;
+function reloadFresh() {
+  // 加一個每次都不一樣的參數，瀏覽器才不會又拿暫存的舊頁面
+  const u = new URL(location.href);
+  u.searchParams.set('_u', Date.now().toString(36));
+  location.replace(u.toString());
+}
+async function checkUpdate() {
+  if (!MY_VERSION || updateShown) return;
+  try {
+    const html = await (await fetch(`index.html?check=${Date.now()}`, { cache: 'no-store' })).text();
+    const latest = Number((html.match(/app\.js\?v=(\d+)/) || [])[1]) || 0;
+    if (latest <= MY_VERSION) return;
+    const busy = state.view !== 'home' || session.load() || state.solo || !$('#ban-screen').hidden;
+    if (!busy) { reloadFresh(); return; }
+    updateShown = true;
+    $('#update-bar').hidden = false;
+  } catch { /* 沒網路就算了 */ }
+}
+$('#update-bar').onclick = reloadFresh;
+setInterval(checkUpdate, 120000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+window.addEventListener('pageshow', (e) => { if (e.persisted) checkUpdate(); });
+setTimeout(checkUpdate, 3000);
+// 用來強制更新的參數用完就拿掉，網址比較乾淨
+if (new URLSearchParams(location.search).has('_u')) { try { const u = new URL(location.href); u.searchParams.delete('_u'); history.replaceState(null, '', u.toString()); } catch { /* 忽略 */ } }
 
 initSound();
 initHome();

@@ -1346,3 +1346,11 @@ body:has(#view-game:not([hidden])) .admin-eye { top: auto; bottom: calc(env(safe
 .ban-card h2 { margin: 0 0 10px; font-size: 20px; font-weight: 900; }
 .ban-card p { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
 .ban-card .ban-sub { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+/* 有新版本（在房間或比賽中，不自動重新整理，讓玩家自己點） */
+.update-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); z-index: 95;
+  border: 0; font: inherit; font-size: 14px; font-weight: 900; color: #fff; background: var(--blue); padding: 10px 16px; border-radius: 999px;
+  box-shadow: 0 4px 0 var(--blue-d), 0 10px 24px rgba(20, 10, 80, .3); cursor: pointer; white-space: nowrap;
+}
+body:has(#view-game:not([hidden])) .update-bar { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
