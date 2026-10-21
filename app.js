@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=81';
-import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=81';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=81';
-import { initNotify, notify } from './notify.js?v=81';
-import { getDb, getUid, authOff } from './fb.js?v=81';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=81';
-import * as wiki from './wiki.js?v=81';
-import { tw, twTree, zhReady } from './zh.js?v=81';
-import { makeShareImage } from './share.js?v=81';
-import { solve } from './solver.js?v=81';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=81';
+import { Net } from './net.js?v=82';
+import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=82';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=82';
+import { initNotify, notify } from './notify.js?v=82';
+import { getDb, getUid, authOff } from './fb.js?v=82';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=82';
+import * as wiki from './wiki.js?v=82';
+import { tw, twTree, zhReady } from './zh.js?v=82';
+import { makeShareImage } from './share.js?v=82';
+import { solve } from './solver.js?v=82';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=82';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -626,7 +626,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=81').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=82').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2874,6 +2874,7 @@ function finishGame(reason) {
 
 // 房主：派對模式有設定最後衝刺時，第一個人抵達就開始倒數
 function onAnyFinish(id, info) {
+  if (id !== state.myId) giveSolution(id);
   const g = state.game;
   const seconds = g?.settings.lastCall || 0;
   if (!g || g.mode !== 'party' || !seconds || info.reason !== 'win' || g.lastCallSent) return;
@@ -3267,7 +3268,21 @@ function renderDuelResult(g, res) {
 }
 
 // ---------- 正確解答：最短路線 ----------
-// 結果畫面顯示解答區；沒有人抵達終點時自動開始找，有人抵達就按按鈕再找
+// 結果畫面顯示解答區；沒有人抵達終點時自動開始找，有人抵達就按按鈕再找。
+// 找到的路線每一步都會實際打開條目確認「遊戲畫面上點得到」，點不到的那一步就排除再找。
+// 房間裡任何一個比完的人找到解答，房主就轉給其他比完的人，大家都不用再按一次。
+const SOLVE_STAGE = {
+  start: '讀取起點和終點…',
+  search: (s) => `找路線中…已看過 ${s.checked || 0} 個條目${s.depth ? `，正在找 ${s.depth} 步的路線` : ''}`,
+  verify: '確認每一步在遊戲裡都點得到…',
+};
+const SOLVE_FAIL = {
+  'no-links': '起點這一頁沒有任何可以點的條目連結，沒辦法出發。',
+  'no-backlinks': '沒有任何條目連到終點，從哪裡出發都到不了。',
+  unreachable: '從起點出發，怎麼點都到不了終點（這兩頁之間真的沒有路）。',
+  timeout: '這題很難，找了兩分半還沒找到，按「再找一次」繼續找。',
+};
+
 function renderSolution(g) {
   const sol = g.solution;
   const nobody = ![g.finished, ...[...g.others.values()].map((o) => o.finished)].some((f) => f?.reason === 'win');
@@ -3275,26 +3290,89 @@ function renderSolution(g) {
   $('#btn-solve').hidden = !!sol;
   $('#solution-progress').hidden = !(sol && sol.running);
   $('#solution-path').hidden = !(sol && sol.path);
+  $('#btn-replay').hidden = !(sol && sol.path && sol.path.length > 1);
   if (!sol) {
     $('#solution-note').textContent = nobody ? '沒有人抵達，看看可以怎麼走' : '';
     if (nobody && done) findSolution(g);
     return;
   }
   if (sol.running) {
-    const stage = { start: '讀取起點的連結…', two: '找兩步可以到的路線…', back: '整理會連到終點的條目…', three: '找三步可以到的路線…', four: '往更遠的地方找…' }[sol.stage] || '搜尋中…';
-    $('#solution-status').textContent = `${stage}${sol.checked ? `（已看過 ${sol.checked} 個條目）` : ''}`;
+    const st = SOLVE_STAGE[sol.stage] || '搜尋中…';
+    $('#solution-status').textContent = typeof st === 'function' ? st(sol) : st;
     $('#solution-note').textContent = '';
     return;
   }
   if (sol.path) {
-    fillPath($('#solution-path'), sol.path, g.settings.target);
+    fillSolutionPath($('#solution-path'), sol.path, g.settings);
     const steps = sol.path.length - 1;
-    $('#solution-note').textContent = sol.exact ? `最短 ${steps} 步` : `可行路線 ${steps} 步（不一定最短）`;
+    $('#solution-note').textContent = `${sol.exact ? `最短 ${steps} 步` : `可行路線 ${steps} 步`}${sol.by && sol.by !== state.myName ? ` · ${sol.by} 找到的` : ''}`;
   } else {
     $('#btn-solve').hidden = false;
     $('#btn-solve').lastChild.textContent = '再找一次';
-    $('#solution-note').textContent = sol.error ? `找不到：${sol.error}` : '找了很久還是沒找到，這題真的很難！';
+    $('#solution-note').textContent = sol.error ? `找不到：${sol.error}` : SOLVE_FAIL[sol.reason] || SOLVE_FAIL.timeout;
   }
+}
+
+// 解答路線：每一站都是連到維基百科的超連結（另開分頁）
+function fillSolutionPath(ol, path, settings) {
+  ol.replaceChildren(...path.map((t) => {
+    const li = document.createElement('li');
+    const a = Object.assign(document.createElement('a'), { href: wiki.articleUrl(settings.lang, t), target: '_blank', rel: 'noopener', textContent: tw(t), className: 'sol-link' });
+    a.title = '在維基百科打開這一頁';
+    li.append(a);
+    if (t === settings.target) li.classList.add('hit');
+    return li;
+  }));
+}
+
+const getArticle = (lang, title) => {
+  const k = `${lang}:${title}`;
+  if (!artCache.has(k)) artCache.set(k, wiki.fetchArticle(lang, title).catch((e) => { artCache.delete(k); throw e; }));
+  return artCache.get(k);
+};
+
+// 這一頁在遊戲畫面上點得到哪些條目（跟比賽時一樣的處理方式）
+async function clickableLinks(settings, title) {
+  const art = await getArticle(settings.lang, title);
+  const root = document.createElement('div');
+  fillArticle(root, document.createElement('h1'), art, settings);
+  return [...root.querySelectorAll('a.wl')].map((a) => a.dataset.title);
+}
+
+// 某個條目的所有名稱（本名＋重新導向到它的名稱），比對連結用
+const namesCache = new Map();
+function namesOf(lang, title, key) {
+  const k = `${lang}:${title}`;
+  if (!namesCache.has(k)) {
+    namesCache.set(k, (async () => {
+      const set = new Set([key(title)]);
+      let cont = {};
+      do {
+        const d = await wiki.api(lang, { action: 'query', titles: title, prop: 'redirects', rdnamespace: '0', rdlimit: 'max', redirects: '1', ...cont });
+        for (const p of d.query?.pages || []) { set.add(key(p.title)); for (const r of p.redirects || []) set.add(key(r.title)); }
+        cont = d.continue || null;
+      } while (cont);
+      return set;
+    })().catch((e) => { namesCache.delete(k); throw e; }));
+  }
+  return namesCache.get(k);
+}
+
+// 逐步確認路線點得到；回傳每一步要點的連結（給示範播放用），或第一個點不到的步驟
+async function verifyPath(settings, path, key) {
+  const checks = path.slice(0, -1).map(async (from, i) => {
+    const to = path[i + 1];
+    try {
+      const [links, names] = await Promise.all([clickableLinks(settings, from), namesOf(settings.lang, to, key)]);
+      const via = links.find((t) => names.has(key(t)));
+      return via ? { via } : { bad: [from, to] };
+    } catch {
+      return { via: null };  // 網路問題沒辦法確認：先當作可以（示範時再找）
+    }
+  });
+  const res = await Promise.all(checks);
+  const bad = res.find((r) => r.bad);
+  return bad ? { bad: bad.bad } : { via: res.map((r) => r.via) };
 }
 
 async function findSolution(g) {
@@ -3302,21 +3380,137 @@ async function findSolution(g) {
   g.solution = { running: true, stage: 'start', checked: 0 };
   renderSolution(g);
   const key = g.settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
+  const show = () => { if (state.game === g && state.view === 'result') renderSolution(g); };
   try {
     await zhReady;
-    const res = await solve(g.settings.lang, g.settings.start, g.settings.target, {
-      key,
-      onProgress: ({ stage, checked }) => {
-        if (state.game !== g) return;
-        Object.assign(g.solution, { stage, checked });
-        renderSolution(g);
-      },
-    });
-    g.solution = res ? { path: res.path, exact: res.exact } : { path: null };
+    const banned = new Set();
+    let found = null;
+    for (let attempt = 0; attempt < 8 && !found; attempt++) {
+      const res = await solve(g.settings.lang, g.settings.start, g.settings.target, {
+        key, banned,
+        onProgress: ({ stage, checked, depth }) => {
+          if (state.game !== g || !g.solution?.running) return;
+          Object.assign(g.solution, { stage, checked, depth });
+          show();
+        },
+      });
+      if (!g.solution?.running) return;  // 等的時候別人已經把解答傳過來了
+      if (!res.path) { g.solution = { path: null, reason: res.reason }; break; }
+      Object.assign(g.solution, { stage: 'verify' });
+      show();
+      const v = await verifyPath(g.settings, res.path, key);
+      if (!g.solution?.running) return;
+      if (v.bad) { banned.add(`${key(v.bad[0])}→${key(v.bad[1])}`); continue; }
+      found = { path: res.path, exact: res.exact, via: v.via };
+    }
+    if (found) {
+      g.solution = { ...found, by: state.myName };
+      shareSolution(g);
+    } else if (g.solution?.running) {
+      g.solution = { path: null, reason: 'timeout' };
+    }
   } catch (e) {
-    g.solution = { path: null, error: e.message };
+    if (g.solution?.running) g.solution = { path: null, error: e.message };
   }
-  if (state.game === g && state.view === 'result') renderSolution(g);
+  show();
+}
+
+// ---------- 解答分享：一個人找到，房間裡比完的人都看得到 ----------
+const cleanSolution = (m) => {
+  const list = (a) => (Array.isArray(a) ? a.slice(0, 40).map((t) => (typeof t === 'string' ? t.slice(0, 200) : null)) : []);
+  const path = list(m.path).filter(Boolean);
+  if (path.length < 1) return null;
+  return { path, via: list(m.via), exact: !!m.exact, by: String(m.by || '').slice(0, 16) };
+};
+function solutionMsg(g) {
+  const s = g.solution;
+  return { t: 'solution', gid: g.id, path: s.path, via: s.via || [], exact: !!s.exact, by: s.by || '' };
+}
+function shareSolution(g) {
+  if (state.solo || !g.solution?.path || !net.code) return;
+  if (net.isHost) { for (const o of g.others.values()) if (o.finished && !o.left) net.send(solutionMsg(g), o.id); }
+  else net.send(solutionMsg(g));
+}
+// 房主：有人比完了，已經有解答就直接給他（還在比的人收不到，避免偷看）
+function giveSolution(id) {
+  const g = state.game;
+  if (net.isHost && g?.solution?.path) net.send(solutionMsg(g), id);
+}
+function receiveSolution(m) {
+  const g = state.game;
+  if (!g || m.gid !== g.id || g.solution?.path) return;
+  const s = cleanSolution(m);
+  if (!s) return;
+  g.solution = s;
+  if (net.isHost) shareSolution(g);
+  if (state.view === 'result') renderSolution(g);
+}
+
+// ---------- 解答示範：一步一步播放「在哪一頁點哪個連結」 ----------
+let replayToken = 0;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function playReplay(g) {
+  const sol = g.solution;
+  if (!sol?.path || sol.path.length < 2) return;
+  const token = ++replayToken;
+  const alive = () => token === replayToken && !$('#replay').hidden;
+  const { path } = sol;
+  const settings = { ...g.settings };
+  const key = settings.lang === 'zh' ? (t) => tw(t) : (t) => t;
+  const n = path.length - 1;
+  $('#replay').hidden = false;
+  document.body.classList.add('replaying');
+  $('#replay-finger').hidden = true;
+  $('#replay-dots').replaceChildren(...path.map((t, i) => Object.assign(document.createElement('li'), { textContent: tw(t), className: i === 0 ? 'start' : i === n ? 'goal' : '' })));
+  const arts = path.map((t) => getArticle(settings.lang, t).catch(() => null));
+  const box = $('#replay-scroll');
+  for (let i = 0; i <= n; i++) {
+    if (!alive()) return;
+    $('#replay-dots').querySelectorAll('li').forEach((li, k) => { li.classList.toggle('on', k === i); li.classList.toggle('past', k < i); });
+    $('#replay-step').textContent = i < n ? `第 ${i + 1} 步 / 共 ${n} 步` : '🎉 抵達終點！';
+    $('#replay-hint').textContent = i < n ? `在《${tw(path[i])}》找到「${tw(path[i + 1])}」` : `《${tw(path[i])}》`;
+    $('#replay-loading').hidden = false;
+    const art = await arts[i];
+    if (!alive()) return;
+    $('#replay-loading').hidden = true;
+    if (art) fillArticle($('#replay-article'), $('#replay-title'), art, settings);
+    else { $('#replay-title').textContent = tw(path[i]); $('#replay-article').replaceChildren(); }
+    box.scrollTo(0, 0);
+    if (i === n) { confetti(); break; }
+    await wait(800);
+    if (!alive()) return;
+    // 找到要點的連結：驗證時記下的那一個，或任何連到下一站（含重新導向名稱）的連結
+    const links = [...$('#replay-article').querySelectorAll('a.wl')];
+    let a = sol.via?.[i] ? links.find((x) => x.dataset.title === sol.via[i]) : null;
+    if (!a) {
+      const names = await namesOf(settings.lang, path[i + 1], key).catch(() => new Set([key(path[i + 1])]));
+      a = links.find((x) => names.has(key(x.dataset.title)));
+    }
+    if (a) {
+      a.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      await wait(1000);
+      if (!alive()) return;
+      a.classList.add('replay-hit');
+      const r = a.getBoundingClientRect();
+      const f = $('#replay-finger');
+      f.style.left = `${r.left + Math.min(r.width / 2, 60)}px`;
+      f.style.top = `${r.bottom - 6}px`;
+      f.hidden = false;
+      f.classList.remove('tap');
+      void f.offsetWidth;
+      f.classList.add('tap');
+      await wait(1300);
+      f.hidden = true;
+    } else {
+      $('#replay-hint').textContent += '（連結在頁面裡比較隱蔽）';
+      await wait(1500);
+    }
+  }
+}
+function closeReplay() {
+  replayToken++;
+  $('#replay').hidden = true;
+  document.body.classList.remove('replaying');
 }
 
 // ---------- 全體投票拿提示 ----------
@@ -3950,6 +4144,11 @@ function initResult() {
   $('#pick-close').onclick = () => closePick(null);
   $('#pick-modal').addEventListener('click', (e) => { if (e.target.id === 'pick-modal') closePick(null); });
   $('#btn-solve').onclick = () => { if (state.game) findSolution(state.game); };
+  $('#btn-replay').onclick = () => { if (state.game) playReplay(state.game); };
+  $('#replay-close').onclick = closeReplay;
+  $('#replay-again').onclick = () => { if (state.game) playReplay(state.game); };
+  // 示範畫面裡的連結只是給人看，不能點
+  $('#replay-article').addEventListener('click', (e) => { if (e.target.closest('a')) e.preventDefault(); });
   $('#btn-watch').onclick = () => openWatch();
   $('#btn-watch-back').onclick = () => showResult(true);
   $('#btn-follow').onclick = () => setFollow(true);
@@ -4309,6 +4508,11 @@ function handleGuestMessage(msg, from, cid) {
   // 還沒報上名字的連線只接受 join
   if (msg.t !== 'join' && !state.players.has(from)) return;
   switch (msg.t) {
+    case 'solution': {
+      // 比完的人找到解答：房主收下並轉給其他比完的人
+      if (state.game?.others.get(from)?.finished) receiveSolution(msg);
+      break;
+    }
     case 'join':
       hostJoin(msg, cid);
       break;
@@ -4386,6 +4590,9 @@ function handleGuestMessage(msg, from, cid) {
 // ---------- 連線：玩家這一側 ----------
 function handleHostMessage(msg) {
   switch (msg.t) {
+    case 'solution':
+      receiveSolution(msg);
+      break;
     case 'welcome': {
       state.myId = msg.you;
       if (Array.isArray(msg.chat)) { state.chat = msg.chat.slice(-CHAT_MAX); renderChat(); }

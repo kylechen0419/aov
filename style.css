@@ -1377,3 +1377,33 @@ body:has(#view-game:not([hidden])) .admin-eye { top: auto; bottom: calc(env(safe
   box-shadow: 0 4px 0 var(--blue-d), 0 10px 24px rgba(20, 10, 80, .3); cursor: pointer; white-space: nowrap;
 }
 body:has(#view-game:not([hidden])) .update-bar { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
+
+/* 正確解答：每一站是連到維基百科的超連結 */
+#solution-path .sol-link { color: inherit; text-decoration: underline; text-decoration-color: rgba(47, 123, 255, .45); text-underline-offset: 3px; }
+#solution-path .sol-link::after { content: ' ↗'; font-size: .8em; color: var(--blue); }
+.sol-tip { margin: 0; font-size: 12px; color: var(--muted); text-align: center; }
+#solution-path[hidden] ~ .sol-tip { display: none; }
+
+/* 解答示範：全螢幕，一頁一頁播放要點哪個連結 */
+.replay { position: fixed; inset: 0; z-index: 120; display: flex; flex-direction: column; background: linear-gradient(180deg, var(--sky-1), var(--sky-2)); }
+body.replaying { overflow: hidden; }
+.replay-bar { padding: calc(8px + env(safe-area-inset-top, 0px)) var(--gutter-r) 10px var(--gutter-l); color: #fff; display: grid; gap: 8px; box-shadow: 0 6px 20px rgba(30, 20, 90, .3); }
+.replay-top { display: flex; align-items: center; gap: 10px; }
+.replay-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.replay-info b { font-size: 17px; font-weight: 900; }
+.replay-info span { font-size: 13px; font-weight: 700; opacity: .95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.replay-again { border: 0; font: inherit; font-weight: 900; font-size: 13px; padding: 8px 12px; border-radius: 999px; background: var(--yellow); color: #4a3200; cursor: pointer; flex: none; }
+.replay-dots { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.replay-dots li { flex: none; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: rgba(255, 255, 255, .18); color: rgba(255, 255, 255, .8); white-space: nowrap; }
+.replay-dots li.past { background: rgba(255, 255, 255, .32); color: #fff; }
+.replay-dots li.on { background: #fff; color: var(--blue-d); }
+.replay-dots li.goal.on { background: var(--yellow); color: #4a3200; }
+.replay-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px var(--gutter-r) 40px var(--gutter-l); }
+.replay-paper { margin: 0 auto; max-width: 760px; }
+.replay-article a { pointer-events: none; }
+.replay-hit { background: var(--yellow) !important; color: #3a2a00 !important; border-radius: 6px; box-shadow: 0 0 0 4px rgba(255, 210, 63, .5); animation: replayHit 1s ease-in-out infinite; }
+@keyframes replayHit { 50% { box-shadow: 0 0 0 8px rgba(255, 210, 63, .25); } }
+.replay-finger { position: fixed; z-index: 130; font-size: 40px; line-height: 1; transform: translate(-30%, 0); pointer-events: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .35)); }
+.replay-finger.tap { animation: fingerTap 1.1s ease-in-out; }
+@keyframes fingerTap { 0% { transform: translate(-30%, 30px); opacity: 0; } 30% { transform: translate(-30%, 0); opacity: 1; } 55% { transform: translate(-30%, -6px) scale(.9); } 70% { transform: translate(-30%, 0) scale(1); } 100% { transform: translate(-30%, 0); opacity: 1; } }
+.btn.replay-btn { font-size: 17px; letter-spacing: .04em; padding: 14px; }

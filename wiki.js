@@ -59,7 +59,7 @@ export async function suggest(lang, text) {
 }
 
 let topicsPromise = null;
-const loadTopics = () => (topicsPromise ||= import('./topics.js?v=81').then((m) => m.TOPICS));
+const loadTopics = () => (topicsPromise ||= import('./topics.js?v=82').then((m) => m.TOPICS));
 const recent = [];
 
 // 隨機抽到的條目至少要有這麼多瀏覽量（近 30 天），太冷門、大概看不懂的就跳過
@@ -163,7 +163,9 @@ export async function fetchArticle(lang, title, retried = false) {
 }
 
 export function articleUrl(lang, title) {
-  return `https://${LANGS[lang].host}/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+  // 中文用台灣正體的網址（/zh-tw/），跟遊戲裡看到的一樣
+  const { host, variant } = LANGS[lang];
+  return `https://${host}/${variant || 'wiki'}/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 }
 
 // 條目的一句話簡介（例如「英格蘭西北部城市」），用來模糊顯示對手在哪裡；查過的會記住
