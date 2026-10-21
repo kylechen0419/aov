@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=71';
-import { initPresence } from './presence.js?v=71';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=71';
-import { initNotify, notify } from './notify.js?v=71';
-import { getUid } from './fb.js?v=71';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=71';
-import * as wiki from './wiki.js?v=71';
-import { tw, twTree, zhReady } from './zh.js?v=71';
-import { makeShareImage } from './share.js?v=71';
-import { solve } from './solver.js?v=71';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=71';
+import { Net } from './net.js?v=72';
+import { initPresence } from './presence.js?v=72';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=72';
+import { initNotify, notify } from './notify.js?v=72';
+import { getUid } from './fb.js?v=72';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=72';
+import * as wiki from './wiki.js?v=72';
+import { tw, twTree, zhReady } from './zh.js?v=72';
+import { makeShareImage } from './share.js?v=72';
+import { solve } from './solver.js?v=72';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=72';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -79,6 +79,21 @@ const session = {
   save(v) { try { sessionStorage.setItem('wikirace-session', JSON.stringify(v)); } catch { /* 忽略 */ } },
   clear() { try { sessionStorage.removeItem('wikirace-session'); } catch { /* 忽略 */ } },
 };
+
+// 「上一頁」要回去的堆疊存在這個分頁裡：重新整理後照原本的樣子接回來。
+// 不能用走過的路線（path）去推：按上一頁回到的條目也會記進路線，推出來會回錯地方。
+const NAV_KEY = 'wikirace-nav';
+function saveNav(g) {
+  try { sessionStorage.setItem(NAV_KEY, JSON.stringify({ id: g.id, stack: g.stack, spots: g.spots })); } catch { /* 忽略 */ }
+}
+function loadNav(id) {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null');
+    if (!v || v.id !== id || !Array.isArray(v.stack) || !v.stack.every((t) => typeof t === 'string')) return null;
+    const spots = Array.isArray(v.spots) && v.spots.length === v.stack.length ? v.spots : v.stack.map(() => null);
+    return { stack: v.stack.slice(-200), spots: spots.slice(-200) };
+  } catch { return null; }
+}
 
 const randomKey = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 // 這支手機的代號：被踢出的人換個身分重新輸入代碼也進不來
@@ -543,7 +558,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=71').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=72').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -907,7 +922,17 @@ function scoreGame(g, info) {
 // 記一筆對局統計（給後台算趨勢）。只存聚合用的小資料，不含路線、不含是誰。
 function recordGameStats(g, info) {
   const all = [{ finished: g.finished, clicks: g.finished?.clicks ?? g.clicks }, ...[...g.others.values()].map((o) => ({ finished: o.finished, clicks: o.clicks }))];
-  const winner = all.find((p) => p.finished?.reason === 'win');
+  // 冠軍要照最終名次挑：「抵達終點」不等於第一名（房主排在最前面，但不一定最快、步數最少）
+  let champ = null;
+  if (g.mode === 'party') {
+    const first = info.entries?.find((e) => e.place === 1);
+    if (first) champ = { finished: first.finished, clicks: first.finished?.clicks ?? first.clicks };
+  } else if (info.res === 'win' || info.res === 'draw') {
+    champ = all[0];
+  } else if (info.res === 'lose') {
+    champ = all.find((p, i) => i > 0 && p.finished?.reason === 'win') || null;
+  }
+  const winner = champ?.finished?.reason === 'win' ? champ : null;
   const elapsed = Math.max(0, ...all.map((p) => p.finished?.elapsed || 0));
   recordGame({
     mode: g.mode, goal: cleanGoal(g.settings.goal), players: all.length, round: state.roomScore.games,
@@ -1461,7 +1486,18 @@ async function startDaily() {
   }
 }
 
-// 每日挑戰的結算：第一次挑戰才記成績、上排行榜；之後的都是練習
+// 每日挑戰的結算：比賽一結束就記（不等結果畫面），第一次挑戰才記成績、上排行榜；之後的都是練習
+function settleDaily(g) {
+  const d = state.daily;
+  if (!d || !g?.finished || g !== state.game || !d.first || !d.started || d.recorded) return;
+  d.recorded = true;
+  const f = g.finished;
+  const win = f.reason === 'win';
+  saveDay(d.key, { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown, n: state.myName, a: state.myAvatar || '', sent: false });
+  if (win) d.sending = resendDaily(d.key);
+}
+
+// 每日挑戰的結算畫面
 function renderDailyResult(g) {
   const d = state.daily;
   const f = g.finished;
@@ -1476,18 +1512,10 @@ function renderDailyResult(g) {
     $('#dres-share').hidden = true;
     return;
   }
-  if (d.first && !d.recorded) {
-    d.recorded = true;
-    const rec = { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown, n: state.myName, a: state.myAvatar || '', sent: false };
-    saveDay(d.key, rec);
-    if (win) {
-      $('#dres-rank').textContent = '排名計算中…';
-      resendDaily(d.key).then(() => refreshDailyRank(d));
-    }
-  } else {
-    refreshDailyRank(d);
-  }
+  settleDaily(g);  // 通常比賽一結束就已經記好了，這裡只是保險
   const m = myDay(d.key);
+  if (m?.win) $('#dres-rank').textContent = '排名計算中…';
+  (d.sending || Promise.resolve()).then(() => refreshDailyRank(d));
   $('#dres-sub').textContent = d.first
     ? (win ? '正式成績已登上今日排行榜，分享給朋友比比看！' : '今天的正式機會用掉了，可以看看排行榜上別人怎麼走，明天再來！')
     : `練習模式（不計成績）　今天的正式成績：${m?.win ? `${m.s} 步 · ${fmtTime(m.t)}` : '未完成'}`;
@@ -1727,8 +1755,8 @@ function resumeGame(snap) {
   g.startAt = performance.now() - (snap.elapsed || 0);
   g.clicks = mine.clicks || 0;
   g.path = Array.isArray(mine.path) ? mine.path.slice() : [];
-  g.stack = g.path.slice(0, -1);
-  g.spots = g.stack.map(() => null);
+  const nav = loadNav(g.id);
+  if (nav) { g.stack = nav.stack; g.spots = nav.spots; } else { g.stack = g.path.slice(0, -1); g.spots = g.stack.map(() => null); }
   if (snap.lastCall > 0) g.lastCallEnd = performance.now() + snap.lastCall;
   if (snap.hint) setTimeout(() => showHint({ quiet: true }), 800);
   renderOppHud();
@@ -1884,6 +1912,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
       g.path.push(art.title);
     }
     g.current = art.title;
+    saveNav(g);
     renderArticle(art);
     if (spot) restoreSpot(spot);
     if (first && state.daily && !state.daily.started) {
@@ -2283,6 +2312,7 @@ function finishGame(reason) {
   stopGameLoops(g);
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
+  if (state.solo) settleDaily(g);
   sendProgress({ t: 'finish', ...g.finished });
   if (net.isHost) { onAnyFinish(state.myId, g.finished); checkHintVotes(); }
   $('#hint-bar').hidden = true;
@@ -2295,10 +2325,10 @@ function finishGame(reason) {
   $('#hud').classList.remove('danger');
   if (reason === 'win') {
     flash('#ffc53d');
-    setTimeout(showResult, 350);
+    setTimeout(() => { if (state.game === g) showResult(); }, 350);  // 這 0.35 秒內離開了就不要再畫
   } else if (reason === 'lose') {
     flash('#ff4d6d');
-    setTimeout(showResult, 350);
+    setTimeout(() => { if (state.game === g) showResult(); }, 350);  // 這 0.35 秒內離開了就不要再畫
   } else {
     showResult();
   }
@@ -2356,8 +2386,8 @@ function onOtherFinish(id, msg) {
       if (msg.reason === 'win') finishGame('lose');
       else if (msg.reason === 'giveup') finishGame('oppGaveUp');
       else if (msg.reason === 'timeout') finishGame('timeout');
-    } else if (state.view === 'result') {
-      showResult(true);
+    } else {
+      refreshResult();
     }
     return;
   }
@@ -2372,8 +2402,8 @@ function onOtherFinish(id, msg) {
     } else {
       feed([{ b: o.name }, msg.reason === 'giveup' ? ' 投降了' : ' 時間到出局'], '出局', o.color);
     }
-  } else if (state.view === 'result') {
-    showResult(true);
+  } else {
+    refreshResult();
   }
 }
 
@@ -2388,11 +2418,11 @@ function onOtherLeft(id) {
   renderOppHud();
   if (g.mode !== 'party') {
     if (!g.finished) finishGame('oppLeft');
-    else if (state.view === 'result') showResult(true);
+    else refreshResult();
     return;
   }
   if (!g.finished) refreshDanger();
-  else if (state.view === 'result') showResult(true);
+  else refreshResult();
 }
 
 function onPresence(id, online, wait = 0) {
@@ -2411,7 +2441,7 @@ function onPresence(id, online, wait = 0) {
     }
   }
   if (state.view === 'room') renderRoom();
-  if (state.view === 'result' && state.game) showResult(true);
+  if (state.game?.finished) refreshResult();
 }
 
 // 斷線的人還會等多久（秒）
@@ -2564,8 +2594,34 @@ function resultInfo(g) {
 }
 
 let lastOutcome = null;
+// 一局的結算（自己的勝負紀錄、最近對戰、本房戰績、後台統計），跟「現在有沒有在看結果畫面」無關：
+// 例如房主先按再來一局回大廳，別人之後才抵達，也要照最終名次算完。
+// 每次有人抵達、投降、離線都會呼叫；勝負因幾乎同時抵達而更正時，戰績也跟著改正，本房戰績只記一次。
+function settleGame(g) {
+  if (!g || !g.finished || state.solo || g !== state.game) return;
+  const party = g.mode === 'party';
+  const info = resultInfo(g);
+  const { res } = info;
+  if (res === 'pending') { /* 勝負未定，先不記戰績 */ }
+  else if (!g.recorded && g.restored) g.recorded = res;
+  else if (!g.recorded) { recordResult(g.settings.goal, res); g.recorded = res; }
+  else if (g.recorded !== res) { unrecordResult(g.settings.goal, g.recorded); recordResult(g.settings.goal, res); g.recorded = res; }
+  // 最近對戰：派對要等名次確定才記（同一局會更新成最終結果，不會重複）
+  if (res !== 'pending' && (!party || allDone(g))) saveHistory(g, info);
+  // 房主：這一局大家都比完了，記到本房戰績和後台
+  if (net.isHost && allDone(g) && !g.scored) { scoreGame(g, info); recordGameStats(g, info); }
+}
+
+// 比賽狀態有變（有人抵達、離線、回來）：先結算，正在看結果畫面才重畫
+function refreshResult() {
+  const g = state.game;
+  if (g?.finished) settleGame(g);
+  if (state.view === 'result' && g) showResult(true);
+}
+
 function showResult(update = false) {
   const g = state.game;
+  if (!g || !g.finished) return;
   if (state.solo) return showSoloResult(g);
   const party = g.mode === 'party';
   // 從單人訓練切回一般對局時，把被訓練結算改過的元素還原
@@ -2598,16 +2654,8 @@ function showResult(update = false) {
   $('#btn-rematch').disabled = !net.connected;
   $('#btn-rematch').textContent = net.connected ? '再來一局' : (party ? '其他人都離線了' : '對手已離線');
 
-  // 結果可能因為幾乎同時抵達而更正，戰績也跟著更正
   syncRoom(true);
-  if (res === 'pending') { /* 勝負未定，先不記戰績 */ }
-  else if (!g.recorded && g.restored) g.recorded = res;
-  else if (!g.recorded) { recordResult(g.settings.goal, res); g.recorded = res; }
-  else if (g.recorded !== res) { unrecordResult(g.settings.goal, g.recorded); recordResult(g.settings.goal, res); g.recorded = res; }
-  // 最近對戰：派對要等名次確定才記
-  if (res !== 'pending' && (!party || allDone(g))) saveHistory(g, info);
-  // 房主：這一局大家都比完了，記到本房戰績
-  if (net.isHost && allDone(g) && !g.scored) { scoreGame(g, info); recordGameStats(g, info); }
+  settleGame(g);
   refreshWaitTicker();
 
   const hero = $('#result-hero');
@@ -3818,7 +3866,7 @@ function handleHostMessage(msg) {
         renderOppHud();
         if (g.finished) net.send({ t: 'finish', ...g.finished });
         else if (g.current) net.send({ t: 'progress', title: g.current, clicks: g.clicks, near: g.near, path: g.path });
-        if (state.view === 'result') showResult(true);
+        refreshResult();
       } else if (snap) {
         resumeGame(snap);
       } else if (g && msg.gameId === g.id) {
@@ -3967,6 +4015,7 @@ function giveUpHost() {
     return;
   }
   if (g) for (const o of g.others.values()) o.left = true;
+  if (g?.finished) settleGame(g);
   if (state.view === 'result') showResult(true);
   else if (state.view === 'room') {
     show('home');

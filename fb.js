@@ -9,12 +9,14 @@ function loadScript(src) {
     s.src = src;
     s.async = true;
     s.onload = resolve;
-    s.onerror = () => reject(new Error('load fail'));
+    s.onerror = () => { s.remove(); reject(new Error('load fail')); };  // 拿掉失敗的標籤，下次重試才會重新下載
     document.head.appendChild(s);
   });
 }
 
 let dbPromise = null;
+let failedAt = -Infinity;
+const RETRY_MS = 10000;  // 載入失敗後，至少隔這麼久才再試（不要一直狂下載）
 
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
 
@@ -29,23 +31,30 @@ async function signIn(app) {
   } catch { /* 忽略 */ }
 }
 
-// 回傳 Realtime Database 實例（只會初始化一次）；連不上或沒設定就回傳 null
+// 回傳 Realtime Database 實例（成功後只會初始化一次）；連不上或沒設定就回傳 null。
+// 第一次載入失敗（例如剛打開時網路不穩）不會被記住：之後再呼叫會重新載入，網路恢復就能用。
 export function getDb() {
   if (!CFG || !CFG.databaseURL) return Promise.resolve(null);
-  dbPromise ||= (async () => {
-    try {
-      if (!window.firebase) {
-        await loadScript(`https://www.gstatic.com/firebasejs/${VER}/firebase-app-compat.js`);
-        await loadScript(`https://www.gstatic.com/firebasejs/${VER}/firebase-database-compat.js`);
-        try { await loadScript(`https://www.gstatic.com/firebasejs/${VER}/firebase-auth-compat.js`); } catch { /* 沒有登入功能也能用 */ }
+  if (!dbPromise && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
+  if (!dbPromise) {
+    const p = (async () => {
+      try {
+        // 分開檢查每個 SDK：上次可能只載入了一半
+        if (!window.firebase?.initializeApp) await loadScript(`https://www.gstatic.com/firebasejs/${VER}/firebase-app-compat.js`);
+        if (!window.firebase.database) await loadScript(`https://www.gstatic.com/firebasejs/${VER}/firebase-database-compat.js`);
+        if (!window.firebase.auth && window.firebase.SDK_VERSION) {
+          try { await loadScript(`https://www.gstatic.com/firebasejs/${VER}/firebase-auth-compat.js`); } catch { /* 沒有登入功能也能用 */ }
+        }
+        const app = window.firebase.apps?.length ? window.firebase.app() : window.firebase.initializeApp(CFG);
+        if (window.firebase.auth) await signIn(app);
+        return window.firebase.database(app);
+      } catch {
+        return null;
       }
-      const app = window.firebase.apps?.length ? window.firebase.app() : window.firebase.initializeApp(CFG);
-      if (window.firebase.auth) await signIn(app);
-      return window.firebase.database(app);
-    } catch {
-      return null;
-    }
-  })();
+    })();
+    dbPromise = p;
+    p.then((db) => { if (!db && dbPromise === p) { dbPromise = null; failedAt = Date.now(); } });
+  }
   return dbPromise;
 }
 

@@ -1,6 +1,6 @@
 // 後台用：房主把房間概況寫到 Firebase，製作者的後台頁面就能看到「現在有哪些房間在玩」。
 // 只有房間層級的資訊（代碼、暱稱、模式、進度摘要），沒有任何人確切在哪個條目、也不會鏡像畫面。
-import { getDb, getUid } from './fb.js?v=71';
+import { getDb, getUid } from './fb.js?v=72';
 
 let roomRef = null;
 let curCode = null;
