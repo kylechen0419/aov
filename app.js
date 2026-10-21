@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=77';
-import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=77';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=77';
-import { initNotify, notify } from './notify.js?v=77';
-import { getDb, getUid, authOff } from './fb.js?v=77';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=77';
-import * as wiki from './wiki.js?v=77';
-import { tw, twTree, zhReady } from './zh.js?v=77';
-import { makeShareImage } from './share.js?v=77';
-import { solve } from './solver.js?v=77';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=77';
+import { Net } from './net.js?v=78';
+import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=78';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=78';
+import { initNotify, notify } from './notify.js?v=78';
+import { getDb, getUid, authOff } from './fb.js?v=78';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=78';
+import * as wiki from './wiki.js?v=78';
+import { tw, twTree, zhReady } from './zh.js?v=78';
+import { makeShareImage } from './share.js?v=78';
+import { solve } from './solver.js?v=78';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=78';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -626,7 +626,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=77').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=78').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2440,8 +2440,9 @@ function applyBan(b) {
 onBan(applyBan);
 
 // 管理員那一邊（後台按「觀戰」打開 ?adminwatch=<key>）：用觀戰畫面顯示那位玩家
-async function startAdminWatch(key) {
+async function startAdminWatch(firstKey) {
   document.body.classList.add('admin-watching');
+  state.adminWatch = true;
   const o = { id: 'p', name: '玩家', avatar: '', color: COLORS[1], clicks: 0, current: '', path: [], near: false, finished: null, left: false, offline: false };
   const g = { id: null, finished: { reason: 'watch' }, others: new Map([['p', o]]), settings: { ...DEFAULT_SETTINGS }, startAt: performance.now(), mode: 'duel' };
   state.game = g;
@@ -2454,48 +2455,100 @@ async function startAdminWatch(key) {
   status('連線中…');
   const db = await getDb();
   if (!db) { status('連不上資料庫'); return; }
-  const spy = db.ref(`spy/${key}`);
   const denied = () => status('沒有權限：請先在後台用 Google 登入，並更新資料庫規則');
-  const beat = () => spy.set({ at: window.firebase.database.ServerValue.TIMESTAMP }).catch(denied);
-  spy.onDisconnect().remove();
-  beat();
+  let cur = null;  // 正在看的玩家：{ key, spy, whoRef, liveRef, whoCb, liveCb }
+  // 每 20 秒告訴玩家「管理員還在看」；關掉分頁或換人時收掉
+  const beat = () => { if (cur) cur.spy.set({ at: window.firebase.database.ServerValue.TIMESTAMP }).catch(denied); };
   setInterval(beat, 20000);
-  window.addEventListener('pagehide', () => { try { spy.remove(); } catch { /* 忽略 */ } });
-  // 名字、頭像、還在不在線上
-  db.ref(`who/${key}`).on('value', (snap) => {
-    const w = snap.val();
-    if (!w) { o.left = true; renderWatch(); status('玩家已經離開遊戲了'); return; }
-    o.name = w.n || '玩家';
-    o.avatar = cleanAvatar(w.av);
-    renderWatch();
-  }, denied);
-  let lastTapAt = 0;
-  let lastGame = null;
-  db.ref(`live/${key}`).on('value', (snap) => {
-    const v = snap.val();
-    if (!v) { status('等待玩家的畫面…'); return; }
-    if (v.idle) { status(v.s === 'room' ? '在房間裡，還沒開始比賽' : '在首頁，還沒開始比賽'); return; }
-    if (v.gid !== lastGame) {
-      // 換了一局（或剛開始看）：重新設定題目
-      lastGame = v.gid;
-      g.settings = { ...DEFAULT_SETTINGS, lang: v.lang === 'en' ? 'en' : 'zh', start: v.st, target: v.tg };
-      $('#watch-goal').textContent = tw(v.tg);
-      state.watch.shown = null;
-      state.watch.live = {};
+  window.addEventListener('pagehide', () => { try { cur?.spy.remove(); } catch { /* 忽略 */ } });
+  setInterval(() => { if (!o.current) $('#watch-timer').textContent = '--:--'; else if (!o.finished) $('#watch-timer').textContent = fmtTime(elapsed()); }, 500);
+
+  // 換看另一位玩家：前一位的「管理員正在觀戰」會消失
+  const watchKey = (key) => {
+    if (cur?.key === key) return;
+    if (cur) {
+      try { cur.spy.onDisconnect().cancel(); cur.spy.remove().catch(() => {}); } catch { /* 忽略 */ }
+      cur.whoRef.off('value', cur.whoCb);
+      cur.liveRef.off('value', cur.liveCb);
     }
-    const moved = o.clicks !== v.k || o.current !== v.p;
-    o.current = v.p;
-    o.clicks = Number(v.k) || 0;
-    o.path = Array.isArray(v.path) ? v.path : Object.values(v.path || {});
-    o.near = !!v.near;
-    o.finished = v.fin ? { reason: v.fin } : null;
-    o.left = false;
-    g.startAt = performance.now() - (Number(v.el) || 0);
-    renderWatch(moved);
-    onLive('p', { t: 'view', p: v.p, i: Number(v.i) || 0, f: Number(v.f) || 0 });
-    if (v.tapAt && v.tapAt !== lastTapAt) { lastTapAt = v.tapAt; if (state.watch.shown === v.p && state.watch.ready) showTap(Number(v.n)); }
-  }, denied);
-  setInterval(() => { if (!o.finished) $('#watch-timer').textContent = fmtTime(elapsed()); }, 500);
+    Object.assign(o, { name: '玩家', avatar: '', clicks: 0, current: '', path: [], near: false, finished: null, left: false });
+    g.settings = { ...DEFAULT_SETTINGS };
+    g.startAt = performance.now();
+    state.watch = { id: 'p', shown: null, token: (state.watch.token || 0) + 1, follow: true, ready: false, live: {} };
+    $('#watch-goal').textContent = '—';
+    $('#watch-title').textContent = '';
+    $('#watch-path').textContent = '';
+    $('#watch-steps').textContent = '0';
+    $('#watch-article').replaceChildren();
+    window.scrollTo(0, 0);
+    status('連線中…');
+    const spy = db.ref(`spy/${key}`);
+    spy.onDisconnect().remove();
+    cur = { key, spy, whoRef: db.ref(`who/${key}`), liveRef: db.ref(`live/${key}`) };
+    const mine = cur;
+    let lastTapAt = 0;
+    let lastGame = null;
+    // 名字、頭像、還在不在線上
+    cur.whoCb = cur.whoRef.on('value', (snap) => {
+      if (cur !== mine) return;
+      const w = snap.val();
+      if (!w) { o.left = true; renderWatch(); status('玩家已經離開遊戲了'); return; }
+      o.name = w.n || '玩家';
+      o.avatar = cleanAvatar(w.av);
+      renderWatch();
+    }, denied);
+    cur.liveCb = cur.liveRef.on('value', (snap) => {
+      if (cur !== mine) return;
+      const v = snap.val();
+      if (!v) { status('等待玩家的畫面…'); return; }
+      if (v.idle) { status(v.s === 'room' ? '在房間裡，還沒開始比賽' : '在首頁，還沒開始比賽'); return; }
+      if (v.gid !== lastGame) {
+        // 換了一局（或剛開始看）：重新設定題目
+        lastGame = v.gid;
+        g.settings = { ...DEFAULT_SETTINGS, lang: v.lang === 'en' ? 'en' : 'zh', start: v.st, target: v.tg };
+        $('#watch-goal').textContent = tw(v.tg);
+        state.watch.shown = null;
+        state.watch.live = {};
+      }
+      const moved = o.clicks !== v.k || o.current !== v.p;
+      o.current = v.p;
+      o.clicks = Number(v.k) || 0;
+      o.path = Array.isArray(v.path) ? v.path : Object.values(v.path || {});
+      o.near = !!v.near;
+      o.finished = v.fin ? { reason: v.fin } : null;
+      o.left = false;
+      g.startAt = performance.now() - (Number(v.el) || 0);
+      renderWatch(moved);
+      onLive('p', { t: 'view', p: v.p, i: Number(v.i) || 0, f: Number(v.f) || 0 });
+      if (v.tapAt && v.tapAt !== lastTapAt) { lastTapAt = v.tapAt; if (state.watch.shown === v.p && state.watch.ready) showTap(Number(v.n)); }
+    }, denied);
+    beat();
+    try { history.replaceState(null, '', `${location.pathname}?adminwatch=${encodeURIComponent(key)}`); } catch { /* 忽略 */ }
+    renderTabs();
+  };
+
+  // 上方的玩家列：所有正在比賽的人（房間、單人訓練、每日挑戰），點一下就換人看
+  let everyone = {};
+  const RACING = ['game', 'result', 'watch', 'solo', 'daily'];
+  const renderTabs = () => {
+    const list = Object.entries(everyone).filter(([k, w]) => w && (k === cur?.key || (w.st && RACING.includes(w.s))));
+    $('#watch-tabs').hidden = list.length < 2;
+    $('#watch-tabs').replaceChildren(...list.map(([k, w]) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.classList.toggle('on', k === cur?.key);
+      const where = w.s === 'solo' ? '單人' : w.s === 'daily' ? '每日' : w.r || '';
+      b.append(avatarEl({ name: w.n || '玩家', avatar: cleanAvatar(w.av) }, 'sm'), `${w.n || '玩家'} · ${where ? where + ' · ' : ''}${w.done ? (w.ok ? '抵達' : '結束') : `${w.k || 0} 步`}`);
+      b.onclick = () => watchKey(k);
+      li.append(b);
+      return li;
+    }));
+    $('#watch-tabs').querySelector('.on')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  };
+  db.ref('who').on('value', (snap) => { everyone = snap.val() || {}; renderTabs(); }, () => { /* 沒有權限就只看這一位 */ });
+
+  watchKey(firstKey);
 }
 
 // ---------- 觀戰的即時畫面：比賽中的人把捲動位置和點擊送給已經比完的人 ----------
@@ -3717,7 +3770,8 @@ function renderWatch(moved = false) {
   const path = o.path.length ? o.path : [g.settings.start];
   const shown = path.slice(-4).map((t) => tw(t));
   $('#watch-path').textContent = `路線：${path.length > 4 ? '… › ' : ''}${shown.join(' › ')}`;
-  // 上方切換觀戰對象
+  // 上方切換觀戰對象（管理員觀戰時由 startAdminWatch 自己畫）
+  if (state.adminWatch) { if (o.current && state.watch.shown !== o.current) loadWatchArticle(o.current); return; }
   const tabs = [...g.others.values()].filter((p) => !p.left).map((p) => {
     const li = document.createElement('li');
     const b = document.createElement('button');

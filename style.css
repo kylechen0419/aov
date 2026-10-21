@@ -1332,7 +1332,7 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
   box-shadow: 0 4px 14px rgba(0, 0, 0, .25); pointer-events: none; white-space: nowrap; animation: eyePulse 2.4s ease-in-out infinite;
 }
 @keyframes eyePulse { 50% { box-shadow: 0 4px 14px rgba(0, 0, 0, .25), 0 0 0 4px rgba(255, 210, 63, .35); } }
-.admin-watching #watch-tabs { display: none; }
+.admin-watching #watch-tabs[hidden] { display: none; }
 /* 比賽中上方是計時器和對手：提示改放在下方工具列上面 */
 body:has(#view-game:not([hidden])) .admin-eye { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
 
