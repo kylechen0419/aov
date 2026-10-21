@@ -6,10 +6,13 @@ on:
     inputs:
       start:
         description: 起點
-        required: true
+        required: false
       target:
         description: 終點
-        required: true
+        required: false
+      paths:
+        description: 新手題目檢查（例：珍珠奶茶>臺灣>臺北市;壽司>日本>東京），每一段都要一步就到
+        required: false
 
 permissions:
   contents: read
@@ -27,3 +30,4 @@ jobs:
         env:
           START: ${{ inputs.start }}
           TARGET: ${{ inputs.target }}
+          PATHS: ${{ inputs.paths }}

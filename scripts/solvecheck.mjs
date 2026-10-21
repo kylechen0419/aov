@@ -14,6 +14,23 @@ globalThis.fetch = async (url, opt = {}) => {
 };
 const { solve } = await import('../solver.js');
 const start = process.env.START, target = process.env.TARGET, lang = process.env.LANG_CODE || 'zh';
+// 新手題目檢查：PATHS="珍珠奶茶>臺灣>臺北市;壽司>日本>東京"，每一段都要一步就點得到
+if (process.env.PATHS) {
+  let bad = 0;
+  for (const chain of process.env.PATHS.split(';').map((c) => c.split('>').map((t) => t.trim()).filter(Boolean)).filter((c) => c.length > 1)) {
+    const hops = [];
+    for (let i = 0; i < chain.length - 1; i++) {
+      const r = await solve(lang, chain[i], chain[i + 1], { timeLimit: 60000 }).catch((e) => ({ reason: e.message }));
+      hops.push(r.path ? `${r.path[0]}→${r.path.at(-1)} ${r.path.length - 1} 步` : `${chain[i]}→${chain[i + 1]} ❌ ${r.reason}`);
+      if (!r.path || r.path.length !== 2) bad++;
+    }
+    const all = await solve(lang, chain[0], chain.at(-1), { timeLimit: 60000 }).catch((e) => ({ reason: e.message }));
+    const ok = hops.every((h) => / 1 步$/.test(h));
+    console.log(`${ok ? '✅' : '❌'} ${chain.join(' › ')}｜${hops.join('，')}｜最短 ${all.path ? `${all.path.length - 1} 步：${all.path.join(' › ')}` : all.reason}`);
+  }
+  console.log(`請求 ${stat.req} 次，429 × ${stat.s429}，5xx × ${stat.s5xx}，連線失敗 × ${stat.fail}`);
+  process.exit(bad ? 1 : 0);
+}
 console.log(`題目：${start} → ${target}（${lang}）`);
 const t0 = Date.now();
 let last = 0;
