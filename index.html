@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=75">
+  <link rel="stylesheet" href="style.css?v=76">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=75"></script>
+  <script src="firebase-config.js?v=76"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -206,6 +206,25 @@
           <button type="button" class="icon-btn dice" data-random="target" aria-label="隨機終點"><svg class="ic"><use href="#i-dice"/></svg></button>
         </label>
         <datalist id="suggest-target"></datalist>
+      </div>
+
+      <h2 class="section-title">玩法 <span class="section-note">房主隨時可以換，不用重開房間</span></h2>
+      <div class="card group">
+        <div class="row stack">
+          <span class="row-label">比賽方式</span>
+          <div class="segmented" role="radiogroup" aria-label="比賽方式">
+            <label><input type="radio" name="roomGoal" value="speed" checked><span>⚡ 比速度</span></label>
+            <label><input type="radio" name="roomGoal" value="steps"><span>👣 比步數</span></label>
+            <label><input type="radio" name="roomGoal" value="items"><span>🎁 道具賽</span></label>
+          </div>
+        </div>
+        <div class="row stack">
+          <span class="row-label">人數</span>
+          <div class="segmented" role="radiogroup" aria-label="人數">
+            <label><input type="radio" name="roomMode" value="duel" checked><span>1 對 1</span></label>
+            <label><input type="radio" name="roomMode" value="party"><span>派對 2–8 人</span></label>
+          </div>
+        </div>
       </div>
 
       <h2 class="section-title">規則</h2>
@@ -625,6 +644,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=75"></script>
+  <script type="module" src="app.js?v=76"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 // 後台用：房主把房間概況寫到 Firebase，製作者的後台頁面就能看到「現在有哪些房間在玩」。
 // 只有房間層級的資訊（代碼、暱稱、模式、進度摘要），沒有任何人確切在哪個條目、也不會鏡像畫面。
-import { getDb, getUid, authOff } from './fb.js?v=75';
+import { getDb, getUid, authOff } from './fb.js?v=76';
 
 let roomRef = null;
 let curCode = null;
@@ -58,6 +58,15 @@ export async function clearRoom(code) {
     if (ref) ref.onDisconnect().cancel()?.catch?.(() => {});
     await db.ref(`rooms/${target}`).remove();
   } catch { /* 忽略 */ }
+}
+
+// 房間被別人接手了：忘掉自己寫過的房間（不刪除，那已經是新房主的了），也取消「斷線時刪掉」
+export function forgetRoom() {
+  gen++;
+  try { roomRef?.onDisconnect().cancel()?.catch?.(() => {}); } catch { /* 忽略 */ }
+  roomRef = null;
+  curCode = null;
+  lastData = null;
 }
 
 // 一局結束時，房主記一筆（給後台算歷史統計）。只存聚合用的小資料。

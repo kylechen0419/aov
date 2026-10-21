@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=75';
-import { initPresence, setActivity } from './presence.js?v=75';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=75';
-import { initNotify, notify } from './notify.js?v=75';
-import { getUid, authOff } from './fb.js?v=75';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=75';
-import * as wiki from './wiki.js?v=75';
-import { tw, twTree, zhReady } from './zh.js?v=75';
-import { makeShareImage } from './share.js?v=75';
-import { solve } from './solver.js?v=75';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=75';
+import { Net } from './net.js?v=76';
+import { initPresence, setActivity } from './presence.js?v=76';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=76';
+import { initNotify, notify } from './notify.js?v=76';
+import { getUid, authOff } from './fb.js?v=76';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=76';
+import * as wiki from './wiki.js?v=76';
+import { tw, twTree, zhReady } from './zh.js?v=76';
+import { makeShareImage } from './share.js?v=76';
+import { solve } from './solver.js?v=76';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=76';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -27,7 +27,9 @@ const GRACE_ROOM = 15000;
 // 轉移房主時，給大家重新連上新房主的時間
 const GRACE_MIGRATE = 30000;
 // 玩家連不回房主多久之後放棄
-const HOST_GIVEUP = 90000;
+const HOST_GIVEUP = 150000;  // 連不回房主、也沒有人能接手：這麼久之後才放棄
+const TAKEOVER_AFTER = 10000;  // 房主斷線這麼久還沒回來，就由排第一的玩家接手
+const TAKEOVER_STEP = 12000;   // 排第一的人也不在：下一位再多等這麼久
 const COLORS = ['#2f7bff', '#ff4d6d', '#22c55e', '#ff8a3d', '#8b5cf6', '#ff5ca8', '#14b8a6', '#eab308'];
 // 玩家可以選的頭像（avatars/ 資料夾裡的 SVG）
 const AVATARS = [
@@ -595,6 +597,7 @@ async function joinAsGuest(code, { auto = false } = {}) {
   $('#btn-join').disabled = true;
   try {
     await net.joinRoom(code);
+    if (hosted.load(code)) hosted.clear();  // 自己開的房間已經有別人接手：之後不用再接回來
     state.myKey ||= randomKey();
     session.save({ code: net.code, key: state.myKey, role: 'guest' });
     state.players = new Map();
@@ -622,7 +625,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=75').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=76').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -738,8 +741,11 @@ function initHome() {
   const sess = session.load();
   const mine = sess?.role === 'host' && hosted.load(sess.code);
   if (mine) {
+    // 先試著當玩家連回去：如果房間已經被其他人接手了，就加入他們；沒人在才接回自己的房間（見 joinAsGuest）
     $('#join-code').value = mine.code;
-    reclaimHost(mine);
+    state.myName = String(mine.name || $('#nickname').value.trim() || '玩家').slice(0, 16);
+    state.myKey = randomKey();
+    joinAsGuest(mine.code, { auto: true });
   } else if (sess?.role === 'guest' && sess.code && cleanKey(sess.key) && $('#nickname').value.trim()) {
     state.myName = $('#nickname').value.trim();
     state.myKey = sess.key;
@@ -755,7 +761,7 @@ function readForm() {
   const f = form().elements;
   return {
     lang: f.lang.value,
-    goal: cleanGoal(state.settings.goal),
+    goal: cleanGoal(f.roomGoal.value),
     timeLimit: Number(f.timeLimit.value),
     // 派對模式：第一個人抵達後，其他人剩這麼多秒（0＝不限）
     lastCall: Number(f.lastCall.value) || 0,
@@ -781,6 +787,8 @@ function paintOppViewDesc() {
 function writeForm(s) {
   const f = form().elements;
   f.lang.value = s.lang;
+  f.roomGoal.value = cleanGoal(s.goal);
+  f.roomMode.value = isParty() ? 'party' : 'duel';
   f.timeLimit.value = String(s.timeLimit);
   f.lastCall.value = String(s.lastCall || 0);
   if (document.activeElement !== f.start) f.start.value = tw(s.start);
@@ -996,14 +1004,17 @@ async function reclaimHost(rec) {
   }]));
   if (!state.players.has('host')) state.players.set('host', { id: 'host', name: state.myName, avatar: state.myAvatar, ready: true, host: true, color: COLORS[0], online: true });
   try {
-    await net.createRoom(0, rec.code, 60);  // 舊的連線可能還要一下子才會被配對伺服器放掉
+    await net.createRoom(0, rec.code, 30);  // 舊的連線可能還要一下子才會被配對伺服器放掉
   } catch (e) {
+    // 代碼一直被佔著：多半是其他玩家已經接手當房主了，改用玩家身分加入他們
     hosted.clear();
     session.clear();
     netBanner('');
+    state.players = new Map();
+    state.myKey = randomKey();
+    state.myId = null;
     show('home');
-    setConn('');
-    showError('#home-error', `沒辦法回到剛才的房間（${e.message}）`);
+    joinAsGuest(rec.code);
     return false;
   }
   for (const p of state.players.values()) {
@@ -1109,10 +1120,60 @@ function broadcastLobby() {
 let settingsTimer;
 function broadcastSettings() {
   const next = readForm();
+  if (changeMode(form().elements.roomMode.value)) return;
   if (JSON.stringify(next) === JSON.stringify(state.settings)) return;
+  const goalChanged = next.goal !== cleanGoal(state.settings.goal);
   state.settings = next;
+  if (goalChanged) {
+    // 換了比賽方式：大家重新確認一次（不然有人是照舊的玩法按準備的）
+    sysChat(`房主把比賽方式改成 ${goalText(next.goal)}`);
+    unreadyAll();
+    net.send({ t: 'settings', settings: state.settings });
+    broadcastLobby();
+    return;
+  }
   clearTimeout(settingsTimer);
   settingsTimer = setTimeout(() => net.send({ t: 'settings', settings: state.settings }), 150);
+}
+
+// 房主：換成 1 對 1／派對。人太多不能改成 1 對 1
+function changeMode(mode) {
+  mode = mode === 'party' ? 'party' : 'duel';
+  if (mode === state.mode) return false;
+  if (mode === 'duel' && state.players.size > MAX_PLAYERS.duel) {
+    form().elements.roomMode.value = state.mode;
+    toast(`房間裡有 ${state.players.size} 人，1 對 1 只能 2 人`, 3000);
+    return true;
+  }
+  state.mode = mode;
+  sysChat(`房主把人數改成 ${mode === 'party' ? '派對（2–8 人）' : '1 對 1'}`);
+  unreadyAll();
+  broadcastLobby();
+  return true;
+}
+
+function unreadyAll() {
+  for (const p of state.players.values()) if (!p.host) p.ready = false;
+}
+
+// 玩家：房主換人了，告訴大家誰離開、誰是新房主
+function noticeHostChange(prev) {
+  const now = [...state.players.values()].find((p) => p.host);
+  if (!prev || !now || now.id === prev.id) return;
+  const mine = now.id === state.myId;
+  const stayed = [...state.players.values()].some((p) => p.name === prev.name && !p.host);
+  const who = mine ? '你' : now.name;
+  const gone = state.hostLeft === prev.name ? '離開了' : '離線了';  // 按了離開／直接斷線
+  state.hostLeft = null;
+  toast(stayed ? `${prev.name} 把房主交給 ${who}` : `${prev.name} ${gone}，${who} 成為新房主`, 4000);
+}
+
+// 玩家：房主換了玩法，跳一個提醒（準備會被取消，要重新按）
+function noticeRuleChange(prevGoal, prevMode) {
+  if (net.isHost || state.view !== 'room') return;
+  const goal = cleanGoal(state.settings.goal);
+  if (goal !== prevGoal) toast(`房主把比賽方式改成 ${goalText(goal)}`, 3000);
+  else if (state.mode !== prevMode) toast(`房主把人數改成 ${isParty() ? '派對（2–8 人）' : '1 對 1'}`, 3000);
 }
 
 let suggestTimer;
@@ -1351,6 +1412,80 @@ async function takeOverHost(msg) {
   toast('你現在是房主了！', 2500);
   sfx.ready();
   haptic('success');
+}
+
+// ---------- 房主不見了：玩家自動接手 ----------
+// 房主斷線或關掉 App，過一下還沒回來：名單上排最前面、還在線上的玩家用同一個代碼接手房間，
+// 其他人照常自動重連。兩個人同時想接手時，只有一個人拿得到房間代碼（另一個就繼續當玩家連過去）。
+let takeoverTimer = null;
+function scheduleTakeover(extra = 0) {
+  clearTimeout(takeoverTimer);
+  if (state.migrating || net.isHost || !net.code || state.view === 'home' || state.solo) return;
+  const order = [...state.players.values()].filter((p) => !p.host && p.online !== false && !p.leaving);
+  const rank = order.findIndex((p) => p.id === state.myId);
+  if (rank < 0) return;
+  takeoverTimer = setTimeout(autoTakeOver, (state.takeoverAfter ?? TAKEOVER_AFTER) + rank * TAKEOVER_STEP + extra);  // takeoverAfter：自動化測試用
+}
+
+async function autoTakeOver() {
+  if (net.isHost || net.connected || !net.code || state.view === 'home' || state.migrating) return;
+  const code = net.code;
+  const old = [...state.players.values()].find((p) => p.host);
+  net.stopRetry();
+  net.destroy();
+  try {
+    await net.createRoom(0, code, 0);  // 只試一次：代碼被佔著就是有人先接手了（或舊房主其實還在）
+  } catch {
+    net.joinRoom(code).then(() => net.onHostBack(), () => { net.startRetry(); scheduleTakeover(TAKEOVER_STEP); });
+    return;
+  }
+  clearTimeout(hostGiveUpTimer);
+  netBanner('');
+  const oldName = old?.name || '房主';
+  if (old) state.players.delete(old.id);
+  const g = state.game;
+  const racing = !!(g && !g.finished && state.view === 'game');
+  for (const p of state.players.values()) {
+    const me = p.id === state.myId;
+    p.host = me;
+    if (me) { p.ready = true; p.online = true; continue; }
+    p.online = false;      // 等他們連回來
+    p.migrating = true;    // 連回來時不用一一宣布
+    graceTimers.set(p.id, setTimeout(() => removePlayer(p.id), racing ? GRACE_GAME : GRACE_MIGRATE));
+    const o = g?.others.get(p.id);
+    if (o && racing) o.offline = true;
+  }
+  state.myReady = false;
+  state.hostLocked = racing;
+  notifiedStart = code;  // 這個房間已經通知過了
+  if (old && g) onOtherLeft(old.id);  // 這一局舊房主算離開
+  if (state.view === 'room') enterRoom(code);
+  else { renderOppHud(); syncRoom(true); }
+  setConn(onlineGuests().length ? '已連線' : (isParty() ? '等待玩家' : '等待對手'), true);
+  sysChat(`${oldName} 離線了，${state.myName} 成為新房主`);
+  toast(`${oldName} 離線了，你成為新房主`, 4000);
+  sfx.ready();
+  haptic('success');
+}
+
+// 原本的房主回來時，房間已經被別人接手了：改用一般玩家的身分回到房間
+function displacedAsHost() {
+  if (!net.isHost) return;
+  const code = net.code;
+  hosted.clear();
+  session.clear();
+  stopControlWatch();
+  forgetRoom();
+  net.destroy();
+  if (state.game && !state.game.finished) abandonGame();
+  state.game = null;
+  state.myKey = randomKey();
+  state.myId = null;
+  state.myReady = false;
+  state.players = new Map();
+  toast('房間已經由其他玩家接手，你用玩家身分回到房間', 4000);
+  show('home');
+  joinAsGuest(code);
 }
 
 // 選一位玩家（轉移房主、道具指定對象共用）
@@ -2579,7 +2714,7 @@ function onOtherLeft(id) {
   else refreshResult();
 }
 
-function onPresence(id, online, wait = 0) {
+function onPresence(id, online, wait = 0, { quiet = false } = {}) {
   const p = state.players.get(id);
   if (p) p.online = online;
   const o = state.game?.others.get(id);
@@ -2591,7 +2726,7 @@ function onPresence(id, online, wait = 0) {
     renderOppHud();
     if (state.view === 'game' && !state.game.finished) {
       refreshDanger();
-      toast(online ? `${o.name} 重新連線了` : `${o.name} 斷線了，等待重新連線…`, 2500);
+      if (!quiet) toast(online ? `${o.name} 重新連線了` : `${o.name} 斷線了，等待重新連線…`, 2500);
     }
   }
   if (state.view === 'room') renderRoom();
@@ -3895,7 +4030,7 @@ async function hostJoin(msg, cid) {
     net.send({ t: 'welcome', you: key, game: snap, gameId: state.game?.id || null, chat: state.chat.slice(-30) }, key);
     net.send({ t: 'presence', id: key, online: true }, null, key);
     if (wasOffline) {
-      onPresence(key, true);
+      onPresence(key, true, 0, { quiet: existing.migrating });
       // 轉移房主後大家本來就會連回來，不用一一宣布
       if (!existing.migrating) sysChat(`${name} 重新連線了`);
     }
@@ -4031,18 +4166,31 @@ function handleHostMessage(msg) {
       }
       break;
     }
-    case 'lobby':
+    case 'lobby': {
       if (msg.score && Number.isFinite(msg.score.games) && msg.score.wins && typeof msg.score.wins === 'object') state.roomScore = { games: msg.score.games, wins: { ...msg.score.wins } };
+      const seen = state.lobbySeen === net.code;  // 這個房間之前就收過名單（剛進來的第一份不用提醒）
+      const prevMode = state.mode;
+      const prevGoal = cleanGoal(state.settings.goal);
+      const prevHost = [...state.players.values()].find((p) => p.host);
       state.mode = msg.mode === 'party' ? 'party' : 'duel';
       state.players = new Map((msg.players || []).map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
+      state.lobbySeen = net.code;
       if (state.myId && state.players.get(state.myId)) state.myReady = !!state.players.get(state.myId).ready;
       if (state.view !== 'game' && state.view !== 'result') {
         state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
         writeForm(state.settings);
       }
       if (state.view === 'room') renderRoom();
+      if (seen) {
+        noticeHostChange(prevHost);
+        noticeRuleChange(prevGoal, prevMode);
+      }
+      // 比賽中：名單上已經沒有的人（例如斷線的舊房主）當作離開了這一局
+      const g = state.game;
+      if (g && !g.finished && state.view === 'game') for (const o of g.others.values()) if (!state.players.has(o.id) && !o.left && !o.finished) onOtherLeft(o.id);
       reportActivity();  // 剛進房時還不知道房間模式：收到房主的名單才回報正確的
       break;
+    }
     case 'full':
       session.clear();
       net.destroy();
@@ -4084,15 +4232,20 @@ function handleHostMessage(msg) {
       // 其他人：等新房主上線後會自動重連
       const to = (msg.players || []).find((p) => p.id === msg.to);
       state.migrating = to?.name || '新房主';
+      const oldHost = [...state.players.values()].find((p) => p.host);
+      if (oldHost && !(msg.players || []).some((p) => p.name === oldHost.name && !p.host)) state.hostLeft = oldHost.name;
       if (Array.isArray(msg.players)) state.players = new Map(msg.players.map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
       if (state.view === 'room') renderRoom();
       break;
     }
-    case 'settings':
+    case 'settings': {
+      const prevGoal = cleanGoal(state.settings.goal);
       state.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
       writeForm(state.settings);
       if (state.view === 'room') renderRoom();
+      noticeRuleChange(prevGoal, state.mode);
       break;
+    }
     case 'start':
       state.mode = msg.mode === 'party' ? 'party' : 'duel';
       if (msg.players) state.players = new Map(msg.players.map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
@@ -4140,15 +4293,19 @@ function handleHostMessage(msg) {
   }
 }
 
+net.onDisplaced = displacedAsHost;
+
 net.onHostLost = () => {
   netBanner(state.migrating ? `房主交給 ${state.migrating}，重新連線中…` : '與房主的連線中斷，正在重新連線…');
   setConn('重新連線中…');
   clearTimeout(hostGiveUpTimer);
   hostGiveUpTimer = setTimeout(giveUpHost, HOST_GIVEUP);
+  scheduleTakeover();
 };
 
 net.onHostBack = () => {
   clearTimeout(hostGiveUpTimer);
+  clearTimeout(takeoverTimer);
   state.migrating = null;
   netBanner('');
   setConn('已連線', true);
@@ -4158,6 +4315,8 @@ net.onHostBack = () => {
 
 // 一直連不回房主：當作房主離開
 function giveUpHost() {
+  if (net.isHost) return;  // 自己已經接手當房主了
+  clearTimeout(takeoverTimer);
   net.stopRetry();
   session.clear();
   state.migrating = null;

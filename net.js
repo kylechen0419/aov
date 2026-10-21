@@ -27,6 +27,7 @@ export class Net {
     this.onPeerLeave = () => {};
     this.onHostLost = () => {};
     this.onHostBack = () => {};
+    this.onDisplaced = () => {};
   }
 
   // ---------- 房主 ----------
@@ -47,6 +48,8 @@ export class Net {
           this.createRoom(tries + 1).then(resolve, reject);
         } else if (!this.peer) {
           reject(new Error(`無法建立房間（${err.type}）`));
+        } else if (err.type === 'unavailable-id' && this.isHost && this.peer === peer) {
+          this.onDisplaced();  // 斷線太久，房間代碼已經被別的玩家接手了
         } else {
           console.warn(err);
         }
@@ -79,6 +82,7 @@ export class Net {
       if (gone) return;
       gone = true;
       if (this.conns.get(cid) !== conn) return;
+      if (this.closing) return;  // 是自己要關掉（離開、關網頁）：不要再把大家標成離線、廣播出去
       this.conns.delete(cid);
       const pid = this.alias.get(cid);
       this.alias.delete(cid);
