@@ -43,7 +43,7 @@ const pools = {};
 for (const name of SFX_NAMES) {
   // 按鍵聲用 wav：mp3 開頭有一小段靜音，點下去會慢半拍
   const isClick = name.startsWith('click-');
-  const src = isClick ? `audio/${CLICK_SOUNDS[name.slice(6)].file}.wav?v=5` : `audio/sfx-${name}.mp3?v=2`;
+  const src = isClick ? `audio/${CLICK_SOUNDS[name.slice(6)].file}.wav?v=5` : `audio/sfx-${name}.mp3?v=3`;
   const n = isClick ? 4 : name === 'tick' || name === 'flip' ? 3 : 2;
   pools[name] = { els: Array.from({ length: n }, () => makeAudio(src)), i: 0 };
 }
