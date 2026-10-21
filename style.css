@@ -513,6 +513,8 @@ body.solo #route-grid .opp-side { display: none; }
 .result-hero.lose .medal { background: radial-gradient(circle at 35% 30%, #ffd0d8, var(--red) 50%, var(--red-d)); box-shadow: 0 0 0 7px #fff, 0 10px 0 7px rgba(20, 10, 80, .2); }
 .result-hero.lose .medal::before, .result-hero.lose .medal::after { content: none; }
 .result-hero.lose .medal span { color: #fff; text-shadow: 0 3px 0 rgba(0, 0, 0, .2); }
+/* 單人結算圓圈裡放圖示：不要文字陰影，稍微小一點才不會頂到邊 */
+.medal span.emoji, .result-hero.lose .medal span.emoji { font-size: 60px; text-shadow: none; }
 .result-hero.draw .medal { background: radial-gradient(circle at 35% 30%, #fff, #cfd6e6 50%, #98a2bd); }
 .result-hero.draw .medal::before, .result-hero.draw .medal::after { content: none; }
 .result-title {

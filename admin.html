@@ -163,7 +163,7 @@
     <div id="rooms" class="rooms"></div>
   </main>
 
-  <script src="firebase-config.js?v=69"></script>
+  <script src="firebase-config.js?v=70"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -291,7 +291,7 @@
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=69');
+      const { sendNtfy } = await import('./notify.js?v=70');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };

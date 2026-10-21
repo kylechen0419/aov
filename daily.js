@@ -3,8 +3,8 @@
 // 第一個算出今天題目的人會把它存進 Firebase（stats/dailyPuzzle/<日期>），之後大家都讀這一份，
 // 所以就算當天維基百科有人改了條目、或題庫更新，同一天的題目也不會變。
 // 排行榜存在 stats/daily/<日期>/<手機代號>；沒設定 Firebase 時一樣能玩（題目靠自己算），只是沒有排行榜。
-import { getDb } from './fb.js?v=69';
-import { api } from './wiki.js?v=69';
+import { getDb } from './fb.js?v=70';
+import { api } from './wiki.js?v=70';
 
 const LAUNCH = '2026-10-21';  // 第 1 期
 const LOG = 'wikirace-daily-log';
@@ -56,7 +56,7 @@ async function linksDirectly(from, to) {
 
 // 自己從題庫算出今天的題目
 async function compute(key) {
-  const { TOPICS } = await import('./topics.js?v=69');
+  const { TOPICS } = await import('./topics.js?v=70');
   const rnd = seeded(`wikirace-daily-${key}`);
   const pick = async (avoid) => {
     for (let i = 0; i < 25; i++) {

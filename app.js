@@ -1,13 +1,13 @@
-import { Net } from './net.js?v=69';
-import { initPresence } from './presence.js?v=69';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=69';
-import { initNotify, notify } from './notify.js?v=69';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=69';
-import * as wiki from './wiki.js?v=69';
-import { tw, twTree, zhReady } from './zh.js?v=69';
-import { makeShareImage } from './share.js?v=69';
-import { solve } from './solver.js?v=69';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=69';
+import { Net } from './net.js?v=70';
+import { initPresence } from './presence.js?v=70';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=70';
+import { initNotify, notify } from './notify.js?v=70';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=70';
+import * as wiki from './wiki.js?v=70';
+import { tw, twTree, zhReady } from './zh.js?v=70';
+import { makeShareImage } from './share.js?v=70';
+import { solve } from './solver.js?v=70';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=70';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -532,7 +532,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=69').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=70').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2563,6 +2563,7 @@ function showResult(update = false) {
   $('#score-card').hidden = party;
   $('#route-grid').hidden = party;
   $('#result-kicker').textContent = info.kicker;
+  $('#result-kicker').classList.remove('emoji');
   $('#result-title').textContent = info.title;
   let sub = `《${tw(g.settings.start)}》→《${tw(g.settings.target)}》`;
   if (g.finished.reason === 'oppGaveUp') sub += '（對手投降）';
@@ -2606,7 +2607,9 @@ function showSoloResult(g) {
   const win = reason === 'win';
   const tone = win ? 'win' : 'lose';
   $('#result-hero').className = `cover result-hero ${tone}`;
-  $('#result-kicker').textContent = win ? '達' : '練';
+  // 單人沒有輸贏，圓圈裡用圖示：抵達 🎯（每日挑戰 🏆）、投降 💪 下次加油、時間到 ⏰
+  $('#result-kicker').textContent = win ? (state.daily ? '🏆' : '🎯') : (reason === 'timeout' ? '⏰' : '💪');
+  $('#result-kicker').classList.add('emoji');
   $('#result-title').textContent = win ? '抵達終點！' : (reason === 'timeout' ? '時間到了' : '這次先放棄');
   const stat = win
     ? `你的成績：${g.finished.clicks} 步 · ${fmtTime(g.finished.elapsed)}`
