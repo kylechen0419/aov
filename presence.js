@@ -12,6 +12,8 @@ let since = Date.now();        // 這個狀態從什麼時候開始
 let pushWho = () => {};
 let liveRef = null;        // live/<自己的 key>：管理員觀戰時才寫
 let spyCb = () => {};
+const VERSION = Number(new URL(import.meta.url).searchParams.get('v')) || 0;  // 這個分頁是第幾版（後台看版本分布）
+let withV = true;  // Firebase 上還是舊規則（不認得 v）就不帶
 
 // 管理員要看我的畫面時通知 app.js（on=true 開始、false 結束）
 export function onSpy(cb) { spyCb = cb; }
@@ -62,9 +64,16 @@ export async function initPresence(onCount) {
     const off = (p) => p?.catch?.(() => {});
     dropMe = () => { gone = true; try { off(me.remove()); off(who.remove()); } catch { /* 忽略 */ } };
     // 給後台看的詳細資料：每次狀態改變就更新
+    const whoRec = () => ({ ...activity, u: uid, t: opened, since, at: Date.now(), ...(withV && VERSION ? { v: VERSION } : {}) });
+    // 被規則擋下：可能是舊規則不認得 v，拿掉再試一次
+    const setWho = () => who.set(whoRec()).catch((e) => {
+      if (!withV || !VERSION || !/permission/i.test(String(e?.code || e?.message))) throw e;
+      withV = false;
+      return who.set(whoRec());
+    });
     pushWho = () => {
       if (!ready()) return;
-      try { off(who.set({ ...activity, u: uid, t: opened, since, at: Date.now() })); } catch { /* 忽略 */ }
+      try { off(setWho()); } catch { /* 忽略 */ }
     };
     // u：是誰的（資料庫規則只准本人刪改）。每次都重新拿登入身分：網路慢的話會晚一點才登入好
     let banFor = null;
@@ -81,7 +90,7 @@ export async function initPresence(onCount) {
         off(me.onDisconnect().remove());
         off(who.onDisconnect().remove());
         await me.set({ u: uid, t: opened });
-        await who.set({ ...activity, u: uid, t: opened, since, at: Date.now() });
+        await setWho();
         watchSpy();  // 規則要先確認這筆是我的，才讓我讀管理員的觀戰要求
       } catch { /* 規則擋下（還沒登入）就等登入好再寫 */ }
     };

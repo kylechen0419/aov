@@ -141,6 +141,29 @@
   .nt-msg { font-size: 13px; color: var(--yellow); margin: 8px 0 0; min-height: 1em; }
   .sec-rules { width: 100%; height: 150px; margin: 4px 0 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; resize: vertical; }
   .nt-steps code { font-size: 12px; background: var(--card2); padding: 1px 6px; border-radius: 6px; color: var(--ink); user-select: all; }
+  .ver { font-size: 12px; color: var(--muted); margin: 0 0 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .ver .tag.old { background: #4a3a10; color: var(--yellow); }
+  .ver .tag.cur { background: #1d4a33; color: #bff3d2; }
+  .ann-opts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .ann-opts select, .ann-opts input { font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card2); color: var(--ink); }
+  .gl-tools { display: flex; gap: 6px; margin-bottom: 8px; }
+  .gl-tools .gl-q { margin: 0; flex: 1; min-width: 0; }
+  .gl-btn { flex: none; border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 0 12px; border-radius: 10px; background: var(--line); color: var(--ink); cursor: pointer; white-space: nowrap; }
+  .gl-btn.on { background: #4a3a10; color: var(--yellow); }
+  .tag.sus { background: #4a3a10; color: var(--yellow); }
+  .gm-p .sus { color: var(--yellow); font-size: 12px; font-weight: 800; margin-top: 2px; }
+  .err-row { background: var(--card2); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 13px; cursor: pointer; min-width: 0; }
+  .err-row .m { font-weight: 800; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .err-row.open .m { display: block; }
+  .err-row .i { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .err-row .x { color: var(--muted); font-size: 11px; margin-top: 6px; overflow-wrap: anywhere; font-family: ui-monospace, Menlo, monospace; }
+  .log-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; font-size: 13px; padding: 6px 0; border-top: 1px solid var(--line); }
+  .log-row:first-child { border-top: 0; }
+  .log-row .w { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .log-row .d { overflow-wrap: anywhere; }
+  .log-row .d span { color: var(--muted); }
+  .bw-try { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; }
+  .bw-try input { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink); }
 </style>
 </head>
 <body>
@@ -170,7 +193,7 @@
     <!-- 每一塊都可以收合（記在這支手機）；標題列右邊是一行摘要，收起來也看得到重點 -->
     <details class="sec" data-sec="who" open>
       <summary><span class="sec-t">👥 在線玩家</span><span class="sec-s" id="who-sum">讀取中…</span></summary>
-      <div class="sec-b"><div id="who" class="who"><p class="empty">讀取中…</p></div></div>
+      <div class="sec-b"><p class="ver" id="who-ver" hidden></p><div id="who" class="who"><p class="empty">讀取中…</p></div></div>
     </details>
 
     <details class="sec" data-sec="rooms" open>
@@ -202,7 +225,11 @@
         <p class="nt-head">🏅 玩家戰績</p>
         <div id="pstats"><p class="empty">還沒有資料</p></div>
         <p class="nt-head">📜 所有對局 <span class="gl-sum" id="gl-sum"></span></p>
-        <input id="gl-q" class="gl-q" placeholder="找玩家暱稱或題目…" autocomplete="off">
+        <div class="gl-tools">
+          <input id="gl-q" class="gl-q" placeholder="找玩家暱稱或題目…" autocomplete="off">
+          <button id="gl-sus" class="gl-btn" type="button" title="太快抵達的對局">⚠️ 可疑</button>
+          <button id="gl-csv" class="gl-btn" type="button">⬇️ 匯出</button>
+        </div>
         <div id="glist" class="glist"><p class="empty">還沒有資料</p></div>
         <button id="gl-more" class="gl-more" type="button" hidden>顯示更多</button>
       </div>
@@ -217,6 +244,11 @@
           <input id="ann-text" maxlength="200" placeholder="打一句話，推到所有正在玩的人畫面上…">
           <button class="send" id="ann-send">送出</button>
           <button class="clear" id="ann-clear">清除</button>
+        </div>
+        <div class="ann-opts">
+          <label>開始 <select id="ann-when"><option value="now">馬上</option><option value="at">指定時間</option></select></label>
+          <input id="ann-at" type="datetime-local" hidden>
+          <label>顯示 <select id="ann-dur"><option value="0">直到清除</option><option value="30">30 分鐘</option><option value="60">1 小時</option><option value="180">3 小時</option><option value="720">12 小時</option><option value="1440">1 天</option></select></label>
         </div>
         <p class="ann-cur" id="ann-cur"></p>
       </div>
@@ -254,6 +286,17 @@
       </div>
     </details>
 
+    <details class="sec" data-sec="badwords">
+      <summary><span class="sec-t">🤬 暱稱過濾</span><span class="sec-s" id="bw-sum">–</span></summary>
+      <div class="sec-b">
+        <p class="nt-steps" style="padding:0;margin:0 0 8px">不雅的暱稱不能用（自己取名時會被擋下，別人看到的會換成「玩家」），聊天裡的髒話會變成＊。已經內建常見的髒話；要多擋哪些字寫在下面，用逗號分開。</p>
+        <textarea id="bw-text" class="sec-rules" style="height:80px" placeholder="例如：笨蛋, 爛, 某某某"></textarea>
+        <div class="nt-btns"><button id="bw-save" class="primary" type="button">儲存</button></div>
+        <div class="bw-try"><input id="bw-try" placeholder="試試看一個暱稱…" autocomplete="off"><span id="bw-res"></span></div>
+        <p class="nt-msg" id="bw-msg"></p>
+      </div>
+    </details>
+
     <details class="sec" data-sec="ban">
       <summary><span class="sec-t">🚫 踢出名單</span><span class="sec-s" id="ban-sum">–</span></summary>
       <div class="sec-b">
@@ -288,6 +331,21 @@
         <p class="nt-msg" id="sec-msg"></p>
       </div>
     </details>
+    <p class="group">維護</p>
+
+    <details class="sec" data-sec="errors">
+      <summary><span class="sec-t">🐞 錯誤紀錄</span><span class="sec-s" id="err-sum">–</span></summary>
+      <div class="sec-b">
+        <p class="nt-steps" style="padding:0;margin:0 0 8px">玩家那邊出錯（讀不到條目、找不到解答、程式錯誤…）會自動記在這裡。同樣的錯誤合在一起，點一下看詳細。</p>
+        <div id="errlist"><p class="empty">讀取中…</p></div>
+        <div class="nt-btns"><button id="err-clear" class="danger" type="button" hidden>全部清除</button></div>
+      </div>
+    </details>
+
+    <details class="sec" data-sec="audit">
+      <summary><span class="sec-t">🧾 操作紀錄</span><span class="sec-s" id="audit-sum">–</span></summary>
+      <div class="sec-b"><div id="auditlist"><p class="empty">讀取中…</p></div></div>
+    </details>
   </main>
 
   <script src="firebase-config.js?v=83"></script>
@@ -313,7 +371,12 @@
   const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };
   const dur = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
+  const ADMIN_V = Number((document.querySelector('script[src*="firebase-config.js"]')?.getAttribute('src') || '').match(/v=(\d+)/)?.[1]) || 0;
+  const when = (ms) => new Date(ms).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  // 管理員做的每件事都記一筆（誰都改不了，只有管理員看得到）
+  const audit = (a, d) => { try { db && db.ref('audit').push({ at: Date.now(), a, d: String(d || '').slice(0, 200) }).catch(() => {}); } catch (e) {} };
   let notifyCfg = null;
+  let lastBcast = null;
   let lastWho = null;
   let kickOpen = null, kickName = '';
   let bans = {};
@@ -361,26 +424,43 @@
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
         db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); }, () => {});
         db.ref('config/notify').on('value', (snap) => { notifyCfg = snap.val(); renderNotify(); }, () => { $('#nt-msg').textContent = '讀不到通知設定：請到 Firebase 規則加上 config（見 README）'; });
-        db.ref('broadcast').on('value', (snap) => {
-          const b = snap.val(); const on = !!(b && b.text);
-          $('#ann-cur').textContent = on ? `目前公告：「${b.text}」（點清除可移除）` : '目前沒有公告';
-          $('#ann-sum').textContent = on ? `公告中：${b.text}` : '目前沒有公告';
-          $('#ann-sum').classList.toggle('warn', on);
-        });
-        setInterval(() => { renderRooms(); renderWho(); }, 5000);
+        db.ref('broadcast').on('value', (snap) => { lastBcast = snap.val(); renderAnn(); });
+        db.ref('errors').limitToLast(500).on('value', (snap) => { errs = Object.values(snap.val() || {}); renderErrors(); }, () => { $('#err-sum').textContent = '讀不到（規則要更新）'; $('#errlist').innerHTML = '<p class="empty">讀不到：到「資料庫保護」重新複製規則、發布一次</p>'; });
+        db.ref('audit').limitToLast(200).on('value', (snap) => { audits = Object.values(snap.val() || {}); renderAudit(); }, () => { $('#audit-sum').textContent = '讀不到（規則要更新）'; $('#auditlist').innerHTML = '<p class="empty">讀不到：到「資料庫保護」重新複製規則、發布一次</p>'; });
+        db.ref('config/badwords').on('value', (snap) => { badwords = snap.val() || ''; renderBadwords(true); }, () => {});
+        setInterval(() => { renderRooms(); renderWho(); renderAnn(); }, 5000);
         wireControls();
       } catch (e) { $('#status').textContent = '連不上 Firebase'; }
     })();
   }
 
   function wireControls() {
+    $('#ann-when').onchange = () => { $('#ann-at').hidden = $('#ann-when').value !== 'at'; };
     $('#ann-send').onclick = () => {
       const text = $('#ann-text').value.trim();
       if (!text || !db) return;
-      db.ref('broadcast').set({ text, id: Date.now(), at: Date.now() }).catch(denied);
+      const now = Date.now();
+      let showAt = 0;
+      if ($('#ann-when').value === 'at') {
+        showAt = new Date($('#ann-at').value).getTime();
+        if (!showAt || showAt <= now) { alert('請選一個之後的時間'); return; }
+      }
+      const min = Number($('#ann-dur').value) || 0;
+      const b = { text, id: now, at: now };
+      if (showAt) b.showAt = showAt;
+      if (min) b.until = (showAt || now) + min * 60000;
+      db.ref('broadcast').set(b).then(() => audit('發公告', `${text}${showAt ? `（${when(showAt)} 開始）` : ''}${min ? `（顯示 ${min >= 60 ? min / 60 + ' 小時' : min + ' 分鐘'}）` : ''}`), denied);
       $('#ann-text').value = '';
     };
-    $('#ann-clear').onclick = () => db && db.ref('broadcast').remove().catch(denied);
+    $('#ann-clear').onclick = () => db && db.ref('broadcast').remove().then(() => audit('清除公告', lastBcast && lastBcast.text), denied);
+    $('#gl-sus').onclick = () => { susOnly = !susOnly; $('#gl-sus').classList.toggle('on', susOnly); glShow = 30; renderStats(); };
+    $('#gl-csv').onclick = exportCsv;
+    $('#err-clear').onclick = () => { const n = errs.length; if (confirm('確定清除所有錯誤紀錄？')) db.ref('errors').remove().then(() => audit('清除錯誤紀錄', `${n} 筆`), denied); };
+    $('#bw-save').onclick = () => {
+      const text = $('#bw-text').value.split(/[,，、\n]+/).map((x) => x.trim()).filter(Boolean).join(', ').slice(0, 2000);
+      db.ref('config/badwords').set(text || null).then(() => { $('#bw-msg').textContent = '已儲存，玩家那邊馬上生效'; audit('更新暱稱過濾', text || '（清空）'); }, () => { $('#bw-msg').textContent = '存不進去：請先用 Google 登入'; });
+    };
+    $('#bw-try').addEventListener('input', tryName);
     wireNotify();
     $('#sort').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; sortBy = b.dataset.sort; sel('#sort', b); renderRooms(); };
     $('#filter').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; filterBy = b.dataset.filter; sel('#filter', b); renderRooms(); };
@@ -476,15 +556,15 @@
       // 預設不通知製作者自己玩的局
       try { if (localStorage.getItem('wikirace-notify-self') == null) localStorage.setItem('wikirace-notify-self', '1'); } catch (e) {}
       $('#nt-self').checked = true;
-      db.ref('config/notify').set({ topic: newTopic(), room: true, start: true, solo: true, at: Date.now() }).then(() => ntMsg('已開啟，照上面三個步驟在手機上訂閱'), ntFail);
+      db.ref('config/notify').set({ topic: newTopic(), room: true, start: true, solo: true, at: Date.now() }).then(() => { ntMsg('已開啟，照上面三個步驟在手機上訂閱'); audit('開啟手機通知'); }, ntFail);
     };
     $('#nt-new').onclick = () => {
       if (!confirm('換頻道後，手機要重新訂閱新的頻道名稱。確定要換？')) return;
-      db.ref('config/notify').update({ topic: newTopic(), at: Date.now() }).then(() => ntMsg('已換新頻道，記得在 ntfy 訂閱新的名稱'), ntFail);
+      db.ref('config/notify').update({ topic: newTopic(), at: Date.now() }).then(() => { ntMsg('已換新頻道，記得在 ntfy 訂閱新的名稱'); audit('換通知頻道'); }, ntFail);
     };
     $('#nt-off').onclick = () => {
       if (!confirm('確定要關閉手機通知？')) return;
-      db.ref('config/notify').remove().then(() => ntMsg('已關閉'), ntFail);
+      db.ref('config/notify').remove().then(() => { ntMsg('已關閉'); audit('關閉手機通知'); }, ntFail);
     };
     document.querySelectorAll('[data-nt]').forEach((x) => { x.onchange = () => db.ref('config/notify').update({ [x.dataset.nt]: x.checked }).then(() => ntMsg(''), ntFail); });
     $('#nt-copy').onclick = () => {
@@ -499,6 +579,74 @@
     };
   }
 
+  // ---------- 全站公告（可以排程、設定顯示多久） ----------
+  function renderAnn() {
+    const b = lastBcast;
+    const now = Date.now();
+    let cur = '目前沒有公告', sum = '目前沒有公告', warn = false;
+    if (b && b.text) {
+      if (b.until && b.until <= now) { cur = `「${b.text}」已經在 ${when(b.until)} 結束（按清除移掉）`; sum = '公告已結束'; }
+      else if (b.showAt && b.showAt > now) { cur = `⏰ 排程中：「${b.text}」會在 ${when(b.showAt)} 出現${b.until ? `、${when(b.until)} 收起來` : ''}`; sum = `⏰ ${when(b.showAt)}：${b.text}`; warn = true; }
+      else { cur = `目前公告：「${b.text}」${b.until ? `（${when(b.until)} 自動收起來）` : '（點清除可移除）'}`; sum = `公告中：${b.text}`; warn = true; }
+    }
+    $('#ann-cur').textContent = cur;
+    $('#ann-sum').textContent = sum;
+    $('#ann-sum').classList.toggle('warn', warn);
+  }
+
+  // ---------- 錯誤紀錄（同一個錯誤合在一起） ----------
+  let errs = [], errOpen = new Set();
+  function renderErrors() {
+    const groups = {};
+    for (const e of errs) {
+      if (!e || !e.msg) continue;
+      const k = `${e.where}|${e.msg}`;
+      const g = (groups[k] ||= { k, msg: e.msg, where: e.where, n: 0, users: new Set(), vs: new Set(), last: null });
+      g.n++;
+      if (e.u) g.users.add(e.u);
+      if (e.v) g.vs.add(e.v);
+      if (!g.last || e.at > g.last.at) g.last = e;
+    }
+    const list = Object.values(groups).sort((a, b) => b.last.at - a.last.at);
+    const today = new Date().setHours(0, 0, 0, 0);
+    const nToday = errs.filter((e) => e && e.at >= today).length;
+    $('#err-sum').textContent = errs.length ? `今天 ${nToday} 筆 · 共 ${list.length} 種` : '沒有錯誤 👍';
+    $('#err-sum').className = 'sec-s' + (nToday ? ' warn' : errs.length ? '' : ' on');
+    $('#err-clear').hidden = !errs.length;
+    const WHERE = { window: '程式錯誤', promise: '程式錯誤', article: '讀條目', solution: '找解答', hint: '提示', crystal: '水晶球', watch: '觀戰', share: '戰績圖', start: '開始比賽', solo: '單人訓練', daily: '每日挑戰' };
+    $('#errlist').innerHTML = list.length ? list.map((g) => {
+      const open = errOpen.has(g.k);
+      const vs = [...g.vs].sort((a, b) => b - a).map((v) => 'v' + v).join('、');
+      return `<div class="err-row ${open ? 'open' : ''}" data-k="${esc(g.k)}"><div class="m">${esc(g.msg)}</div>`
+        + `<div class="i">${esc(WHERE[g.where] || g.where || '')} · ${g.n} 次 · ${g.users.size} 人${vs ? ' · ' + vs : ''} · ${ago(g.last.at)}前</div>`
+        + (open ? `<div class="x">${esc(g.last.ua || '')}${g.last.st ? '<br>' + esc(g.last.st) : ''}</div>` : '') + '</div>';
+    }).join('') : '<p class="empty">沒有錯誤 👍</p>';
+    $('#errlist').querySelectorAll('.err-row').forEach((el) => { el.onclick = () => { const k = el.dataset.k; if (errOpen.has(k)) errOpen.delete(k); else errOpen.add(k); renderErrors(); }; });
+  }
+
+  // ---------- 操作紀錄 ----------
+  let audits = [];
+  function renderAudit() {
+    const list = audits.filter((a) => a && a.at).sort((a, b) => b.at - a.at);
+    $('#audit-sum').textContent = list.length ? `最近：${list[0].a}（${ago(list[0].at)}前）` : '還沒有紀錄';
+    $('#auditlist').innerHTML = list.length ? list.map((a) => `<div class="log-row"><span class="w">${when(a.at)}</span><span class="d">${esc(a.a)}${a.d ? ` <span>${esc(a.d)}</span>` : ''}</span></div>`).join('') : '<p class="empty">還沒有紀錄（發公告、踢人、關房…都會記在這裡）</p>';
+  }
+
+  // ---------- 暱稱過濾 ----------
+  let badwords = '', names = null;
+  import('./names.js?v=83').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
+  function renderBadwords(fromDb) {
+    const n = String(badwords || '').split(/[,，、\n]+/).filter((x) => x.trim()).length;
+    $('#bw-sum').textContent = n ? `內建＋自訂 ${n} 個字` : '用內建清單';
+    if (fromDb && document.activeElement !== $('#bw-text')) $('#bw-text').value = badwords;
+    if (names) names.setBadWords(badwords);
+    tryName();
+  }
+  function tryName() {
+    const v = $('#bw-try').value.trim();
+    $('#bw-res').textContent = !v || !names ? '' : names.badName(v) ? '🚫 會被擋下' : '✅ 可以用';
+  }
+
   // 在線玩家：每個打開遊戲的分頁一筆（同一個人開兩個分頁會出現兩次）
   const WHO = {
     home: ['', '🏠 在首頁'], room: ['room', '🚪 在房間'], game: ['game', '🏁 比賽中'], result: ['result', '🏆 看結算'],
@@ -511,6 +659,13 @@
     const count = (f) => list.filter(f).length;
     const parts = [[count((w) => w.r && w.s !== 'room'), '比賽'], [count((w) => w.s === 'room'), '房間'], [count((w) => w.s === 'solo'), '單人'], [count((w) => w.s === 'daily'), '每日'], [count((w) => w.s === 'home'), '首頁']];
     $('#who-sum').textContent = [`${list.length} 人`, ...parts.filter(([n]) => n).map(([n, t]) => `${t} ${n}`)].join(' · ');
+    // 版本分布：還開著舊版的人（網站更新後，他們回到首頁會自動換新版）
+    const vs = {};
+    for (const w of list) vs[w.v || 0] = (vs[w.v || 0] || 0) + 1;
+    const newest = Math.max(ADMIN_V, ...list.map((w) => w.v || 0));
+    const vk = Object.keys(vs).map(Number).sort((a, b) => b - a);
+    $('#who-ver').hidden = !list.length;
+    $('#who-ver').innerHTML = '版本：' + vk.map((v) => `<span class="tag ${v === newest ? 'cur' : 'old'}">${v ? 'v' + v : '更舊'} × ${vs[v]}</span>`).join('') + (vk.some((v) => v !== newest) ? '<span>舊版的人回到首頁會自動更新</span>' : '');
     if (!list.length) { $('#who').innerHTML = '<p class="empty">目前沒有人在線上</p>'; return; }
     list.sort((a, b) => (WHO_ORDER[a.s] ?? 5) - (WHO_ORDER[b.s] ?? 5) || String(a.r || '').localeCompare(String(b.r || '')) || (a.since || 0) - (b.since || 0));
     $('#who').innerHTML = list.map((w) => {
@@ -541,7 +696,7 @@
       kp.querySelectorAll('.go').forEach((b) => { b.onclick = () => {
         const min = Number(b.dataset.min);
         const until = min ? Date.now() + min * 60000 : 4102444800000;  // 永久＝2100 年
-        db.ref('ban/' + kickOpen).set({ until, at: Date.now(), n: (kickName || '').slice(0, 16) }).then(() => { kickOpen = null; renderWho(); }, denied);
+        db.ref('ban/' + kickOpen).set({ until, at: Date.now(), n: (kickName || '').slice(0, 16) }).then(() => { audit('踢出伺服器', `${kickName || '（沒有暱稱）'} · ${b.textContent}`); kickOpen = null; renderWho(); }, denied);
       }; });
     }
   }
@@ -553,7 +708,7 @@
       const left = b.until > 4e12 ? '永久' : `到 ${new Date(b.until).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
       return `<div class="ban-row"><b>${esc(b.n || '（沒有暱稱）')}</b><span>${left}</span><button data-uid="${esc(uid)}">解除</button></div>`;
     }).join('') : '<p class="empty">沒有人被踢出</p>';
-    $('#banlist').querySelectorAll('button').forEach((x) => { x.onclick = () => db.ref('ban/' + x.dataset.uid).remove().catch(denied); });
+    $('#banlist').querySelectorAll('button').forEach((x) => { x.onclick = () => db.ref('ban/' + x.dataset.uid).remove().then(() => audit('解除踢出', (bans[x.dataset.uid] || {}).n || ''), denied); });
   }
 
   function renderRooms() {
@@ -584,8 +739,8 @@
         + `<div class="ctl"><button class="kick" data-code="${esc(r.code)}">踢人</button><button class="close" data-code="${esc(r.code)}">關閉房間</button></div>`;
       $('#rooms').appendChild(el);
     }
-    $('#rooms').querySelectorAll('.close').forEach((b) => b.onclick = () => { if (confirm(`確定關閉房間 ${b.dataset.code}？`)) db.ref('control/' + b.dataset.code).set({ type: 'close', at: Date.now() }).catch(denied); });
-    $('#rooms').querySelectorAll('.kick').forEach((b) => b.onclick = () => { const name = prompt('要踢出哪位玩家？（輸入暱稱）'); if (name) db.ref('control/' + b.dataset.code).set({ type: 'kick', name: name.trim(), at: Date.now() }).catch(denied); });
+    $('#rooms').querySelectorAll('.close').forEach((b) => b.onclick = () => { if (confirm(`確定關閉房間 ${b.dataset.code}？`)) db.ref('control/' + b.dataset.code).set({ type: 'close', at: Date.now() }).then(() => audit('關閉房間', b.dataset.code), denied); });
+    $('#rooms').querySelectorAll('.kick').forEach((b) => b.onclick = () => { const name = prompt('要踢出哪位玩家？（輸入暱稱）'); if (name) db.ref('control/' + b.dataset.code).set({ type: 'kick', name: name.trim(), at: Date.now() }).then(() => audit('踢出房間', `${b.dataset.code} · ${name.trim()}`), denied); });
   }
 
   function renderStats() {
@@ -629,7 +784,16 @@
   const MODE = { duel: '1 對 1', party: '派對', solo: '單人訓練', daily: '每日挑戰' };
   const RES = { win: '抵達', giveup: '投降', timeout: '時間到', over: '沒追上', left: '離開', oppLeft: '對手離開', oppGaveUp: '對手投降', hostLeft: '房主離開' };
   const medal = (pl) => ['🥇', '🥈', '🥉'][pl - 1] || (pl ? `第 ${pl} 名` : '');
-  let glShow = 30, glOpen = new Set();
+  let glShow = 30, glOpen = new Set(), susOnly = false, lastHit = [];
+  const roster = (x) => (Array.isArray(x.list) ? x.list : Object.values(x.list || {})).filter(Boolean);
+  const pathOf = (p) => (Array.isArray(p.p) ? p.p : Object.values(p.p || {}));
+  // 可疑：快到不太像人在點（幾秒就抵達、或平均每一步不到 1.2 秒）。只是提醒，要自己看路線判斷
+  function sus(p) {
+    if (!p || p.r !== 'win' || !p.t) return '';
+    if (p.t < 3000) return `${(p.t / 1000).toFixed(1)} 秒就抵達`;
+    if ((p.k || 0) >= 2 && p.t / p.k < 1200) return `平均每步 ${(p.t / p.k / 1000).toFixed(1)} 秒`;
+    return '';
+  }
   function renderGames(g) {
     const list = g.filter((x) => x && x.at).sort((a, b) => b.at - a.at);
     // 玩家戰績：依暱稱合計（同一個暱稱算同一人）
@@ -646,8 +810,11 @@
       + prow.map((r) => `<span class="nm">${esc(r.n)}</span><span class="n">${r.games}</span><span class="n">${r.wins}</span><span class="n">${r.arrive ? (r.steps / r.arrive).toFixed(1) : '–'}</span>`).join('') + '</div>' : '<p class="empty">還沒有資料</p>';
     // 所有對局（可以用暱稱或題目搜尋）
     const q = ($('#gl-q').value || '').trim();
-    const hit = q ? list.filter((x) => `${x.start} ${x.target} ${(Array.isArray(x.list) ? x.list : Object.values(x.list || {})).map((p) => p && p.n).join(' ')}`.includes(q)) : list;
-    $('#gl-sum').textContent = `${hit.length} 局`;
+    let hit = q ? list.filter((x) => `${x.start} ${x.target} ${roster(x).map((p) => p.n).join(' ')}`.includes(q)) : list;
+    const nSus = hit.filter((x) => roster(x).some(sus)).length;
+    if (susOnly) hit = hit.filter((x) => roster(x).some(sus));
+    lastHit = hit;
+    $('#gl-sum').textContent = `${hit.length} 局${nSus && !susOnly ? ` · ⚠️ ${nSus} 局可疑` : ''}`;
     const shown = hit.slice(0, glShow);
     $('#gl-more').hidden = hit.length <= glShow;
     $('#glist').innerHTML = shown.length ? shown.map((x) => {
@@ -657,15 +824,38 @@
       const open = glOpen.has(id);
       const detail = open && ps.length ? `<div class="gm-detail">${ps.map((p) => {
         const path = (Array.isArray(p.p) ? p.p : Object.values(p.p || {}));
-        return `<div class="gm-p"><div class="h">${esc(p.n)} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${esc(RES[p.r] || p.r || '還沒結束')} · ${p.k || 0} 步${p.t ? ' · ' + dur(p.t) : ''}</span></div>${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
+        const why = sus(p);
+        return `<div class="gm-p"><div class="h">${esc(p.n)} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${esc(RES[p.r] || p.r || '還沒結束')} · ${p.k || 0} 步${p.t ? ' · ' + dur(p.t) : ''}</span></div>${why ? `<div class="sus">⚠️ 可疑：${esc(why)}</div>` : ''}${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
       }).join('')}</div>` : '';
       const when = new Date(x.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      return `<div class="gm" data-id="${esc(id)}"><div class="gm-top"><span class="when">${when}</span><span class="tag">${MODE[x.mode] || esc(x.mode)}</span><span class="tag">${GOAL[x.goal] || ''}</span>${x.win ? '' : '<span class="tag" style="color:var(--red)">沒人抵達</span>'}</div>`
+      return `<div class="gm" data-id="${esc(id)}"><div class="gm-top"><span class="when">${when}</span><span class="tag">${MODE[x.mode] || esc(x.mode)}</span><span class="tag">${GOAL[x.goal] || ''}</span>${x.win ? '' : '<span class="tag" style="color:var(--red)">沒人抵達</span>'}${ps.some(sus) ? '<span class="tag sus">⚠️ 可疑</span>' : ''}${x.hint ? '<span class="tag">💡 提示</span>' : ''}${x.lang === 'en' ? '<span class="tag">EN</span>' : ''}</div>`
         + `<div class="gm-route">《${esc(x.start)}》→《${esc(x.target)}》</div><div class="gm-who">${esc(who)}</div>${detail}</div>`;
     }).join('') : '<p class="empty">沒有符合的對局</p>';
     $('#glist').querySelectorAll('.gm').forEach((el) => { el.onclick = () => { const id = el.dataset.id; if (glOpen.has(id)) glOpen.delete(id); else glOpen.add(id); renderStats(); }; });
   }
   $('#gl-q').addEventListener('input', () => { glShow = 30; renderStats(); });
+
+  // 匯出 CSV（Excel 打得開）：目前篩選出來的對局，每位玩家一列
+  function exportCsv() {
+    const head = ['時間', '模式', '玩法', '語言', '起點', '終點', '開了提示', '玩家', '名次', '結果', '步數', '秒數', '可疑', '路線'];
+    const rows = [head];
+    for (const x of lastHit) {
+      const base = [new Date(x.at).toLocaleString('zh-TW', { hour12: false }), MODE[x.mode] || x.mode, GOAL[x.goal] || x.goal || '', x.lang || '', x.start, x.target, x.hint ? '是' : ''];
+      const ps = roster(x);
+      if (!ps.length) rows.push([...base, '', '', x.win ? '有人抵達' : '沒人抵達', x.steps ?? '', x.durationMs ? Math.round(x.durationMs / 1000) : '', '', '']);
+      for (const p of ps) rows.push([...base, p.n, p.pl || '', RES[p.r] || p.r || '', p.k ?? '', p.t ? Math.round(p.t / 1000) : '', sus(p), pathOf(p).join(' > ')]);
+    }
+    // 開頭是 = + - @ 的格子前面加 '，Excel 才不會當成公式
+    const cell = (v) => { let t = String(v == null ? '' : v); if (/^[=+\-@]/.test(t)) t = "'" + t; return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const csv = '\ufeff' + rows.map((r) => r.map(cell).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `wikirace-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    audit('匯出對局', `${lastHit.length} 局`);
+  }
   $('#gl-more').onclick = () => { glShow += 30; renderStats(); };
 
   // 自動更新：後台開著的時候網站更新了，偵測到就換新版（正在打字就先顯示提示，不打斷）

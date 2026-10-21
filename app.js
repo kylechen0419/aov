@@ -2,7 +2,9 @@ import { Net } from './net.js?v=83';
 import { initPresence, setActivity, onSpy, onBan, leaveOnline, sendLiveToAdmin } from './presence.js?v=83';
 import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=83';
 import { initNotify, notify } from './notify.js?v=83';
-import { getDb, getUid, authOff } from './fb.js?v=83';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=83';
+import { reportError, catchErrors } from './errors.js?v=83';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=83';
 import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=83';
 import * as wiki from './wiki.js?v=83';
 import { tw, twTree, zhReady } from './zh.js?v=83';
@@ -68,6 +70,7 @@ const state = {
 const graceTimers = new Map();
 const lastSpeak = new Map();
 let hostGiveUpTimer = null;
+let myUid = '';  // 自己的登入帳號 id（記在對局紀錄裡，給後台的玩家檔案用）
 
 // ---------- 小工具 ----------
 const store = {
@@ -480,17 +483,28 @@ function renderAnnounce(fresh = false) {
   }
   if (!announcePeek) $('#announce').hidden = true;  // 正在亮的 8 秒就讓它亮完
 }
+let announceTimer = null;
 function initAnnounce() {
   $('#announce-close').onclick = () => { store.set('wikirace-bcast', announceId); announceOn = false; renderAnnounce(); };
-  watchBroadcast((b) => {
-    // 重新連線時 Firebase 會再送一次同一則公告，只有換了新公告才算「新」的（比賽中才會再亮）
-    const id = b && b.text ? String(b.id || b.at || b.text) : '';
-    const fresh = !!id && id !== announceId;
-    announceId = id;
-    announceOn = !!id && id !== store.get('wikirace-bcast');
-    if (id) $('#announce-text').textContent = String(b.text).slice(0, 200);
-    renderAnnounce(fresh);
-  });
+  watchBroadcast(applyBroadcast);
+}
+// 公告可以排程：showAt 之前先不顯示、until 之後自動收起來（時間到再檢查一次）
+function applyBroadcast(b) {
+  clearTimeout(announceTimer);
+  const now = Date.now();
+  const showAt = Number(b?.showAt) || 0;
+  const until = Number(b?.until) || 0;
+  let live = !!(b && b.text) && (!until || until > now);
+  const next = live && showAt > now ? showAt : live && until ? until : 0;
+  if (live && showAt > now) live = false;
+  if (next) announceTimer = setTimeout(() => applyBroadcast(b), Math.min(next - now + 200, 2 ** 31 - 1));
+  // 重新連線時 Firebase 會再送一次同一則公告，只有換了新公告才算「新」的（比賽中才會再亮）
+  const id = live ? String(b.id || b.at || b.text) : '';
+  const fresh = !!id && id !== announceId;
+  announceId = id;
+  announceOn = !!id && id !== store.get('wikirace-bcast');
+  if (id) $('#announce-text').textContent = String(b.text).slice(0, 200);
+  renderAnnounce(fresh);
 }
 
 // ---------- 戰績（存在這支手機上，比速度和比步數各自分開記） ----------
@@ -588,6 +602,7 @@ function selectedMode() {
 function getName() {
   const n = $('#nickname').value.trim();
   if (!n) { showError('#home-error', '請先輸入暱稱'); $('#nickname').focus(); return null; }
+  if (badName(n)) { showError('#home-error', '這個暱稱不太好，換一個吧'); $('#nickname').focus(); return null; }
   store.set('wikirace-name', n);
   return n;
 }
@@ -619,7 +634,7 @@ async function joinAsGuest(code, { auto = false } = {}) {
 
 function sendJoin() {
   if (net.code && state.myKey) guestMem.save(net.code, state.myKey);
-  net.send({ t: 'join', name: state.myName, avatar: state.myAvatar, key: state.myKey, device: deviceId, gameId: state.game?.id || null });
+  net.send({ t: 'join', name: state.myName, avatar: state.myAvatar, key: state.myKey, device: deviceId, gameId: state.game?.id || null, uid: myUid });
 }
 
 function initHome() {
@@ -1112,8 +1127,15 @@ function recordGameStats(g, info) {
     mode: g.mode, goal: cleanGoal(g.settings.goal), players: all.length, round: state.roomScore.games,
     start: tw(g.settings.start), target: tw(g.settings.target),
     win: !!winner, durationMs: winner?.finished?.elapsed || elapsed, steps: winner ? winner.clicks : null,
-    list: gameRoster(g),
+    ...gameExtra(g),
   });
+}
+
+// 每個人的戰績＋帳號 id（給後台的玩家檔案）、語言、有沒有開提示
+function gameExtra(g) {
+  const list = gameRoster(g);
+  const us = ranking(g).slice(0, 8).map((e) => String((e.me ? myUid : state.players.get(e.id)?.uid) || '').slice(0, 128));
+  return { list, us, lang: g.settings.lang === 'en' ? 'en' : 'zh', hint: !!g.hint?.shown };
 }
 
 // 這一局每個人的戰績（給後台的「所有對局」）：暱稱、名次、結果、步數、時間、路線
@@ -1134,7 +1156,7 @@ function recordSoloStats(g) {
     mode: state.daily ? 'daily' : 'solo', goal: cleanGoal(g.settings.goal), players: 1, round: 1,
     start: tw(g.settings.start), target: tw(g.settings.target),
     win, durationMs: Math.round(g.finished.elapsed || 0), steps: win ? g.finished.clicks : null,
-    list: gameRoster(g),
+    ...gameExtra(g),
   });
 }
 
@@ -1615,6 +1637,7 @@ async function hostStart() {
       notify('start', '比賽開始了', `${state.players.size} 位玩家 · ${goalText(s.goal)}`);
     }
   } catch (e) {
+    reportError('start', e);
     showError('#room-error', e.message);
   } finally {
     btn.textContent = '開始對局';
@@ -1679,6 +1702,7 @@ async function startTraining() {
     startGame(s, randomKey());
     notify('solo', '有人在單人訓練', `${tw(s.start)} → ${tw(s.target)}`);
   } catch (e) {
+    reportError('solo', e);
     showError('#solo-error', e.message || '出了點問題，再試一次');
   } finally {
     btn.disabled = false;
@@ -1817,6 +1841,12 @@ async function startDaily() {
     $('#daily-name').focus();
     return;
   }
+  if (badName(name)) {
+    $('#daily-name-row').hidden = false;
+    showError('#daily-error', '這個暱稱不太好，換一個吧');
+    $('#daily-name').focus();
+    return;
+  }
   if (todayKey() !== dailyModalKey) {
     openDaily();
     showError('#daily-error', '已經過了午夜，換成今天的新題目囉！');
@@ -1842,6 +1872,7 @@ async function startDaily() {
     startGame(s, randomKey());
     notify('solo', '有人在玩每日挑戰', `#${p.no}　${tw(s.start)} → ${tw(s.target)}`);
   } catch (e) {
+    reportError('daily', e);
     showError('#daily-error', e.message || '出了點問題，再試一次');
   } finally {
     btn.disabled = false;
@@ -2315,6 +2346,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
       if (!checkOutstepped() && first) setTimeout(runCoach, 400);
     }
   } catch (e) {
+    reportError('article', e);
     toast(`載入失敗：${e.message}`);
   } finally {
     g.loading = false;
@@ -3410,6 +3442,7 @@ async function findSolution(g) {
       g.solution = { path: null, reason: 'timeout' };
     }
   } catch (e) {
+    reportError('solution', e);
     if (g.solution?.running) g.solution = { path: null, error: e.message };
   }
   show();
@@ -3651,6 +3684,7 @@ async function showHint({ quiet = false } = {}) {
     text = maskTitle(text.replace(/\s+/g, ' ').trim(), g.settings.target, g.settings.lang);
     $('#hint-text').textContent = text || '找不到這個條目的簡介，只能靠你自己了！';
   } catch (e) {
+    reportError('hint', e);
     $('#hint-text').textContent = `提示讀取失敗（${e.message}）`;
   }
 }
@@ -3938,6 +3972,7 @@ async function runCrystal() {
     }
     sfx.near();
   } catch (e) {
+    reportError('crystal', e);
     g.backSet = null;
     toast(`水晶球失靈了（${e.message}）`);
   }
@@ -4049,6 +4084,7 @@ async function loadWatchArticle(title) {
     window.scrollTo(0, 0);
     applyLiveView();
   } catch (e) {
+    reportError('watch', e);
     artCache.delete(key);
     if (token === state.watch.token) { state.watch.shown = null; toast(`載入失敗：${e.message}`); }
   } finally {
@@ -4162,6 +4198,7 @@ async function openShare() {
     $('#share-modal').hidden = false;
     sfx.ready();
   } catch (e) {
+    reportError('share', e);
     toast(`沒辦法產生戰績圖：${e.message}`);
   } finally {
     btn.disabled = false;
@@ -4246,6 +4283,7 @@ function pushChat(m) {
 
 // 房主：所有聊天訊息經過房主整理後再廣播
 function hostChat(m) {
+  if (m.kind === 'msg') m = { ...m, text: maskText(m.text) };
   pushChat(m);
   net.send({ t: 'chat', m });
 }
@@ -4500,8 +4538,9 @@ async function hostJoin(msg, cid) {
   if (!net.isHost || !net.conns.has(cid)) return;  // 算 id 的這一下連線斷了，或已經不是房主
   const bound = net.alias.get(cid);
   if (bound && bound !== key) return;  // 已經報到過的連線不能再用別的身分 join 一次
-  const name = String(msg.name || '玩家').slice(0, 16);
+  const name = cleanName(String(msg.name || '玩家').slice(0, 16));
   const avatar = cleanAvatar(msg.avatar);
+  const uid = /^[\w-]{6,128}$/.test(msg.uid || '') ? msg.uid : '';
   const device = cleanKey(msg.device);
   if (state.banned.has(key) || (device && state.banned.has(device))) { net.reject(cid, { t: 'full', kicked: true }); return; }
   if (device) state.devices.set(key, device);
@@ -4515,6 +4554,7 @@ async function hostJoin(msg, cid) {
     existing.online = true;
     existing.name = name;
     existing.avatar = avatar;
+    if (uid) existing.uid = uid;
     existing.leaving = false;
     // 房主已經回到房間，但這個人還在比上一局：一樣把比賽狀態給他，重新整理才接得回去
     const snap = state.game && (state.view !== 'room' || stillRacing(key)) ? gameSnapshot() : null;
@@ -4536,7 +4576,7 @@ async function hostJoin(msg, cid) {
   net.bind(cid, key);
   const used = new Set([...state.players.values()].map((p) => p.color));
   const color = COLORS.find((c) => !used.has(c)) || COLORS[state.players.size % COLORS.length];
-  state.players.set(key, { id: key, name, avatar, ready: false, host: false, color, online: true });
+  state.players.set(key, { id: key, name, avatar, ready: false, host: false, color, online: true, uid });
   net.send({ t: 'welcome', you: key, game: null, chat: state.chat.slice(-30) }, key);
   broadcastLobby();
   toast(`${name} 加入了房間`);
@@ -4888,6 +4928,10 @@ setTimeout(checkUpdate, 3000);
 // 用來強制更新的參數用完就拿掉，網址比較乾淨
 if (new URLSearchParams(location.search).has('_u')) { try { const u = new URL(location.href); u.searchParams.delete('_u'); history.replaceState(null, '', u.toString()); } catch { /* 忽略 */ } }
 
+catchErrors();
+watchBadWords();
+getUid().then((u) => { myUid ||= u || ''; }, () => {});
+onAuth((u) => { if (u) myUid = u; });
 initSound();
 initHome();
 // 線上人數（有設定 firebase-config.js 才會顯示）

@@ -2,7 +2,7 @@
 // 原則：玩家（匿名登入）只能寫自己的東西、成績不能覆蓋、欄位要合理；公告、踢人、關房、通知設定只有管理員能改。
 // 規則的版本：每次改規則就加一。後台會試著讀 rulesv/v<版本>（只有這一版的規則開放這個路徑），
 // 讀得到就是 Firebase 上已經發布最新的規則，讀不到就提醒管理員重新複製發布
-export const RULES_VERSION = 2;
+export const RULES_VERSION = 3;
 
 export function rulesFor(adminUid) {
   const uid = String(adminUid || '').replace(/[^A-Za-z0-9_-]/g, '');
@@ -48,6 +48,7 @@ export function rulesFor(adminUid) {
           h: { '.validate': 'newData.isBoolean()' },
           ok: { '.validate': 'newData.isBoolean()' },
           done: { '.validate': 'newData.isBoolean()' },
+          v: { '.validate': 'newData.isNumber()' },
           $other: { '.validate': false },
         },
       },
@@ -106,6 +107,10 @@ export function rulesFor(adminUid) {
           $id: {
             '.write': `auth != null && !data.exists() && ${ok}`,
             '.validate': "newData.hasChildren(['mode', 'players', 'at']) && newData.child('players').isNumber() && newData.child('players').val() <= 8",
+            lang: { '.validate': 'newData.isString() && newData.val().length <= 4' },
+            hint: { '.validate': 'newData.isBoolean()' },
+            // 每個人的帳號 id（跟 list 同樣順序，給後台的玩家檔案用）
+            us: { $i: { '.validate': 'newData.isString() && newData.val().length <= 128' } },
             // 每個人的戰績（暱稱、名次、結果、步數、時間、路線）
             list: {
               $i: {
@@ -157,6 +162,27 @@ export function rulesFor(adminUid) {
           '.validate': "newData.child('until').isNumber() && (!newData.child('n').exists() || (newData.child('n').isString() && newData.child('n').val().length <= 16))",
         },
       },
+      // 錯誤回報：遊戲出錯時記一筆，只能新增；只有管理員看得到、清得掉
+      errors: {
+        '.read': admin,
+        '.write': admin,
+        $id: {
+          '.write': `${admin} || (auth != null && !data.exists() && ${ok})`,
+          '.validate': "newData.child('u').val() === auth.uid && newData.child('at').isNumber() && newData.child('msg').isString() && newData.child('msg').val().length <= 300",
+          u: { '.validate': true },
+          at: { '.validate': true },
+          msg: { '.validate': true },
+          v: { '.validate': 'newData.isNumber()' },
+          where: { '.validate': 'newData.isString() && newData.val().length <= 40' },
+          ua: { '.validate': 'newData.isString() && newData.val().length <= 200' },
+          st: { '.validate': 'newData.isString() && newData.val().length <= 600' },
+          $other: { '.validate': false },
+        },
+      },
+      // 管理員操作紀錄：只有管理員讀寫
+      audit: { '.read': admin, '.write': admin },
+      // 管理員對玩家的備註
+      notes: { '.read': admin, '.write': admin },
       // 規則版本標記（見 RULES_VERSION）
       rulesv: { [`v${RULES_VERSION}`]: { '.read': true } },
       // 全站公告：大家讀、管理員寫
