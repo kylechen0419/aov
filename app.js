@@ -1867,7 +1867,7 @@ async function resumeDaily(run) {
   setConn(`每日挑戰 #${p.no}`);
   show('game');
   $('#countdown').hidden = true;
-  if (run.hint) setTimeout(() => showHint({ quiet: true }), 800);
+  if (run.hint) setTimeout(() => { if (state.game === g) showHint({ quiet: true }); }, 800);
   music.play('race');
   g.timer = setInterval(tick, 200);
   toast('接著剛才的挑戰！計時照算', 2500);
@@ -2115,6 +2115,7 @@ function createGame(settings, id) {
     lastCallEnd: 0,
     lastCallSent: false,
     hint: { offered: false, shown: false, myVote: false, yes: [], need: 0, votes: new Set() },
+    hint2: { offered: false, shown: false, myVote: false, yes: [], need: 0, votes: new Set(), near: [] },  // 5 分鐘的第二個提示
     timer: null,
     heart: null,
   };
@@ -2132,6 +2133,8 @@ function createGame(settings, id) {
   $('#hud').classList.remove('compact');
   $('#hint-bar').hidden = true;
   $('#btn-hint-open').hidden = true;
+  $('#btn-hint-open').textContent = '💡 提示';
+  $('#hint-near').hidden = true;
   closeHint();
   renderOppHud();
   $('#hud-alert-opp').hidden = true;
@@ -2230,6 +2233,7 @@ function gameSnapshot() {
     elapsed: g.startAt ? performance.now() - g.startAt : 0,
     lastCall: g.lastCallEnd ? Math.max(0, g.lastCallEnd - performance.now()) : 0,
     hint: g.hint.shown,
+    hint2: g.hint2?.shown ? g.hint2.near : null,
     progress,
   };
 }
@@ -2263,7 +2267,9 @@ function resumeGame(snap) {
   const nav = loadNav(g.id, mine.current || g.settings.start, g.path);
   if (nav) { g.stack = nav.stack; g.spots = nav.spots; } else { g.stack = g.path.slice(0, -1); g.spots = g.stack.map(() => null); }
   if (snap.lastCall > 0) g.lastCallEnd = performance.now() + snap.lastCall;
-  if (snap.hint) setTimeout(() => showHint({ quiet: true }), 800);
+  // 等畫面接好再打開提示；這段時間如果已經換成別局就不要套上去
+  if (snap.hint) setTimeout(() => { if (state.game === g) showHint({ quiet: true }); }, 800);
+  if (Array.isArray(snap.hint2)) setTimeout(() => { if (state.game === g) showHint2(snap.hint2, { quiet: true }); }, 900);
   renderOppHud();
   show('game');
   $('#countdown').hidden = true;
@@ -2386,6 +2392,7 @@ function tick() {
   if (g.fx) applyFx();
   if (isItems(g)) itemClock(g);
   if (ms >= HINT_AFTER && !g.hint.offered && !g.hint.shown) offerHint();
+  if (ms >= HINT2_AFTER && !g.hint2.offered && !g.hint2.shown) offerHint(2);
   if (left <= 0) finishGame('timeout');
 }
 
@@ -3917,73 +3924,134 @@ function openReplayFromHash() {
 const HINT_MIN = 3;
 const HINT_AFTER = HINT_MIN * 60 * 1000;
 
-function offerHint() {
+// 第二個提示（5 分鐘）：列出幾個「有連結直接通到終點」的條目，走到其中一個，下一步就能到。
+// 一樣要還在比的人都同意；房主挑好後傳給大家（每個人看到的都一樣）
+const HINT2_MIN = 5;
+const HINT2_AFTER = HINT2_MIN * 60 * 1000;
+const hintOf = (g, lv) => (lv === 2 ? g.hint2 : g.hint);
+// 提示列現在在問哪一個提示：第二個提示開放之後就問第二個
+const hintLv = (g) => (g.hint2?.offered && !g.hint2.shown ? 2 : 1);
+
+function offerHint(lv = 1) {
   const g = state.game;
-  if (!g || g.finished || g.hint.offered || g.hint.shown) return;
-  g.hint.offered = true;
+  const h = g && hintOf(g, lv);
+  if (!g || g.finished || h.offered || h.shown) return;
+  h.offered = true;
   $('#hint-bar').hidden = false;
   renderHintBar();
-  toast(state.solo ? `已經 ${HINT_MIN} 分鐘了！卡住的話可以看提示` : `已經 ${HINT_MIN} 分鐘了！大家都同意就能看提示`, 3000);
+  const min = lv === 2 ? HINT2_MIN : HINT_MIN;
+  const what = lv === 2 ? '第二個提示（直接通到終點的條目）' : '提示';
+  toast(state.solo ? `已經 ${min} 分鐘了！卡住的話可以看${what}` : `已經 ${min} 分鐘了！大家都同意就能看${what}`, 3000);
   sfx.near();
 }
 
 function renderHintBar() {
   const g = state.game;
-  const h = g.hint;
+  const lv = hintLv(g);
+  const h = hintOf(g, lv);
   const btn = $('#btn-hint-vote');
   if (state.solo) {
     btn.disabled = false;
-    btn.textContent = '💡 看提示';
-    $('#hint-ask-text').textContent = '卡住了嗎？看一下終點的提示';
+    btn.textContent = lv === 2 ? '🧭 看第二個提示' : '💡 看提示';
+    $('#hint-ask-text').textContent = lv === 2 ? '還是卡住？看看哪些條目直接通到終點' : '卡住了嗎？看一下終點的提示';
     return;
   }
   btn.disabled = h.myVote;
-  btn.textContent = h.myVote ? '✓ 已同意' : '💡 我要提示';
+  btn.textContent = h.myVote ? '✓ 已同意' : lv === 2 ? '🧭 我要第二個提示' : '💡 我要提示';
   $('#hint-ask-text').textContent = h.need
-    ? `提示投票：${h.yes.length} / ${h.need} 人同意${h.myVote && h.yes.length < h.need ? '，等其他人…' : ''}`
-    : `比了 ${HINT_MIN} 分鐘還沒到？大家都同意就能看提示`;
+    ? `${lv === 2 ? '第二個提示' : '提示'}投票：${h.yes.length} / ${h.need} 人同意${h.myVote && h.yes.length < h.need ? '，等其他人…' : ''}`
+    : lv === 2 ? `比了 ${HINT2_MIN} 分鐘還沒到？大家都同意就能看「直接通到終點的條目」` : `比了 ${HINT_MIN} 分鐘還沒到？大家都同意就能看提示`;
 }
 
 function voteHint() {
   const g = state.game;
-  if (!g || g.finished || g.hint.myVote || g.hint.shown) return;
-  if (state.solo) { g.hint.myVote = true; showHint(); return; }  // 單人訓練：不用投票，直接看提示
-  g.hint.myVote = true;
+  if (!g || g.finished) return;
+  const lv = hintLv(g);
+  const h = hintOf(g, lv);
+  if (h.myVote || h.shown) return;
+  h.myVote = true;
+  if (state.solo) { revealHint(lv); return; }  // 單人訓練：不用投票，直接看提示
   renderHintBar();
-  if (net.isHost) hostHintVote(state.myId);
-  else net.send({ t: 'hintvote' });
+  if (net.isHost) hostHintVote(state.myId, lv);
+  else net.send({ t: 'hintvote', lv });
 }
 
 // 房主：統計還在比、還連著線的人有沒有都同意
-function hostHintVote(pid) {
+function hostHintVote(pid, lv = 1) {
   const g = state.game;
-  if (!g || g.hint.shown) return;
-  g.hint.votes.add(pid);
-  checkHintVotes();
+  if (!g || hintOf(g, lv).shown) return;
+  hintOf(g, lv).votes.add(pid);
+  checkHintVotes(lv);
 }
 
-function checkHintVotes() {
+function checkHintVotes(lv = 1) {
   const g = state.game;
-  if (!g || g.hint.shown || !g.hint.votes.size) return;
+  const h = g && hintOf(g, lv);
+  if (!g || h.shown || !h.votes.size) return;
   const racers = [...g.others.values()].filter((o) => !o.finished && !o.left && !o.offline).map((o) => o.id);
   if (!g.finished) racers.push(state.myId);
-  const yes = racers.filter((id) => g.hint.votes.has(id));
-  const tally = { t: 'hinttally', yes, need: racers.length };
+  const yes = racers.filter((id) => h.votes.has(id));
+  const tally = { t: 'hinttally', lv, yes, need: racers.length };
   net.send(tally);
   applyHintTally(tally);
-  if (racers.length && yes.length >= racers.length) {
-    net.send({ t: 'hint' });
+  if (racers.length && yes.length >= racers.length) revealHint(lv);
+}
+
+// 大家都同意了（或單人訓練）：打開提示；第二個提示由房主挑好再傳給大家
+async function revealHint(lv) {
+  const g = state.game;
+  if (lv !== 2) {
+    if (!state.solo) net.send({ t: 'hint' });
     showHint();
+    return;
   }
+  if (g.hint2.picking) return;
+  g.hint2.picking = true;
+  const near = await nearTarget(g).catch(() => []);
+  if (state.game !== g) return;
+  if (!state.solo) net.send({ t: 'hint', lv: 2, near });
+  showHint2(near);
 }
 
 function applyHintTally(msg) {
   const g = state.game;
-  if (!g || g.hint.shown) return;
-  g.hint.yes = Array.isArray(msg.yes) ? msg.yes : [];
-  g.hint.need = Number(msg.need) || 0;
-  if (!g.hint.offered && !g.finished) offerHint();
+  const lv = msg.lv === 2 ? 2 : 1;
+  const h = g && hintOf(g, lv);
+  if (!g || h.shown) return;
+  h.yes = Array.isArray(msg.yes) ? msg.yes : [];
+  h.need = Number(msg.need) || 0;
+  if (!h.offered && !g.finished) offerHint(lv);
   if (!g.finished) renderHintBar();
+}
+
+// 挑 3 個有連結直接通到終點、而且比較有名（在題庫裡）的條目；用這一局的代號決定順序，同一局每次挑的都一樣
+async function nearTarget(g) {
+  const { set, key } = await loadBackSet(g);
+  let pop = new Set();
+  try { pop = new Set((await import('./topics.js?v=95')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
+  const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
+  const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const famous = all.filter((t) => pop.has(t)).sort((a, b) => hash(a) - hash(b));
+  const rest = all.filter((t) => !pop.has(t)).sort((a, b) => a.length - b.length || hash(a) - hash(b));
+  return [...famous, ...rest].slice(0, 3);
+}
+
+// 打開第二個提示（第一個提示還沒看的話一起打開）
+function showHint2(near, { quiet = false } = {}) {
+  const g = state.game;
+  if (!g || g.hint2.shown) return;
+  g.hint2.shown = true;
+  g.hint2.offered = true;
+  g.hint2.near = near;
+  if (!g.hint.shown) showHint({ quiet: true });
+  $('#hint-bar').hidden = true;
+  $('#hint-near').hidden = false;
+  $('#hint-near-list').replaceChildren(...(near.length ? near : ['（這一題找不到，只能靠自己了！）']).map((t) => Object.assign(document.createElement('span'), { textContent: tw(t) })));
+  if (g.finished) return;
+  $('#btn-hint-open').hidden = false;
+  $('#btn-hint-open').textContent = '💡 提示 ×2';
+  if (!quiet) { sfx.ready(); haptic('success'); openHint(); }
 }
 
 // quiet：重新整理或斷線重連回來時，只把「💡 提示」按鈕放回去，不再跳視窗、不再響
@@ -3991,7 +4059,9 @@ async function showHint({ quiet = false } = {}) {
   const g = state.game;
   if (!g || g.hint.shown) return;
   g.hint.shown = true;
-  $('#hint-bar').hidden = true;
+  // 第一個提示看完了，但第二個提示已經開放投票：提示列繼續留著問第二個
+  $('#hint-bar').hidden = !(g.hint2?.offered && !g.hint2.shown);
+  if (!$('#hint-bar').hidden) renderHintBar();
   if (g.finished) return;
   $('#hint-text').textContent = '讀取提示中…';
   // 目標列出現「💡 提示」按鈕，第一次直接打開給大家看，之後隨時可以再點開
@@ -5019,7 +5089,7 @@ function handleGuestMessage(msg, from, cid) {
       showEmote(from, msg.e);
       break;
     case 'hintvote':
-      if (state.game?.others.get(from) && !state.game.others.get(from).finished) hostHintVote(from);
+      if (state.game?.others.get(from) && !state.game.others.get(from).finished) hostHintVote(from, msg.lv === 2 ? 2 : 1);
       break;
     case 'item':
     case 'itemblock': {
@@ -5071,6 +5141,7 @@ function handleHostMessage(msg) {
         }
         if (snap.lastCall > 0 && !g.lastCallEnd) applyLastCall(snap.lastCall / 1000, null);
         if (snap.hint && !g.hint.shown) showHint({ quiet: true });
+        if (Array.isArray(snap.hint2) && !g.hint2.shown) showHint2(snap.hint2, { quiet: true });
         renderOppHud();
         if (g.finished) net.send({ t: 'finish', ...g.finished });
         else if (g.current) net.send({ t: 'progress', title: g.current, clicks: g.clicks, near: g.near, path: g.path });
@@ -5203,7 +5274,8 @@ function handleHostMessage(msg) {
       applyHintTally(msg);
       break;
     case 'hint':
-      showHint();
+      if (msg.lv === 2) showHint2(Array.isArray(msg.near) ? msg.near.filter((t) => typeof t === 'string').slice(0, 5).map((t) => t.slice(0, 200)) : []);
+      else showHint();
       break;
     case 'itemblock':
       if (msg.by) onItemBlocked(msg.by, msg.item, msg.from);

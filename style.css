@@ -1459,3 +1459,10 @@ body.replaying { overflow: hidden; }
 .find-list button:active { transform: scale(.98); }
 .article a.wl.find-hit { animation: findHit 2.4s ease-out; border-radius: 6px; }
 @keyframes findHit { 0%, 40% { background: #ffe066; box-shadow: 0 0 0 4px #ffe066; } 100% { background: transparent; box-shadow: 0 0 0 0 transparent; } }
+/* 第二個提示：直接通到終點的條目 */
+.hint-near { margin: 12px 0 4px; padding: 12px; border-radius: 14px; background: #e6f9ff; border: 2px solid #7fd3f0; }
+.hint-near[hidden] { display: none; }
+.hint-near-head { margin: 0 0 8px; font-size: 14px; font-weight: 900; color: #0b6a8c; }
+.hint-near-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.hint-near-list span { background: #fff; color: #0b6a8c; font-weight: 900; font-size: 15px; padding: 6px 12px; border-radius: 999px; border: 2px solid #7fd3f0; }
+.hint-near-tip { margin: 8px 0 0; font-size: 12px; font-weight: 700; color: #3b7f96; }
