@@ -100,6 +100,7 @@
         </div>
         <p id="home-error" class="error" hidden></p>
         <button id="tut-hint" class="tut-hint" type="button" hidden>👋 第一次玩？30 秒看懂怎麼玩</button>
+        <button id="btn-newbie" class="btn newbie-btn wide" type="button" hidden>🐣 新手第一局<small>保證簡單，邊玩邊教你</small></button>
         <div class="divider"><span>或一個人玩</span></div>
         <div class="solo-row">
           <button id="btn-daily" class="btn orange solo-btn" type="button">📅 每日挑戰<small id="daily-sub">每天一題，全台比排名</small></button>
@@ -336,6 +337,8 @@
       <button id="btn-music-game" class="tab"><svg class="ic"><use href="#i-music"/></svg><span>音樂</span></button>
       <button id="btn-giveup" class="tab danger"><svg class="ic"><use href="#i-flag"/></svg><span>投降</span></button>
     </nav>
+
+    <div id="newbie-tip" class="newbie-tip" role="status" hidden><span class="newbie-icon" aria-hidden="true">🐣</span><span id="newbie-text"></span><button id="newbie-find" class="btn small primary" type="button" hidden>幫我找</button></div>
 
     <div id="find-sheet" class="sheet find-sheet" hidden>
       <div class="sheet-grabber"></div>

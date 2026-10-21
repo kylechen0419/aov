@@ -1466,3 +1466,25 @@ body.replaying { overflow: hidden; }
 .hint-near-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .hint-near-list span { background: #fff; color: #0b6a8c; font-weight: 900; font-size: 15px; padding: 6px 12px; border-radius: 999px; border: 2px solid #7fd3f0; }
 .hint-near-tip { margin: 8px 0 0; font-size: 12px; font-weight: 700; color: #3b7f96; }
+
+/* 新手第一局 */
+.btn.newbie-btn { --bg: #fff3c4; --bd: #f0c419; --fg: #7a5200; flex-direction: column; gap: 2px; }
+.newbie-btn small { font-size: 12px; font-weight: 700; opacity: .8; }
+.newbie-btn[hidden] { display: none; }
+.newbie-tip {
+  position: fixed; z-index: 24; left: var(--gutter-l, 12px); right: var(--gutter-r, 12px);
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px;
+  background: #fffbe8; color: var(--ink); border: 2px solid #ffc933; border-radius: 16px;
+  font-size: 14px; font-weight: 800; line-height: 1.5; box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+  max-width: 560px; margin: 0 auto;
+}
+.newbie-tip[hidden] { display: none; }
+.newbie-tip.pop { animation: newbiePop .35s ease-out; }
+.newbie-tip .newbie-icon { font-size: 24px; flex: none; }
+.newbie-tip #newbie-text { flex: 1; min-width: 0; }
+.newbie-tip .btn { flex: none; }
+.newbie-tip .btn[hidden] { display: none; }
+@keyframes newbiePop { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+.tab.newbie-glow { animation: newbieGlow 1.2s ease-in-out infinite; }
+@keyframes newbieGlow { 50% { box-shadow: 0 0 0 4px #ffc933; } }

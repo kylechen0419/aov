@@ -201,6 +201,8 @@ function show(view) {
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
+  if (view === 'home') renderNewbieHome();
+  if (view !== 'game') clearNewbie();
   if (view === 'home') { renderStats(); renderHistory(); refreshDailyHome(); }
   if (view === 'room' || view === 'result') renderChat();
   window.scrollTo(0, 0);
@@ -1673,6 +1675,7 @@ function openSolo() {
 
 function initSolo() {
   $('#btn-solo').onclick = openSolo;
+  $('#btn-newbie').onclick = startNewbie;
   $('#solo-close').onclick = () => { $('#solo-modal').hidden = true; };
   $('#solo-modal').addEventListener('click', (e) => { if (e.target.id === 'solo-modal') $('#solo-modal').hidden = true; });
   // 隨機出題：抽一個條目填進去（起點、終點不會抽到一樣的）
@@ -2147,6 +2150,7 @@ function createGame(settings, id) {
   $('#btn-back').hidden = !settings.allowBack;
   $('#btn-back').disabled = true;
   $('#btn-find').hidden = !settings.allowFind;
+  clearNewbie();
   closeFind();
   $('#article').replaceChildren();
   $('#article-title').textContent = '';
@@ -2474,6 +2478,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
     else {
       renderGoal();
       if (!checkOutstepped() && first) setTimeout(runCoach, 400);
+      if (g.settings.newbie) newbieStep(g);
     }
   } catch (e) {
     reportError('article', e);
@@ -3094,6 +3099,8 @@ function finishGame(reason) {
   if (!g || g.finished) return;
   stopGameLoops(g);
   closeFind();
+  clearNewbie();
+  if (g.settings.newbie && reason === 'win') { store.set('wikirace-newbie-done', '1'); setTimeout(() => toast('🎉 第一局完成！接下來可以開房間找朋友對決，或挑戰每日一題', 5000), 1200); }
   music.stop();
   g.finished = { reason, elapsed: elapsed(), clicks: g.clicks, path: g.path.slice() };
   if (state.solo) { settleDaily(g); recordSoloStats(g); }
@@ -4856,17 +4863,20 @@ function initTutorial() {
     dots.querySelectorAll('.tut-dot').forEach((d, k) => d.classList.toggle('on', k === i));
     slides.forEach((s, k) => s.classList.toggle('active', k === i));
     $('#tut-prev').disabled = i === 0;
-    $('#tut-next').textContent = i === slides.length - 1 ? '開始玩！' : '下一步';
+    $('#tut-next').textContent = i === slides.length - 1 ? (newbieAfter() ? '🐣 玩第一局！' : '開始玩！') : '下一步';
   };
-  const close = () => {
+  // 第一次玩、不是從邀請連結來的：看完教學直接玩一局簡單的
+  const newbieAfter = () => isNewPlayer() && state.view === 'home' && !$('#join-code').value;
+  const close = (play = false) => {
     $('#tutorial').hidden = true;
     store.set('wikirace-tutorial-done', '1');
+    if (play && newbieAfter()) { startNewbie(); return; }
     // 從邀請連結進來的人看完教學，直接接著填暱稱
     if (state.view === 'home' && $('#join-code').value) ($('#nickname').value ? $('#btn-join') : $('#nickname')).focus();
   };
-  $('#tut-next').onclick = () => (i === slides.length - 1 ? close() : go(i + 1));
+  $('#tut-next').onclick = () => (i === slides.length - 1 ? close(true) : go(i + 1));
   $('#tut-prev').onclick = () => go(i - 1);
-  $('#tut-skip').onclick = close;
+  $('#tut-skip').onclick = () => close();
   // 左右滑動換頁
   let sx = null;
   track.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
@@ -4923,6 +4933,121 @@ function runCoach() {
   coach.onclick = next;
   coach.hidden = false;
   place();
+}
+
+// ---------- 新手第一局 ----------
+// 第一次玩的人先玩一題保證簡單（兩步就到）的題目，邊玩邊提示：先給方向，停太久就直接指出要點哪個連結
+// path：在真的維基百科上確認過每一步都點得到（scripts/solvecheck.mjs 的 PATHS）
+const NEWBIE = [
+  ['珍珠奶茶', '臺灣', '臺北市'],
+  ['珍珠奶茶', '臺灣', '玉山'],
+  ['披薩', '義大利', '羅馬'],
+  ['大熊貓', '中國', '北京市'],
+  ['可口可樂', '美國', '紐約'],
+  ['漢堡', '美國', '自由女神像'],
+  ['拉麵', '日本', '富士山'],
+  ['咖哩', '印度', '恆河'],
+  ['足球', '巴西', '亞馬遜河'],
+];
+const NEWBIE_NUDGE = 10000;  // 這麼久還沒動：說出要找哪個連結
+const NEWBIE_SHOW = 20000;   // 再久一點：直接捲過去閃給他看
+const isNewPlayer = () => !store.get('wikirace-newbie-done') && !store.get('wikirace-coach-done') && !loadHistory().length;
+function renderNewbieHome() {
+  $('#btn-newbie').hidden = !isNewPlayer();
+}
+
+let newbieBusy = false;
+async function startNewbie() {
+  if (newbieBusy) return;
+  newbieBusy = true;
+  const btn = $('#btn-newbie');
+  btn.disabled = true;
+  const path = NEWBIE[Math.floor(Math.random() * NEWBIE.length)];
+  const s = { ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed', start: path[0], target: path[path.length - 1], allowBack: true, trueRandom: false, allowFind: false, newbie: path };
+  try {
+    // 換成維基百科上的正式標題（抵達終點要比對標題）
+    s.start = await wiki.resolveTitle(s.lang, s.start);
+    s.target = await wiki.resolveTitle(s.lang, s.target);
+  } catch (e) {
+    toast('網路好像不太穩，等一下再試一次');
+    return;
+  } finally {
+    newbieBusy = false;
+    btn.disabled = false;
+  }
+  if (state.view !== 'home') return;
+  soloSetup($('#nickname').value.trim() || '你');
+  state.daily = null;
+  state.settings = s;
+  for (const m of ['#solo-modal', '#tutorial', '#daily-modal']) $(m).hidden = true;
+  setConn('新手第一局');
+  startGame(s, randomKey());
+  notify('solo', '有新玩家在玩新手第一局', `${tw(s.start)} → ${tw(s.target)}`);
+}
+
+let newbieTimers = [];
+function clearNewbie() {
+  newbieTimers.forEach(clearTimeout);
+  newbieTimers = [];
+  $('#newbie-tip').hidden = true;
+  $('#btn-back').classList.remove('newbie-glow');
+}
+function newbieSay(text, { find = null } = {}) {
+  $('#newbie-text').textContent = text;
+  const b = $('#newbie-find');
+  b.hidden = !find;
+  b.onclick = find;
+  const tip = $('#newbie-tip');
+  tip.hidden = false;
+  tip.classList.remove('pop');
+  void tip.offsetWidth;
+  tip.classList.add('pop');
+}
+// 每到一頁：看看這一頁該點哪個連結，分段給提示
+async function newbieStep(g) {
+  clearNewbie();
+  const path = g.settings.newbie;
+  if (!Array.isArray(path) || g.finished) return;
+  const here = g.current;
+  const alive = () => state.game === g && !g.finished && g.current === here;
+  // 第一次比賽的畫面導覽還開著：等他看完再開始提示和計時
+  const wait = (ms) => new Promise((r) => { setTimeout(r, ms); });
+  await wait(500);
+  while (alive() && !$('#coach').hidden) await wait(300);
+  if (!alive()) return;
+  const target = tw(g.settings.target);
+  if (g.near) {
+    const flash = () => { const a = $('#article a.is-target'); if (a) jumpToLink(a); };
+    newbieSay(`這一頁就有終點《${target}》的連結（金色的），找到它點下去！`, { find: flash });
+    newbieTimers.push(setTimeout(() => { if (alive()) flash(); }, NEWBIE_NUDGE));
+    return;
+  }
+  const key = (t) => tw(t);
+  // 現在在路線上的第幾站（用重新導向名稱比對，簡繁、別名都算）
+  let idx = -1;
+  for (let i = path.length - 2; i >= 0 && idx < 0; i--) {
+    const names = await namesOf('zh', path[i], key).catch(() => new Set([key(path[i])]));
+    if (names.has(key(here))) idx = i;
+  }
+  if (!alive()) return;
+  if (idx < 0) {
+    newbieSay(g.stack.length ? '走到別的地方了，沒關係！按下面的「上一頁」回去再找找看' : `想想看，什麼跟《${target}》有關？`);
+    if (g.stack.length) $('#btn-back').classList.add('newbie-glow');
+    return;
+  }
+  $('#btn-back').classList.remove('newbie-glow');
+  const next = path[idx + 1];
+  newbieSay(idx === 0 ? `終點是《${target}》。想一想：這一頁哪個藍色連結跟它有關？` : `很好！離《${target}》更近了，再找找看`);
+  let link = null;
+  const findLink = async () => {
+    if (link?.isConnected) return link;
+    const names = await namesOf('zh', next, key).catch(() => new Set([key(next)]));
+    link = [...$('#article').querySelectorAll('a.wl')].find((a) => names.has(key(a.dataset.title))) || null;
+    return link;
+  };
+  const show = async () => { const a = await findLink(); if (alive() && a) jumpToLink(a); };
+  newbieTimers.push(setTimeout(() => { if (alive()) newbieSay(`提示：找找看「${tw(next)}」這個連結，${tw(next)}跟《${target}》很有關係`, { find: show }); }, NEWBIE_NUDGE));
+  newbieTimers.push(setTimeout(() => { if (alive()) show(); }, NEWBIE_SHOW));
 }
 
 // ---------- 連線：房主這一側 ----------
@@ -5430,4 +5555,5 @@ if (fromDaily && !session.load()) {
   openDaily();
   try { history.replaceState(null, '', location.pathname); } catch { /* 忽略 */ }
 }
+renderNewbieHome();
 $('#tut-hint').onclick = () => { $('#tut-hint').hidden = true; openTutorial(); };
