@@ -1,0 +1,20 @@
+name: Nightly summary
+
+# 每天晚上 10 點左右（台灣時間）把今日摘要推播到手機（後台「手機通知」設定的 ntfy 頻道）
+on:
+  schedule:
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/nightly.mjs

@@ -393,6 +393,8 @@
           <label class="chk"><input type="checkbox" data-nt="room"> 有人開了房間</label>
           <label class="chk"><input type="checkbox" data-nt="start"> 房間開始第一場比賽</label>
           <label class="chk"><input type="checkbox" data-nt="solo"> 有人開始單人訓練或每日挑戰</label>
+          <label class="chk"><input type="checkbox" data-nt="nightly"> 每晚 10 點左右傳今日摘要（幾局、幾人玩、每日挑戰、錯誤）</label>
+          <div class="nt-btns" style="margin-top:6px"><button id="nt-digest" type="button">現在傳一次今日摘要</button></div>
           <label class="chk self"><input type="checkbox" id="nt-self"> 我用這支手機玩的時候，不要通知我自己</label>
         </div>
         <p class="nt-msg" id="nt-msg"></p>
@@ -466,7 +468,7 @@
     <div id="multi-grid" class="multi-grid"></div>
   </div>
 
-  <script src="firebase-config.js?v=83"></script>
+  <script src="firebase-config.js?v=84"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -628,7 +630,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=83').then(({ rulesFor, RULES_VERSION }) => {
+    import('./rules.js?v=84').then(({ rulesFor, RULES_VERSION }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
@@ -664,7 +666,7 @@
     for (const id of ['#nt-test', '#nt-new', '#nt-off']) $(id).hidden = !on;
     if (!on) return;
     $('#nt-topic').textContent = c.topic;
-    document.querySelectorAll('[data-nt]').forEach((x) => { x.checked = !!c[x.dataset.nt]; });
+    document.querySelectorAll('[data-nt]').forEach((x) => { x.checked = x.dataset.nt === 'nightly' ? c.nightly !== false : !!c[x.dataset.nt]; });
   }
   function wireNotify() {
     // 跟遊戲端 notify.js 的判斷一致：只有存成 '1' 才算「不要通知我」。
@@ -680,7 +682,7 @@
       // 預設不通知製作者自己玩的局
       try { if (localStorage.getItem('wikirace-notify-self') == null) localStorage.setItem('wikirace-notify-self', '1'); } catch (e) {}
       $('#nt-self').checked = true;
-      db.ref('config/notify').set({ topic: newTopic(), room: true, start: true, solo: true, at: Date.now() }).then(() => { ntMsg('已開啟，照上面三個步驟在手機上訂閱'); audit('開啟手機通知'); }, ntFail);
+      db.ref('config/notify').set({ topic: newTopic(), room: true, start: true, solo: true, nightly: true, at: Date.now() }).then(() => { ntMsg('已開啟，照上面三個步驟在手機上訂閱'); audit('開啟手機通知'); }, ntFail);
     };
     $('#nt-new').onclick = () => {
       if (!confirm('換頻道後，手機要重新訂閱新的頻道名稱。確定要換？')) return;
@@ -695,9 +697,22 @@
       const t = $('#nt-topic').textContent;
       (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => ntMsg('已複製頻道名稱'), () => ntMsg('複製失敗，請長按頻道名稱自己複製'));
     };
+    // 跟每晚的摘要（scripts/nightly.mjs）一樣的內容，現在就傳一次
+    $('#nt-digest').onclick = async () => {
+      if (!notifyCfg || !notifyCfg.topic) return;
+      const day = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 10);
+      const get = (p) => db.ref(p).once('value').then((x) => x.val(), () => null);
+      const [d, y, dl, on, pk] = await Promise.all([get('stats/dayCount/' + day(Date.now())), get('stats/dayCount/' + day(Date.now() - 864e5)), get('stats/daily/' + day(Date.now())), get('online'), get('stats/peakOnline')]);
+      const n = (v) => Number(v) || 0, c = (v) => (v ? Object.keys(v).length : 0);
+      const lines = [`🎮 對局 ${n(d && d.games)} 局${y && y.games ? `（昨天 ${y.games}）` : ''}・玩家 ${n(d && d.players)} 人次`, `📅 每日挑戰 ${c(dl)} 人完成`, `👥 現在在線 ${c(on)} 人・史上尖峰 ${n(pk)} 人`];
+      if (d && d.errors) lines.push(`🐞 今天有 ${d.errors} 筆錯誤紀錄，到後台看看`);
+      const { sendNtfy } = await import('./notify.js?v=84');
+      await sendNtfy(notifyCfg.topic, 'test', `維基競速・今日摘要（${day(Date.now()).slice(5).replace('-', '/')}）`, lines.join('\n'));
+      ntMsg('已傳出今日摘要，手機幾秒內會收到');
+    };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=83');
+      const { sendNtfy } = await import('./notify.js?v=84');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -758,7 +773,7 @@
 
   // ---------- 暱稱過濾 ----------
   let badwords = '', names = null;
-  import('./names.js?v=83').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
+  import('./names.js?v=84').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
   function renderBadwords(fromDb) {
     const n = String(badwords || '').split(/[,，、\n]+/).filter((x) => x.trim()).length;
     $('#bw-sum').textContent = n ? `內建＋自訂 ${n} 個字` : '用內建清單';
@@ -1154,7 +1169,7 @@
 
   // ---------- 題庫管理（config/topicBan：一行一個） ----------
   let topicBan = '', topicCount = 0;
-  import('./topics.js?v=83').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
+  import('./topics.js?v=84').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
   const topicList = () => String(topicBan || '').split('\n').map((t) => t.trim()).filter(Boolean);
   const topicSet = () => new Set(topicList());
   const saveTopics = (list, what) => db.ref('config/topicBan').set(list.join('\n') || null).then(() => { $('#tp-msg').textContent = '已儲存，之後的隨機出題會跳過'; audit(what[0], what[1]); }, () => { $('#tp-msg').textContent = '存不進去：請先用 Google 登入'; });
@@ -1210,7 +1225,7 @@
     }
   }
   const dcMsg = (t) => { $('#dc-msg').textContent = t || ''; };
-  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=83'));
+  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=84'));
   async function setDaily(i, start, target) {
     const key = dcKeys()[i];
     const n = dcCount[key] || 0;

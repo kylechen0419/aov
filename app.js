@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=83';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=83';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=83';
-import { initNotify, notify } from './notify.js?v=83';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=83';
-import { reportError, catchErrors } from './errors.js?v=83';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=83';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=83';
-import * as wiki from './wiki.js?v=83';
-import { tw, twTree, zhReady } from './zh.js?v=83';
-import { makeShareImage } from './share.js?v=83';
-import { solve } from './solver.js?v=83';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=83';
+import { Net } from './net.js?v=84';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=84';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=84';
+import { initNotify, notify } from './notify.js?v=84';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=84';
+import { reportError, catchErrors } from './errors.js?v=84';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=84';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=84';
+import * as wiki from './wiki.js?v=84';
+import { tw, twTree, zhReady } from './zh.js?v=84';
+import { makeShareImage } from './share.js?v=84';
+import { solve } from './solver.js?v=84';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=84';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -641,7 +641,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=83').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=84').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
