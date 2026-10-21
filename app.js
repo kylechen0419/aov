@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=88';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=88';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=88';
-import { initNotify, notify } from './notify.js?v=88';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=88';
-import { reportError, catchErrors } from './errors.js?v=88';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=88';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=88';
-import * as wiki from './wiki.js?v=88';
-import { tw, twTree, zhReady } from './zh.js?v=88';
-import { makeShareImage } from './share.js?v=88';
-import { solve } from './solver.js?v=88';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=88';
+import { Net } from './net.js?v=89';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=89';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=89';
+import { initNotify, notify } from './notify.js?v=89';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=89';
+import { reportError, catchErrors } from './errors.js?v=89';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=89';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=89';
+import * as wiki from './wiki.js?v=89';
+import { tw, twTree, zhReady } from './zh.js?v=89';
+import { makeShareImage } from './share.js?v=89';
+import { solve } from './solver.js?v=89';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=89';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=88').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=89').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -3160,9 +3160,13 @@ function renderRanking(g, entries) {
   const done = allDone(g);
   $('#ranking-status').textContent = done ? '最終排名' : '比賽進行中…';
   const target = g.settings.target;
+  // 重畫前記住哪些人的路線是展開的：還在比的人每走一步都會重畫，不能每次都收起來
+  const opened = new Set([...$('#rank-list').querySelectorAll('li.rank-item > details[open]')].filter((d) => d.parentElement.dataset.gid === String(g.id)).map((d) => d.parentElement.dataset.id));
   const items = entries.map((e) => {
     const li = document.createElement('li');
     li.className = 'rank-item';
+    li.dataset.id = e.id;
+    li.dataset.gid = String(g.id);  // 新的一局就全部收起來
     li.classList.toggle('is-me', e.me);
     if (e.place && e.place <= 3) li.classList.add(`p${e.place}`);
     const badge = Object.assign(document.createElement('span'), { className: 'rank-badge', textContent: e.place ? String(e.place) : '–' });
@@ -3176,6 +3180,7 @@ function renderRanking(g, entries) {
     ol.style.setProperty('--side', e.color);
     fillPath(ol, e.path || [], target);
     body.append(sum, ol);
+    body.open = opened.has(e.id);
     if (e.finished || e.left) body.append(routeReplayButton(e.me ? '你' : e.name, e.path || [], g.settings, e.finished?.reason === 'win'));
     li.append(badge, body);
     if (g.finished && !e.me && !e.finished && !e.left) {

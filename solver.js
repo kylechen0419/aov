@@ -5,7 +5,7 @@
 // 沒有步數上限：只要路線存在，遲早會碰到。兩邊都是一整層一整層地展開，
 // 第一次碰到的那條就一定是最短的（之前的層都沒碰到，表示更短的路線不存在）。
 // 重新導向（例如「台灣」→「臺灣」）不算一步：連到重新導向頁就等於連到它指向的條目。
-import { api as wikiApi } from './wiki.js?v=88';
+import { api as wikiApi } from './wiki.js?v=89';
 // 找解答時被擋（429）或網路不穩：每個請求多等幾次（最久等一分多鐘），不要整個放棄
 const api = (lang, params) => wikiApi(lang, params, { retries: 7 });
 
