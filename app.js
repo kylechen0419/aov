@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=90';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=90';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=90';
-import { initNotify, notify } from './notify.js?v=90';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=90';
-import { reportError, catchErrors } from './errors.js?v=90';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=90';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=90';
-import * as wiki from './wiki.js?v=90';
-import { tw, twTree, zhReady } from './zh.js?v=90';
-import { makeShareImage } from './share.js?v=90';
-import { solve } from './solver.js?v=90';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=90';
+import { Net } from './net.js?v=91';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=91';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=91';
+import { initNotify, notify } from './notify.js?v=91';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=91';
+import { reportError, catchErrors } from './errors.js?v=91';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=91';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=91';
+import * as wiki from './wiki.js?v=91';
+import { tw, twTree, zhReady } from './zh.js?v=91';
+import { makeShareImage } from './share.js?v=91';
+import { solve } from './solver.js?v=91';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=91';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=90').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=91').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1155,7 +1155,7 @@ function gameRoster(g) {
   return ranking(g).slice(0, 8).map((e) => ({
     n: String(e.name || '玩家').slice(0, 16), pl: e.place || 0, r: String(e.finished?.reason || (e.left ? 'left' : '')).slice(0, 12),
     k: Number(e.clicks) || 0, t: Math.round(e.finished?.elapsed || 0),
-    p: cleanPath(e.path).slice(0, 40).map((t) => tw(t).slice(0, 100)),
+    p: cleanPath(e.path).map((t) => tw(t).slice(0, 100)),  // 整條路線（最多 200 站，跟 cleanPath 一樣）：重播要從頭播到尾
   }));
 }
 
@@ -1901,7 +1901,7 @@ function settleDaily(g) {
   d.recorded = true;
   const f = g.finished;
   const win = f.reason === 'win';
-  const path = cleanPath(f.path || g.path).slice(0, 80).map((t) => t.slice(0, 100));  // 走過的路線：排行榜上給完成的人看
+  const path = cleanPath(f.path || g.path).map((t) => t.slice(0, 100));  // 走過的路線：排行榜上給完成的人看
   saveDay(d.key, { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown, n: state.myName, a: state.myAvatar || '', p: path, sent: false });
   if (win) d.sending = resendDaily(d.key);
 }
@@ -3574,7 +3574,7 @@ function waitHostSolution(g) {
 
 // ---------- 解答分享：一個人找到，房間裡比完的人都看得到 ----------
 const cleanSolution = (m) => {
-  const list = (a) => (Array.isArray(a) ? a.slice(0, 40).map((t) => (typeof t === 'string' ? t.slice(0, 200) : null)) : []);
+  const list = (a) => (Array.isArray(a) ? a.slice(0, 200).map((t) => (typeof t === 'string' ? t.slice(0, 200) : null)) : []);
   const path = list(m.path).filter(Boolean);
   if (path.length < 1) return null;
   return { path, via: list(m.via), exact: !!m.exact, by: String(m.by || '').slice(0, 16) };
@@ -3624,7 +3624,7 @@ function playRoute(r) {
   if (path.length < 2) return;
   const n = path.length - 1;
   const sol = { ...r, path };
-  Object.assign(player, { r: sol, i: 0, playing: true, backs: backSteps(path), arts: path.map((t) => getArticle(r.settings.lang, t).catch(() => null)) });
+  Object.assign(player, { r: sol, i: 0, playing: true, backs: backSteps(path), arts: [] });
   $('#replay').hidden = false;
   document.body.classList.add('replaying');
   $('#replay-dots').replaceChildren(...path.map((t, i) => {
@@ -3661,7 +3661,10 @@ async function replayGo(i) {
   $('#replay-next').disabled = i === n;
   paintPlay();
   $('#replay-loading').hidden = false;
-  const art = await player.arts[i];
+  // 播到哪一頁才讀那一頁，順便先讀下一頁（長路線一次全部讀會被維基百科擋）
+  const artAt = (k) => (k <= n ? (player.arts[k] ||= getArticle(settings.lang, path[k]).catch(() => { player.arts[k] = null; return null; })) : null);
+  const art = await artAt(i);
+  artAt(i + 1);
   if (!alive()) return;
   $('#replay-loading').hidden = true;
   if (art) fillArticle($('#replay-article'), $('#replay-title'), art, settings);
@@ -3749,7 +3752,7 @@ function openReplayFromHash() {
   if (!location.hash.startsWith('#replay=')) return false;
   try {
     const d = JSON.parse(decodeURIComponent(location.hash.slice(8)));
-    const path = (Array.isArray(d.p) ? d.p : []).map((t) => String(t).slice(0, 200)).slice(0, 60);
+    const path = (Array.isArray(d.p) ? d.p : []).map((t) => String(t).slice(0, 200)).slice(0, 200);
     if (path.length < 2) return false;
     playRoute({ path, settings: { ...DEFAULT_SETTINGS, lang: d.l === 'en' ? 'en' : 'zh', start: path[0], target: String(d.t || path[path.length - 1]) }, who: String(d.n || '').slice(0, 16), reached: d.r === 'win' });
     return true;
