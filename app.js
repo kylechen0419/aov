@@ -1,14 +1,14 @@
-import { Net } from './net.js?v=74';
-import { initPresence } from './presence.js?v=74';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=74';
-import { initNotify, notify } from './notify.js?v=74';
-import { getUid, authOff } from './fb.js?v=74';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=74';
-import * as wiki from './wiki.js?v=74';
-import { tw, twTree, zhReady } from './zh.js?v=74';
-import { makeShareImage } from './share.js?v=74';
-import { solve } from './solver.js?v=74';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=74';
+import { Net } from './net.js?v=75';
+import { initPresence, setActivity } from './presence.js?v=75';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=75';
+import { initNotify, notify } from './notify.js?v=75';
+import { getUid, authOff } from './fb.js?v=75';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=75';
+import * as wiki from './wiki.js?v=75';
+import { tw, twTree, zhReady } from './zh.js?v=75';
+import { makeShareImage } from './share.js?v=75';
+import { solve } from './solver.js?v=75';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=75';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -159,8 +159,26 @@ function showError(sel, msg) {
   el.hidden = !msg;
 }
 
+// 後台「在線玩家」：這個人現在在做什麼（不含正在看哪個條目）
+function reportActivity() {
+  const g = state.game;
+  const v = state.view;
+  const a = { n: (state.myName || $('#nickname')?.value.trim() || '').slice(0, 16), av: state.myAvatar || '', s: 'home' };
+  const race = (g && v !== 'home' && v !== 'room') ? { st: tw(g.settings.start).slice(0, 100), tg: tw(g.settings.target).slice(0, 100), k: g.finished?.clicks ?? g.clicks ?? 0, ok: g.finished?.reason === 'win' } : null;
+  if (state.daily && race) Object.assign(a, { s: 'daily', d: state.daily.no || 0, done: !!g.finished }, race);
+  else if (state.solo && race) Object.assign(a, { s: 'solo', g: cleanGoal(g.settings.goal), done: !!g.finished }, race);
+  else if (net.code && v !== 'home') {
+    Object.assign(a, { s: v, r: net.code, h: !!net.isHost, m: state.mode, g: cleanGoal(state.settings.goal) });
+    if (race) Object.assign(a, race, { done: !!g.finished });
+  }
+  setActivity(a);
+}
+
+setInterval(() => reportActivity(), 10000);  // 暱稱、房主身分等零碎變動，定期補報（內容沒變不會重寫）
+
 function show(view) {
   state.view = view;
+  setTimeout(reportActivity, 0);
   for (const v of ['home', 'room', 'game', 'result', 'watch']) $(`#view-${v}`).hidden = v !== view;
   $('.masthead').hidden = view === 'game' || view === 'watch';
   const fabOn = !state.solo && (view === 'room' || view === 'result' || view === 'watch');
@@ -602,7 +620,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=74').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=75').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2046,6 +2064,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
     }
     g.current = art.title;
     saveNav(g);
+    reportActivity();
     renderArticle(art);
     if (spot) restoreSpot(spot);
     if (first && state.daily && !state.daily.started) {
@@ -4020,6 +4039,7 @@ function handleHostMessage(msg) {
         writeForm(state.settings);
       }
       if (state.view === 'room') renderRoom();
+      reportActivity();  // 剛進房時還不知道房間模式：收到房主的名單才回報正確的
       break;
     case 'full':
       session.clear();

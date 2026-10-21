@@ -19,6 +19,32 @@ export function rulesFor(adminUid) {
           $other: { '.validate': false },
         },
       },
+      // 在線玩家在做什麼（暱稱、在哪個房間、什麼模式）：本人寫、只有管理員看得到
+      who: {
+        '.read': admin,
+        $id: {
+          '.write': "auth != null && (!data.exists() || data.child('u').val() === auth.uid)",
+          '.validate': "newData.child('u').val() === auth.uid && newData.child('t').isNumber() && newData.child('s').isString() && newData.child('s').val().length <= 12",
+          u: { '.validate': true },
+          t: { '.validate': true },
+          s: { '.validate': true },
+          since: { '.validate': 'newData.isNumber()' },
+          at: { '.validate': 'newData.isNumber()' },
+          n: { '.validate': 'newData.isString() && newData.val().length <= 16' },
+          av: { '.validate': 'newData.isString() && newData.val().length <= 32' },
+          r: { '.validate': 'newData.isString() && newData.val().length <= 8' },
+          m: { '.validate': 'newData.isString() && newData.val().length <= 8' },
+          g: { '.validate': 'newData.isString() && newData.val().length <= 8' },
+          st: { '.validate': 'newData.isString() && newData.val().length <= 100' },
+          tg: { '.validate': 'newData.isString() && newData.val().length <= 100' },
+          k: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 9999' },
+          d: { '.validate': 'newData.isNumber()' },
+          h: { '.validate': 'newData.isBoolean()' },
+          ok: { '.validate': 'newData.isBoolean()' },
+          done: { '.validate': 'newData.isBoolean()' },
+          $other: { '.validate': false },
+        },
+      },
       // 房間概況：房主寫、只有管理員看得到（裡面有暱稱）
       rooms: {
         '.read': admin,

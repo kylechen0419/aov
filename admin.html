@@ -64,6 +64,17 @@
   .ctl .kick { background: var(--card2); color: var(--pink); }
   .ctl .close { background: #4a1530; color: var(--red); }
   .empty { color: var(--muted); text-align: center; padding: 30px 0; }
+  .who { display: grid; gap: 6px; }
+  .who-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; }
+  .who-row .nm { font-weight: 800; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who-row .tm { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .who-row .st { grid-column: 1 / -1; font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .who-row .dt { grid-column: 1 / -1; font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who-row.home { opacity: .7; }
+  .tag.solo { background: #5b2bbf; }
+  .tag.daily { background: #b8561a; }
+  .tag.host { background: #7a5a12; color: var(--yellow); }
+  .who-sum { font-size: 12px; color: var(--muted); margin: -4px 2px 8px; }
   .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
   .nt-state { font-size: 13px; font-weight: 800; margin: 0 0 8px; }
   .nt-state.on { color: var(--green); }
@@ -104,6 +115,10 @@
       <div class="box"><b id="s-peak">–</b><span>史上尖峰</span></div>
       <div class="box"><b id="s-daily">–</b><span>今日挑戰完成</span></div>
     </div>
+
+    <h2>👥 在線玩家</h2>
+    <p class="who-sum" id="who-sum"></p>
+    <div id="who" class="who"><p class="empty">讀取中…</p></div>
 
     <h2>🔐 資料庫保護</h2>
     <div class="panel">
@@ -186,7 +201,7 @@
     <div id="rooms" class="rooms"></div>
   </main>
 
-  <script src="firebase-config.js?v=74"></script>
+  <script src="firebase-config.js?v=75"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -210,6 +225,7 @@
   const dur = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
   let notifyCfg = null;
+  let lastWho = null;
   let db = null, lastRooms = null, games = [], sortBy = 'new', filterBy = 'all', period = 'today';
 
   function start() {
@@ -237,6 +253,7 @@
         wireSecurity(auth);
         db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); }, () => { $('#status').textContent = '讀不到房間：資料庫已上鎖，請先用 Google 登入'; });
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
+        db.ref('who').on('value', (snap) => { lastWho = snap.val() || {}; renderWho(); }, () => { lastWho = null; $('#who').innerHTML = '<p class="empty">讀不到在線玩家：請先用 Google 登入；已登入的話，到上面「資料庫保護」重新複製規則、到 Firebase 發布一次（新版規則才有這個列表）</p>'; });
         // 每日挑戰：台灣時間的今天有幾個人完成（跟遊戲端 daily.js 的日期算法一樣）；後台開著過了午夜會自動換到新的一天
         let dailyRef = null;
         const watchDaily = () => {
@@ -253,7 +270,7 @@
         db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); }, () => {});
         db.ref('config/notify').on('value', (snap) => { notifyCfg = snap.val(); renderNotify(); }, () => { $('#nt-msg').textContent = '讀不到通知設定：請到 Firebase 規則加上 config（見 README）'; });
         db.ref('broadcast').on('value', (snap) => { const b = snap.val(); $('#ann-cur').textContent = b && b.text ? `目前公告：「${b.text}」（點清除可移除）` : '目前沒有公告'; });
-        setInterval(() => renderRooms(), 5000);
+        setInterval(() => { renderRooms(); renderWho(); }, 5000);
         wireControls();
       } catch (e) { $('#status').textContent = '連不上 Firebase'; }
     })();
@@ -300,7 +317,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=74').then(({ rulesFor }) => {
+    import('./rules.js?v=75').then(({ rulesFor }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
     });
@@ -359,10 +376,40 @@
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=74');
+      const { sendNtfy } = await import('./notify.js?v=75');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
+  }
+
+  // 在線玩家：每個打開遊戲的分頁一筆（同一個人開兩個分頁會出現兩次）
+  const WHO = {
+    home: ['', '🏠 在首頁'], room: ['room', '🚪 在房間'], game: ['game', '🏁 比賽中'], result: ['result', '🏆 看結算'],
+    watch: ['game', '👀 觀戰中'], solo: ['solo', '🎯 單人訓練'], daily: ['daily', '📅 每日挑戰'],
+  };
+  const WHO_ORDER = { game: 0, watch: 0, solo: 1, daily: 1, result: 2, room: 3, home: 4 };
+  function renderWho() {
+    if (!lastWho) return;  // 還沒讀到（或沒有權限）：保留原本的訊息
+    const list = Object.values(lastWho).filter((w) => w && w.s);
+    const count = (f) => list.filter(f).length;
+    $('#who-sum').textContent = `共 ${list.length} 人 · 房間裡 ${count((w) => w.r)} · 單人訓練 ${count((w) => w.s === 'solo')} · 每日挑戰 ${count((w) => w.s === 'daily')} · 在首頁 ${count((w) => w.s === 'home')}`;
+    if (!list.length) { $('#who').innerHTML = '<p class="empty">目前沒有人在線上</p>'; return; }
+    list.sort((a, b) => (WHO_ORDER[a.s] ?? 5) - (WHO_ORDER[b.s] ?? 5) || String(a.r || '').localeCompare(String(b.r || '')) || (a.since || 0) - (b.since || 0));
+    $('#who').innerHTML = list.map((w) => {
+      const [cls, label] = WHO[w.s] || ['', esc(w.s)];
+      const tags = [`<span class="tag ${cls}">${label}${w.s === 'daily' && w.d ? ' #' + esc(w.d) : ''}</span>`];
+      if (w.r) tags.push(`<span class="code" style="font-size:14px">${esc(w.r)}</span>`);
+      if (w.r) tags.push(w.h ? '<span class="tag host">房主</span>' : '<span class="tag">玩家</span>');
+      if (w.m) tags.push(`<span class="tag">${w.m === 'party' ? '派對' : '1 對 1'}</span>`);
+      if (w.g && w.s !== 'daily') tags.push(`<span class="tag">${GOAL[w.g] || esc(w.g)}</span>`);
+      let detail = '';
+      if (w.st) {
+        const end = w.done ? (w.ok ? ' · ✅ 抵達' : ' · 已結束') : '';
+        detail = `《${esc(w.st)}》→《${esc(w.tg)}》 · ${w.k || 0} 步${end}`;
+      }
+      return `<div class="who-row ${w.s === 'home' ? 'home' : ''}"><span class="nm">${esc(w.n || '（還沒取暱稱）')}</span><span class="tm">${w.since ? '已 ' + ago(w.since) : ''}</span>`
+        + `<div class="st">${tags.join('')}</div>${detail ? `<div class="dt">${detail}</div>` : ''}</div>`;
+    }).join('');
   }
 
   function renderRooms() {
