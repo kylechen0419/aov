@@ -108,7 +108,8 @@ export const MUSIC_CHOICES = {
   tense: { name: '緊張節奏', src: 'audio/race.mp3' },
   custom: { name: '我的音樂', src: null },
 };
-const DEFAULT_CHOICE = { lobby: 'piano', race: 'tense' };
+// 預設：大廳（首頁、房間、結算）放 8-bit 冒險，比賽中放緊張節奏
+export const DEFAULT_CHOICE = { lobby: 'chip', race: 'tense' };
 const choice = {};
 for (const slot of ['lobby', 'race']) {
   let c = null;

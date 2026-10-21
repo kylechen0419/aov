@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=86';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=86';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=86';
-import { initNotify, notify } from './notify.js?v=86';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=86';
-import { reportError, catchErrors } from './errors.js?v=86';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=86';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=86';
-import * as wiki from './wiki.js?v=86';
-import { tw, twTree, zhReady } from './zh.js?v=86';
-import { makeShareImage } from './share.js?v=86';
-import { solve } from './solver.js?v=86';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=86';
+import { Net } from './net.js?v=87';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=87';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=87';
+import { initNotify, notify } from './notify.js?v=87';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=87';
+import { reportError, catchErrors } from './errors.js?v=87';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=87';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=87';
+import * as wiki from './wiki.js?v=87';
+import { tw, twTree, zhReady } from './zh.js?v=87';
+import { makeShareImage } from './share.js?v=87';
+import { solve } from './solver.js?v=87';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=87';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -401,7 +401,7 @@ async function renderMusicOpts() {
         }
         b.onclick = () => (rec ? chooseMusic(slot, id) : pickMusicFile(slot));
       } else {
-        const isDefault = id === (slot === 'lobby' ? 'piano' : 'tense');
+        const isDefault = id === DEFAULT_CHOICE[slot];
         b.append(Object.assign(document.createElement('b'), { textContent: c.name }), Object.assign(document.createElement('small'), { textContent: isDefault ? '預設' : '內建' }));
         b.onclick = () => chooseMusic(slot, id);
       }
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=86').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=87').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
