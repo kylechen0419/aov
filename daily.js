@@ -1,8 +1,8 @@
 // 每日挑戰：全台灣每天同一題（台灣時間午夜換題），每支手機第一次完成的成績進今日排行榜。
 // 題目用日期當種子從題庫抽，只看「條目存在、不是消歧義頁」這種每個人查都一樣的條件，所以大家算出來的題目相同。
 // 排行榜存在 Firebase 的 stats/daily/<日期>/<手機代號>；沒設定 Firebase 時一樣能玩，只是沒有排行榜。
-import { getDb } from './fb.js?v=65';
-import { api } from './wiki.js?v=65';
+import { getDb } from './fb.js?v=66';
+import { api } from './wiki.js?v=66';
 
 const LAUNCH = '2026-10-21';  // 第 1 期
 const LOG = 'wikirace-daily-log';
@@ -43,7 +43,7 @@ async function linksDirectly(from, to) {
 const puzzles = {};
 export function puzzle(key = todayKey()) {
   puzzles[key] ||= (async () => {
-    const { TOPICS } = await import('./topics.js?v=65');
+    const { TOPICS } = await import('./topics.js?v=66');
     const rnd = seeded(`wikirace-daily-${key}`);
     const pick = async (avoid) => {
       for (let i = 0; i < 25; i++) {

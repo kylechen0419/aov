@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=65">
+  <link rel="stylesheet" href="style.css?v=66">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=65"></script>
+  <script src="firebase-config.js?v=66"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -100,8 +100,11 @@
         </div>
         <p id="home-error" class="error" hidden></p>
         <button id="tut-hint" class="tut-hint" type="button" hidden>👋 第一次玩？30 秒看懂怎麼玩</button>
-        <div class="divider"><span>或一個人練習</span></div>
-        <button id="btn-solo" class="btn purple wide solo-btn" type="button">🎯 單人訓練<small>不用連線，自己練路線</small></button>
+        <div class="divider"><span>或一個人玩</span></div>
+        <div class="solo-row">
+          <button id="btn-daily" class="btn orange solo-btn" type="button">📅 每日挑戰<small id="daily-sub">每天一題，全台比排名</small></button>
+          <button id="btn-solo" class="btn purple solo-btn" type="button">🎯 單人訓練<small>自己練路線</small></button>
+        </div>
       </div>
 
       <div class="card record-card">
@@ -346,6 +349,14 @@
     </section>
 
     <section class="page">
+      <div class="card daily-result" id="daily-result" hidden>
+        <div class="dres-head"><b id="dres-title">📅 每日挑戰</b><span id="dres-rank" class="dres-rank"></span></div>
+        <p id="dres-sub" class="dres-sub"></p>
+        <div class="dres-btns">
+          <button id="dres-share" class="btn pink" type="button"><svg class="ic"><use href="#i-share"/></svg>分享成績</button>
+          <button id="dres-board" class="btn" type="button">🏆 排行榜</button>
+        </div>
+      </div>
       <button id="btn-watch" class="btn blue wide watch-cta" type="button" hidden><span class="live-dot"></span><span id="watch-cta-text">觀戰</span></button>
       <div class="card ranking" id="ranking" hidden>
         <div class="ranking-head"><b>排行榜</b><span id="ranking-status"></span></div>
@@ -464,6 +475,29 @@
       <div class="modal-head"><b id="hint-title">💡 終點提示</b><button id="hint-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
       <p id="hint-text" class="hint-text"></p>
       <p class="hint-note">終點的名字會用「＿＿＿」遮起來。隨時可以按上方的「💡 提示」再打開。</p>
+    </div>
+  </div>
+
+  <div id="daily-modal" class="modal" hidden>
+    <div class="modal-card daily-card" role="dialog" aria-modal="true" aria-labelledby="daily-title">
+      <div class="modal-head"><b id="daily-title">📅 每日挑戰</b><button id="daily-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <div class="daily-route">
+        <span class="daily-route-label">今天的題目</span>
+        <div class="daily-stops"><b id="daily-start">讀取中…</b><span class="daily-arrow" aria-hidden="true">→</span><b id="daily-target">　</b></div>
+      </div>
+      <p class="daily-rules">全台灣今天都是這一題，台灣時間午夜換新題。<b>第一次</b>完成的成績會登上今日排行榜：步數少的贏，同步數比時間。</p>
+      <div id="daily-mine" class="daily-mine" hidden></div>
+      <label class="field daily-name" for="daily-name" id="daily-name-row" hidden><span class="field-label">排行榜上的暱稱</span><input id="daily-name" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname"></label>
+      <p id="daily-error" class="error" hidden></p>
+      <button id="daily-go" class="btn orange wide" type="button">開始挑戰</button>
+      <button id="daily-share" class="btn pink" type="button" hidden><svg class="ic"><use href="#i-share"/></svg>分享成績</button>
+      <div class="daily-stats">
+        <div><b id="daily-count">–</b><span>今天完成</span></div>
+        <div><b id="daily-best">–</b><span>最少步數</span></div>
+        <div><b id="daily-streak">0</b><span>連續天數</span></div>
+      </div>
+      <p class="daily-board-head">🏆 今日排行榜</p>
+      <ol id="daily-board" class="daily-board"><li class="daily-empty">讀取中…</li></ol>
     </div>
   </div>
 
@@ -591,6 +625,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=65"></script>
+  <script type="module" src="app.js?v=66"></script>
 </body>
 </html>

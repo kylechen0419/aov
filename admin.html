@@ -100,6 +100,7 @@
       <div class="box"><b id="s-players">0</b><span>遊玩中</span></div>
       <div class="box"><b id="s-online">–</b><span>在線上</span></div>
       <div class="box"><b id="s-peak">–</b><span>史上尖峰</span></div>
+      <div class="box"><b id="s-daily">–</b><span>今日挑戰完成</span></div>
     </div>
 
     <h2>📢 全站公告</h2>
@@ -133,7 +134,7 @@
         <p class="nt-head">什麼時候通知我</p>
         <label class="chk"><input type="checkbox" data-nt="room"> 有人開了房間</label>
         <label class="chk"><input type="checkbox" data-nt="start"> 房間開始第一場比賽</label>
-        <label class="chk"><input type="checkbox" data-nt="solo"> 有人開始單人訓練</label>
+        <label class="chk"><input type="checkbox" data-nt="solo"> 有人開始單人訓練或每日挑戰</label>
         <label class="chk self"><input type="checkbox" id="nt-self"> 我用這支手機玩的時候，不要通知我自己</label>
       </div>
       <p class="nt-msg" id="nt-msg"></p>
@@ -162,7 +163,7 @@
     <div id="rooms" class="rooms"></div>
   </main>
 
-  <script src="firebase-config.js?v=65"></script>
+  <script src="firebase-config.js?v=66"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -204,6 +205,8 @@
         db = firebase.database(app);
         db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); });
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
+        // 每日挑戰：台灣時間的今天有幾個人完成（跟遊戲端 daily.js 的日期算法一樣）
+        db.ref('stats/daily/' + new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10)).on('value', (snap) => { $('#s-daily').textContent = snap.numChildren(); });
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
         db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); });
         db.ref('config/notify').on('value', (snap) => { notifyCfg = snap.val(); renderNotify(); }, () => { $('#nt-msg').textContent = '讀不到通知設定：請到 Firebase 規則加上 config（見 README）'; });
@@ -278,7 +281,7 @@
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=65');
+      const { sendNtfy } = await import('./notify.js?v=66');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };

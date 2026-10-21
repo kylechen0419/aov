@@ -1,12 +1,13 @@
-import { Net } from './net.js?v=65';
-import { initPresence } from './presence.js?v=65';
-import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=65';
-import { initNotify, notify } from './notify.js?v=65';
-import * as wiki from './wiki.js?v=65';
-import { tw, twTree, zhReady } from './zh.js?v=65';
-import { makeShareImage } from './share.js?v=65';
-import { solve } from './solver.js?v=65';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=65';
+import { Net } from './net.js?v=66';
+import { initPresence } from './presence.js?v=66';
+import { publishRoom, clearRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=66';
+import { initNotify, notify } from './notify.js?v=66';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=66';
+import * as wiki from './wiki.js?v=66';
+import { tw, twTree, zhReady } from './zh.js?v=66';
+import { makeShareImage } from './share.js?v=66';
+import { solve } from './solver.js?v=66';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=66';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -57,6 +58,7 @@ const state = {
   chat: [],
   hostLocked: false,
   solo: false,  // 單人訓練模式：沒有對手、不連線、不計勝負
+  daily: null,  // 正在玩每日挑戰時：{ key, no, start, target, first }
 };
 
 // 房主用：斷線玩家的保留計時、聊天與表情的頻率限制
@@ -116,7 +118,7 @@ function show(view) {
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
-  if (view === 'home') { renderStats(); renderHistory(); }
+  if (view === 'home') { renderStats(); renderHistory(); refreshDailyHome(); }
   if (view === 'room' || view === 'result') renderChat();
   window.scrollTo(0, 0);
 }
@@ -851,6 +853,7 @@ function syncRoom(force = false) {
 
 function enterRoom(code) {
   state.solo = false;  // 進到真的房間就不是單人訓練了
+  state.daily = null;
   $('#room-code').textContent = code;
   if (net.isHost) state.hostLocked = false;
   writeForm(state.settings);
@@ -1259,16 +1262,8 @@ async function startTraining() {
   btn.textContent = '準備路線中…';
   $('#solo-error').hidden = true;
   try {
-    const name = $('#nickname').value.trim() || '你';
-    state.myName = name;
-    store.set('wikirace-name', name);
-    state.myId = 'me';
-    state.mode = 'duel';
-    state.solo = true;
-    state.chat = [];
-    state.roomScore = { games: 0, wins: {} };
-    state.players = new Map([['me', { id: 'me', name, avatar: state.myAvatar, ready: true, host: true, color: COLORS[0], online: true }]]);
-    session.clear();
+    soloSetup($('#nickname').value.trim() || '你');
+    state.daily = null;
     const s = {
       ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed',
       start: $('#solo-start-input').value.trim(),
@@ -1295,9 +1290,202 @@ async function startTraining() {
   }
 }
 
+// 單人訓練、每日挑戰共用：準備一個沒有對手、不連線的「房間」
+function soloSetup(name) {
+  state.myName = name;
+  store.set('wikirace-name', name);
+  state.myId = 'me';
+  state.mode = 'duel';
+  state.solo = true;
+  state.chat = [];
+  state.roomScore = { games: 0, wins: {} };
+  state.players = new Map([['me', { id: 'me', name, avatar: state.myAvatar, ready: true, host: true, color: COLORS[0], online: true }]]);
+  session.clear();
+}
+
+// ---------- 每日挑戰 ----------
+// 全台灣每天同一題；按下開始就算用掉今天的正式機會（中途關掉、投降都不能重來刷成績），之後再玩只算練習
+function openDaily() {
+  const key = todayKey();
+  $('#daily-modal').hidden = false;
+  showError('#daily-error');
+  $('#daily-name').value = $('#nickname').value.trim();
+  $('#daily-name-row').hidden = !!$('#daily-name').value;
+  $('#daily-title').textContent = `📅 每日挑戰 #${dailyNo(key)}`;
+  $('#daily-streak').textContent = streak(key);
+  renderDailyMine(key);
+  puzzle(key).then(async (p) => {
+    await zhReady;
+    if (todayKey() !== key) return;
+    $('#daily-start').textContent = tw(p.start);
+    $('#daily-target').textContent = tw(p.target);
+  }, (e) => {
+    $('#daily-start').textContent = '題目讀取失敗';
+    $('#daily-target').textContent = '';
+    showError('#daily-error', e.message);
+  });
+  renderDailyBoard(key);
+}
+
+function renderDailyMine(key) {
+  const m = myDay(key);
+  const box = $('#daily-mine');
+  box.hidden = !m;
+  box.classList.toggle('miss', !!m && !m.win);
+  if (m) box.textContent = m.win ? `✅ 你今天：${m.s} 步 · ${fmtTime(m.t)}${m.h ? ' · 💡' : ''}${m.rank ? `　🏆 第 ${m.rank} 名` : ''}` : '今天的正式挑戰沒有完成，明天再來！';
+  $('#daily-go').textContent = m ? '再玩一次（練習，不計成績）' : '開始挑戰';
+  $('#daily-share').hidden = !m?.win;
+}
+
+async function renderDailyBoard(key) {
+  const list = $('#daily-board');
+  const rows = await board(key);
+  if (todayKey() !== key) return;
+  const msg = (t) => list.replaceChildren(Object.assign(document.createElement('li'), { className: 'daily-empty', textContent: t }));
+  if (!rows) { $('#daily-count').textContent = '–'; $('#daily-best').textContent = '–'; msg('排行榜需要網路連線，暫時讀不到'); return; }
+  $('#daily-count').textContent = rows.length;
+  $('#daily-best').textContent = rows.length ? rows[0].s : '–';
+  if (!rows.length) { msg('還沒有人完成，搶第一個！'); return; }
+  const me = rows.findIndex((r) => r.id === deviceId);
+  const m = myDay(key);
+  if (me >= 0 && m?.win && (m.rank !== me + 1 || m.of !== rows.length)) { saveDay(key, { ...m, rank: me + 1, of: rows.length }); renderDailyMine(key); }
+  const medal = ['🥇', '🥈', '🥉'];
+  const row = (r, i) => {
+    const li = document.createElement('li');
+    li.classList.toggle('me', i === me);
+    li.append(
+      Object.assign(document.createElement('span'), { className: 'rk', textContent: medal[i] || String(i + 1) }),
+      avatarEl({ name: r.n, avatar: r.a }, 'sm'),
+      Object.assign(document.createElement('span'), { className: 'nm', textContent: i === me ? `${r.n}（你）` : r.n }),
+      Object.assign(document.createElement('span'), { className: 'sc', textContent: `${r.s} 步 · ${fmtTime(r.t)}${r.h ? ' 💡' : ''}` }),
+    );
+    return li;
+  };
+  const items = rows.slice(0, 10).map(row);
+  if (me >= 10) items.push(Object.assign(document.createElement('li'), { className: 'gap', textContent: '⋯' }), row(rows[me], me));
+  list.replaceChildren(...items);
+}
+
+async function startDaily() {
+  const name = ($('#daily-name').value || $('#nickname').value).trim();
+  if (!name) {
+    $('#daily-name-row').hidden = false;
+    showError('#daily-error', '請先輸入暱稱，排行榜才知道是你');
+    $('#daily-name').focus();
+    return;
+  }
+  const btn = $('#daily-go');
+  btn.disabled = true;
+  btn.textContent = '準備路線中…';
+  showError('#daily-error');
+  try {
+    const p = await puzzle(todayKey());
+    const s = { ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed', allowBack: true, trueRandom: false };
+    s.start = await wiki.resolveTitle('zh', p.start);
+    s.target = await wiki.resolveTitle('zh', p.target);
+    $('#nickname').value = name;
+    soloSetup(name);
+    const first = !myDay(p.key);
+    state.daily = { ...p, first, recorded: false };
+    if (first) saveDay(p.key, { tried: 1 });
+    state.settings = s;
+    $('#daily-modal').hidden = true;
+    setConn(first ? `每日挑戰 #${p.no}` : '每日挑戰・練習');
+    startGame(s, randomKey());
+    notify('solo', '有人在玩每日挑戰', `#${p.no}　${tw(s.start)} → ${tw(s.target)}`);
+  } catch (e) {
+    showError('#daily-error', e.message || '出了點問題，再試一次');
+  } finally {
+    btn.disabled = false;
+    renderDailyMine(todayKey());
+  }
+}
+
+// 每日挑戰的結算：第一次挑戰才記成績、上排行榜；之後的都是練習
+function renderDailyResult(g) {
+  const d = state.daily;
+  const f = g.finished;
+  const win = f.reason === 'win';
+  $('#daily-result').hidden = false;
+  $('#dres-title').textContent = `📅 每日挑戰 #${d.no}`;
+  $('#dres-rank').textContent = '';
+  if (d.first && !d.recorded) {
+    d.recorded = true;
+    const rec = { win, s: f.clicks, t: Math.round(f.elapsed), h: !!g.hint.shown };
+    saveDay(d.key, rec);
+    if (win) {
+      $('#dres-rank').textContent = '排名計算中…';
+      submit(d.key, deviceId, { n: state.myName, a: state.myAvatar || '', s: rec.s, t: rec.t, h: rec.h ? 1 : 0 }).then(() => refreshDailyRank(d));
+    }
+  } else {
+    refreshDailyRank(d);
+  }
+  const m = myDay(d.key);
+  $('#dres-sub').textContent = d.first
+    ? (win ? '正式成績已登上今日排行榜，分享給朋友比比看！' : '今天的正式機會用掉了，可以看看排行榜上別人怎麼走，明天再來！')
+    : `練習模式（不計成績）　今天的正式成績：${m?.win ? `${m.s} 步 · ${fmtTime(m.t)}` : '未完成'}`;
+  $('#dres-share').hidden = !m?.win;
+  refreshDailyHome();
+}
+
+async function refreshDailyRank(d) {
+  const rows = await board(d.key);
+  const m = myDay(d.key);
+  if (!m?.win) { $('#dres-rank').textContent = ''; return; }
+  if (!rows) { $('#dres-rank').textContent = '排行榜暫時連不上'; return; }
+  const i = rows.findIndex((r) => r.id === deviceId);
+  if (i < 0) { $('#dres-rank').textContent = ''; return; }
+  saveDay(d.key, { ...m, rank: i + 1, of: rows.length });
+  if (state.daily === d) $('#dres-rank').textContent = `🏆 第 ${i + 1} 名 / ${rows.length} 人`;
+  refreshDailyHome();
+}
+
+async function shareDaily(key) {
+  const m = myDay(key);
+  if (!m?.win) return;
+  const p = await puzzle(key);
+  await zhReady;
+  const blocks = m.s <= 15 ? '🟦'.repeat(Math.max(0, m.s - 1)) + '🎯' : `🟦 ×${m.s - 1} 🎯`;
+  const rank = m.rank ? `　🏆 第 ${m.rank} 名／${m.of} 人` : '';
+  const url = `${location.origin}${location.pathname}?daily`;
+  const text = `維基競速 📅 每日挑戰 #${p.no}\n《${tw(p.start)}》→《${tw(p.target)}》\n👣 ${m.s} 步　⏱ ${fmtTime(m.t)}${m.h ? '　💡' : ''}${rank}\n${blocks}\n${url}`;
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(text); toast('已複製成績，貼給朋友吧！'); } catch { toast('複製失敗，可以截圖分享'); }
+}
+
+// 首頁按鈕下的小字：今天玩了沒、第幾名、幾個人完成
+let dailyHomeAt = 0;
+function refreshDailyHome() {
+  const key = todayKey();
+  const m = myDay(key);
+  const sub = $('#daily-sub');
+  if (m?.win) sub.textContent = `✅ ${m.s} 步${m.rank ? ` · 第 ${m.rank} 名` : ''}`;
+  else if (m) sub.textContent = '今天已挑戰 · 明天再來';
+  else sub.textContent = `#${dailyNo(key)} · 每天一題比排名`;
+  if (m || performance.now() - dailyHomeAt < 60000) return;
+  dailyHomeAt = performance.now();
+  board(key).then((rows) => {
+    if (rows && rows.length && !myDay(key) && todayKey() === key) sub.textContent = `#${dailyNo(key)} · 已有 ${rows.length} 人完成`;
+  });
+}
+
+function initDaily() {
+  $('#btn-daily').onclick = openDaily;
+  $('#daily-close').onclick = () => { $('#daily-modal').hidden = true; };
+  $('#daily-modal').addEventListener('click', (e) => { if (e.target.id === 'daily-modal') $('#daily-modal').hidden = true; });
+  $('#daily-go').onclick = startDaily;
+  $('#daily-share').onclick = () => shareDaily(todayKey());
+  $('#dres-share').onclick = () => { if (state.daily) shareDaily(state.daily.key); };
+  $('#dres-board').onclick = openDaily;
+  refreshDailyHome();
+}
+
 // 單人訓練：回首頁，清掉這一局
 function exitSolo() {
   state.solo = false;
+  state.daily = null;
   state.game = null;
   setConn('');
   show('home');
@@ -2310,6 +2498,7 @@ function showResult(update = false) {
   // 從單人訓練切回一般對局時，把被訓練結算改過的元素還原
   $('#btn-share').hidden = false;
   $('#btn-solo-home').hidden = true;
+  $('#daily-result').hidden = true;
   const info = resultInfo(g);
   const { res } = info;
   if (party) renderRanking(g, info.entries);
@@ -2361,6 +2550,7 @@ function showResult(update = false) {
 
 // 單人訓練的結算：只看自己的成績＋最短解答，不計勝負、不記戰績
 function showSoloResult(g) {
+  if (state.daily) renderDailyResult(g); else $('#daily-result').hidden = true;
   const reason = g.finished.reason;
   const win = reason === 'win';
   const tone = win ? 'win' : 'lose';
@@ -2370,7 +2560,7 @@ function showSoloResult(g) {
   const stat = win
     ? `你的成績：${g.finished.clicks} 步 · ${fmtTime(g.finished.elapsed)}`
     : `走了 ${g.finished.clicks} 步，還沒抵達`;
-  $('#result-sub').textContent = `🎯 單人訓練　《${tw(g.settings.start)}》→《${tw(g.settings.target)}》　·　${stat}`;
+  $('#result-sub').textContent = `${state.daily ? `📅 每日挑戰 #${state.daily.no}` : '🎯 單人訓練'}　《${tw(g.settings.start)}》→《${tw(g.settings.target)}》\n${stat}`;
   // 只留自己的路線，藏掉排行榜、對手欄、觀戰
   $('#ranking').hidden = true;
   $('#score-card').hidden = true;
@@ -3736,14 +3926,18 @@ initTutorial();
 initItems();
 initMusicSettings();
 initSolo();
+initDaily();
 $('#btn-hint-vote').onclick = voteHint;
 initAnnounce();
 initNotify();
 show('home');
 // 第一次來的人先看教學（重新整理回房間時不打擾）
 // 第一次來的人先看教學；從邀請連結來的人只顯示提示，不擋住加入（重新整理回房間時都不打擾）
+// 朋友分享的每日挑戰連結（?daily）：直接打開今天的題目，新玩家也不被教學擋住
+const fromDaily = new URLSearchParams(location.search).has('daily');
 if (!store.get('wikirace-tutorial-done') && !session.load()) {
-  if (new URLSearchParams(location.search).get('room')) $('#tut-hint').hidden = false;
+  if (new URLSearchParams(location.search).get('room') || fromDaily) $('#tut-hint').hidden = false;
   else openTutorial();
 }
+if (fromDaily && !session.load()) openDaily();
 $('#tut-hint').onclick = () => { $('#tut-hint').hidden = true; openTutorial(); };
