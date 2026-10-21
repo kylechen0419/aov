@@ -85,7 +85,8 @@ const setRound = (key, v) => { rounds[key] = Math.max(1, Math.floor(Number(v?.ro
 const okPuzzle = (v) => !!(v && typeof v.start === 'string' && typeof v.target === 'string' && v.start && v.target && v.start !== v.target && v.start.length < 200 && v.target.length < 200);
 const puzzles = {};
 export function puzzle(key = todayKey()) {
-  puzzles[key] ||= (async () => {
+  if (puzzles[key]) return puzzles[key];
+  const raw = (async () => {
     const base = { key, no: dailyNo(key) };
     const db = await database();
     // 存在 d＋天數 底下：資料庫規則用伺服器時間檢查，只准存昨天到明天的題目
@@ -108,7 +109,8 @@ export function puzzle(key = todayKey()) {
     }
     return { ...base, ...mine };
   })();
-  const mine = puzzles[key];
+  const mine = raw.then((p) => { if (!(key in rounds)) rounds[key] = 1; return { round: roundOf(key), ...p }; });  // 讀不到資料庫：就是第 1 輪
+  puzzles[key] = mine;
   // 過一陣子再打開就重新讀一次（管理員可能剛重置或換題）
   mine.then(() => setTimeout(() => { if (puzzles[key] === mine) delete puzzles[key]; }, 20000), () => { delete puzzles[key]; });
   return mine;

@@ -1285,9 +1285,15 @@
     try {
       const wiki = await loadWiki();
       wiki.setTopicBan(topicBan);
-      const s = await wiki.randomTitle('zh');
-      let t = s;
-      for (let k = 0; k < 6 && t === s; k++) t = await wiki.randomTitle('zh');
+      // 抽到跟現在一樣的題目就重抽（「換一題」一定要換）
+      const cur = dcData[dcKeys()[i]];
+      let s, t;
+      for (let k = 0; k < 10; k++) {
+        s = await wiki.randomTitle('zh');
+        t = s;
+        for (let j = 0; j < 6 && t === s; j++) t = await wiki.randomTitle('zh');
+        if (s !== t && !(cur && cur.start === s && cur.target === t)) break;
+      }
       await setDaily(i, s, t, asReset);
     } catch (e) { dcMsg(`沒辦法抽題：${e.message || e}`); }
   }

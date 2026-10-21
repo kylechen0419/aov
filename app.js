@@ -1966,10 +1966,11 @@ async function shareDaily(key) {
 
 // 首頁按鈕下的小字：今天玩了沒、第幾名、幾個人完成
 let dailyHomeAt = -Infinity;
+const roundAsked = new Set();  // 每一天只為了查輪數讀一次題目（讀不到也不會一直重試）
 function refreshDailyHome() {
   const key = todayKey();
   // 這支手機今天有紀錄、但還不知道是第幾輪（管理員可能重置過）：先讀題目再判斷
-  if (!roundKnown(key) && loadLog()[key]) { puzzle(key).then(refreshDailyHome, () => {}); }
+  if (!roundKnown(key) && loadLog()[key] && !roundAsked.has(key)) { roundAsked.add(key); puzzle(key).then(refreshDailyHome, () => {}); }
   const m = myDay(key);
   const sub = $('#daily-sub');
   if (m?.win) sub.textContent = `✅ ${m.s} 步${m.rank ? ` · 第 ${m.rank} 名` : ''}`;
