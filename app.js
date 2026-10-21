@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=92';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=92';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=92';
-import { initNotify, notify } from './notify.js?v=92';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=92';
-import { reportError, catchErrors } from './errors.js?v=92';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=92';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit } from './daily.js?v=92';
-import * as wiki from './wiki.js?v=92';
-import { tw, twTree, zhReady } from './zh.js?v=92';
-import { makeShareImage } from './share.js?v=92';
-import { solve } from './solver.js?v=92';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=92';
+import { Net } from './net.js?v=93';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=93';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=93';
+import { initNotify, notify } from './notify.js?v=93';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=93';
+import { reportError, catchErrors } from './errors.js?v=93';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=93';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, loadLog } from './daily.js?v=93';
+import * as wiki from './wiki.js?v=93';
+import { tw, twTree, zhReady } from './zh.js?v=93';
+import { makeShareImage } from './share.js?v=93';
+import { solve } from './solver.js?v=93';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=93';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -647,7 +647,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=92').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=93').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1758,18 +1758,22 @@ function openDaily() {
   $('#daily-title').textContent = `📅 每日挑戰 #${dailyNo(key)}`;
   $('#daily-streak').textContent = streak(key);
   renderDailyMine(key);
-  puzzle(key).then(async (p) => {
+  const loaded = puzzle(key).then(async (p) => {
     await zhReady;
     dailyPuzzles[key] = p;
     if (dailyModalKey !== key) return;
     $('#daily-start').textContent = tw(p.start);
     $('#daily-target').textContent = tw(p.target);
+    // 讀到題目才知道是第幾輪（管理員可能重置過）：重新判斷今天玩過了沒
+    $('#daily-streak').textContent = streak(key);
+    renderDailyMine(key);
+    refreshDailyHome();
   }, (e) => {
     $('#daily-start').textContent = '題目讀取失敗';
     $('#daily-target').textContent = '';
     showError('#daily-error', e.message);
   });
-  resendDaily(key).finally(() => renderDailyBoard(key));
+  loaded.finally(() => resendDaily(key).finally(() => renderDailyBoard(key)));
 }
 
 // 排行榜上「我」是哪一筆：登入身分（資料庫規則只准本人交、不能覆蓋）；沒有登入時用手機代號
@@ -1964,6 +1968,8 @@ async function shareDaily(key) {
 let dailyHomeAt = -Infinity;
 function refreshDailyHome() {
   const key = todayKey();
+  // 這支手機今天有紀錄、但還不知道是第幾輪（管理員可能重置過）：先讀題目再判斷
+  if (!roundKnown(key) && loadLog()[key]) { puzzle(key).then(refreshDailyHome, () => {}); }
   const m = myDay(key);
   const sub = $('#daily-sub');
   if (m?.win) sub.textContent = `✅ ${m.s} 步${m.rank ? ` · 第 ${m.rank} 名` : ''}`;

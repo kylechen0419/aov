@@ -27,10 +27,13 @@ const notify = await get('config/notify').catch(() => null);
 if (!notify || !notify.topic) { console.log('還沒開啟手機通知，跳過'); process.exit(0); }
 if (notify.nightly === false) { console.log('後台關掉了每晚摘要，跳過'); process.exit(0); }
 
+// 今天的每日挑戰被管理員重置過的話，排行榜在 <日期>_r<輪數>
+const pz = await get(`stats/dailyPuzzle/d${Math.round(Date.parse(today) / 864e5)}`).catch(() => null);
+const round = Math.max(1, Math.floor(Number(pz?.round)) || 1);
 const [day, prev, daily, online, peak] = await Promise.all([
   get(`stats/dayCount/${today}`).catch(() => null),
   get(`stats/dayCount/${yesterday}`).catch(() => null),
-  get(`stats/daily/${today}`, true).catch(() => null),
+  get(`stats/daily/${round > 1 ? `${today}_r${round}` : today}`, true).catch(() => null),
   get('online', true).catch(() => null),
   get('stats/peakOnline').catch(() => null),
 ]);

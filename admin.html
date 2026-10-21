@@ -203,6 +203,8 @@
   .dc-day .r { font-size: 15px; font-weight: 800; margin: 4px 0; overflow-wrap: anywhere; }
   .dc-day .m { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
   .dc-edit { display: grid; gap: 6px; margin-top: 8px; }
+  .dc-reset { background: #3a1430; border: 1px solid #6b2448; border-radius: 10px; padding: 10px; font-size: 12px; color: var(--muted); }
+  .dc-reset b { color: var(--red); font-size: 13px; display: block; margin-bottom: 4px; }
   .dc-edit input { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); min-width: 0; }
   .multi-tools { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; font-size: 12px; color: var(--muted); }
   .multi-tools .gl-btn { padding: 6px 12px; }
@@ -473,7 +475,7 @@
     <div id="multi-grid" class="multi-grid"></div>
   </div>
 
-  <script src="firebase-config.js?v=92"></script>
+  <script src="firebase-config.js?v=93"></script>
   <script>
   // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
   const ADMIN_PASS = 'sakimoru9487';
@@ -536,18 +538,6 @@
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
         db.ref('ban').on('value', (snap) => { bans = snap.val() || {}; renderBans(); renderProfiles(); }, () => { $('#ban-sum').textContent = '讀不到'; });
         db.ref('who').on('value', (snap) => { lastWho = snap.val() || {}; renderWho(); }, () => { lastWho = null; $('#who-sum').textContent = '讀不到'; $('#who').innerHTML = '<p class="empty">讀不到在線玩家：請先用 Google 登入；已登入的話，到上面「資料庫保護」重新複製規則、到 Firebase 發布一次（新版規則才有這個列表）</p>'; });
-        // 每日挑戰：台灣時間的今天有幾個人完成（跟遊戲端 daily.js 的日期算法一樣）；後台開著過了午夜會自動換到新的一天
-        let dailyRef = null;
-        const watchDaily = () => {
-          const key = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
-          if (dailyRef && dailyRef.key === key) return;
-          if (dailyRef) dailyRef.ref.off('value', dailyRef.cb);
-          const ref = db.ref('stats/daily/' + key);
-          const cb = ref.on('value', (snap) => { $('#s-daily').textContent = snap.numChildren(); });
-          dailyRef = { key, ref, cb };
-        };
-        watchDaily();
-        setInterval(watchDaily, 60000);
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
         db.ref('stats/games').limitToLast(3000).on('value', (snap) => { const v = snap.val() || {}; games = Object.values(v); renderStats(); renderTrend(); renderPuzzles(); renderProfiles(); }, () => {});
         db.ref('notes').on('value', (snap) => { notes = snap.val() || {}; renderProfiles(); }, () => {});
@@ -638,7 +628,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=92').then(({ rulesFor, RULES_VERSION }) => {
+    import('./rules.js?v=93').then(({ rulesFor, RULES_VERSION }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
@@ -710,17 +700,17 @@
       if (!notifyCfg || !notifyCfg.topic) return;
       const day = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 10);
       const get = (p) => db.ref(p).once('value').then((x) => x.val(), () => null);
-      const [d, y, dl, on, pk] = await Promise.all([get('stats/dayCount/' + day(Date.now())), get('stats/dayCount/' + day(Date.now() - 864e5)), get('stats/daily/' + day(Date.now())), get('online'), get('stats/peakOnline')]);
+      const [d, y, dl, on, pk] = await Promise.all([get('stats/dayCount/' + day(Date.now())), get('stats/dayCount/' + day(Date.now() - 864e5)), get(boardPath(day(Date.now()), dcData[day(Date.now())])), get('online'), get('stats/peakOnline')]);
       const n = (v) => Number(v) || 0, c = (v) => (v ? Object.keys(v).length : 0);
       const lines = [`🎮 對局 ${n(d && d.games)} 局${y && y.games ? `（昨天 ${y.games}）` : ''}・玩家 ${n(d && d.players)} 人次`, `📅 每日挑戰 ${c(dl)} 人完成`, `👥 現在在線 ${c(on)} 人・史上尖峰 ${n(pk)} 人`];
       if (d && d.errors) lines.push(`🐞 今天有 ${d.errors} 筆錯誤紀錄，到後台看看`);
-      const { sendNtfy } = await import('./notify.js?v=92');
+      const { sendNtfy } = await import('./notify.js?v=93');
       await sendNtfy(notifyCfg.topic, 'test', `維基競速・今日摘要（${day(Date.now()).slice(5).replace('-', '/')}）`, lines.join('\n'));
       ntMsg('已傳出今日摘要，手機幾秒內會收到');
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=92');
+      const { sendNtfy } = await import('./notify.js?v=93');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -781,7 +771,7 @@
 
   // ---------- 暱稱過濾 ----------
   let badwords = '', names = null;
-  import('./names.js?v=92').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
+  import('./names.js?v=93').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
   function renderBadwords(fromDb) {
     const n = String(badwords || '').split(/[,，、\n]+/).filter((x) => x.trim()).length;
     $('#bw-sum').textContent = n ? `內建＋自訂 ${n} 個字` : '用內建清單';
@@ -1177,7 +1167,7 @@
 
   // ---------- 題庫管理（config/topicBan：一行一個） ----------
   let topicBan = '', topicCount = 0;
-  import('./topics.js?v=92').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
+  import('./topics.js?v=93').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
   const topicList = () => String(topicBan || '').split('\n').map((t) => t.trim()).filter(Boolean);
   const topicSet = () => new Set(topicList());
   const saveTopics = (list, what) => db.ref('config/topicBan').set(list.join('\n') || null).then(() => { $('#tp-msg').textContent = '已儲存，之後的隨機出題會跳過'; audit(what[0], what[1]); }, () => { $('#tp-msg').textContent = '存不進去：請先用 Google 登入'; });
@@ -1197,58 +1187,100 @@
   $('#tp-add').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#tp-go').click(); });
 
   // ---------- 每日題目（今天、明天；跟遊戲 daily.js 同樣的日期算法） ----------
-  let dcData = {}, dcCount = {}, dcEdit = null, wikiMod = null;
+  let dcData = {}, dcCount = {}, dcEdit = null, wikiMod = null, dcReset = false;
   const dayOf = (key) => Math.round(Date.parse(key) / 864e5);
   const dcKeys = () => [twDay(Date.now()), twDay(Date.now() + 864e5)];
   const dailyNo = (key) => Math.round((Date.parse(key) - Date.parse('2026-10-21')) / 864e5) + 1;
+  // 第幾輪（重置過幾次）：排行榜照輪數分開存，跟遊戲端 daily.js 一樣（第 1 輪是原本的位置）
+  const roundOf = (v) => Math.max(1, Math.floor(Number(v && v.round)) || 1);
+  const boardPath = (key, v) => `stats/daily/${roundOf(v) > 1 ? `${key}_r${roundOf(v)}` : key}`;
   let dcRefs = [];
+  // 今天、明天的題目＋完成人數；過了午夜換到新的一天、重置後換到新一輪的排行榜
   function watchDailyCtl() {
     const keys = dcKeys();
     if (dcRefs.length && dcRefs[0].key === keys[0]) return;
-    dcRefs.forEach((r) => r.refs.forEach((x) => x.off()));
+    dcRefs.forEach((r) => { r.a.off(); if (r.b) r.b.off(); });
     dcRefs = keys.map((key) => {
-      const a = db.ref(`stats/dailyPuzzle/d${dayOf(key)}`), b = db.ref(`stats/daily/${key}`);
-      a.on('value', (s) => { dcData[key] = s.val(); renderDailyCtl(); }, () => {});
-      b.on('value', (s) => { dcCount[key] = s.numChildren(); renderDailyCtl(); }, () => {});
-      return { key, refs: [a, b] };
+      const r = { key, a: db.ref(`stats/dailyPuzzle/d${dayOf(key)}`), b: null, path: '' };
+      r.a.on('value', (s) => {
+        dcData[key] = s.val();
+        const path = boardPath(key, dcData[key]);
+        if (path !== r.path) {
+          if (r.b) r.b.off();
+          r.path = path;
+          r.b = db.ref(path);
+          r.b.on('value', (x) => { dcCount[key] = x.numChildren(); renderDailyCtl(); }, () => {});
+        }
+        renderDailyCtl();
+      }, () => {});
+      return r;
     });
   }
   function renderDailyCtl() {
     const keys = dcKeys();
     const t = dcData[keys[0]];
-    $('#dc-sum').textContent = t ? `今天：${t.start} → ${t.target}` : '今天的還沒產生';
+    $('#s-daily').textContent = dcCount[keys[0]] ?? '–';
+    $('#dc-sum').textContent = t ? `今天：${t.start} → ${t.target}${roundOf(t) > 1 ? `（第 ${roundOf(t)} 輪）` : ''}` : '今天的還沒產生';
     $('#dc-days').innerHTML = keys.map((key, i) => {
       const v = dcData[key], n = dcCount[key] || 0;
       const edit = dcEdit === i ? `<div class="dc-edit"><input id="dc-s" placeholder="起點" value="${esc(v ? v.start : '')}"><input id="dc-t" placeholder="終點" value="${esc(v ? v.target : '')}"><div class="mini"><button id="dc-save">儲存</button><button id="dc-cancel">取消</button></div></div>` : '';
-      return `<div class="dc-day"><div class="t">${i ? '明天' : '今天'} <span class="tag">#${dailyNo(key)}</span>${v && v.by === 'admin' ? '<span class="tag host">管理員指定</span>' : ''}</div>`
+      const reset = !i && v && dcReset ? `<div class="dc-edit dc-reset"><b>🔄 重置今天的每日挑戰</b><span>所有人（包括已經玩過、中途跳掉的）都可以再正式挑戰一次，排行榜從零開始（之前的成績會留著，但不再顯示）。已經在玩舊題目的人，玩完不會算進新的排行榜。</span><div class="mini"><button class="bad" data-dc-reset="same">重置（同一題）</button><button class="bad" data-dc-reset="new">重置並換一題</button><button data-dc-reset="no">取消</button></div></div>` : '';
+      return `<div class="dc-day"><div class="t">${i ? '明天' : '今天'} <span class="tag">#${dailyNo(key)}</span>${v && roundOf(v) > 1 ? `<span class="tag sus">第 ${roundOf(v)} 輪</span>` : ''}${v && v.by === 'admin' ? '<span class="tag host">管理員指定</span>' : ''}</div>`
         + `<div class="r">${v ? `《${esc(v.start)}》→《${esc(v.target)}》` : '還沒產生'}</div>`
-        + `<div class="m">${v ? '' : '第一個打開每日挑戰的人會自動抽，也可以先指定 · '}${i ? '' : `已經 ${n} 人完成`}</div>`
-        + `<div class="mini"><button data-dc-edit="${i}">✏️ 指定題目</button><button data-dc-roll="${i}">🎲 重抽一題</button></div>${edit}</div>`;
+        + `<div class="m">${v ? '' : '第一個打開每日挑戰的人會自動抽，也可以先指定 · '}${i ? '' : `這一輪已經 ${n} 人完成`}</div>`
+        + `<div class="mini"><button data-dc-edit="${i}">✏️ 指定題目</button><button data-dc-roll="${i}">🎲 重抽一題</button>${!i && v ? '<button class="bad" data-dc-resetopen>🔄 重置今天的挑戰</button>' : ''}</div>${edit}${reset}</div>`;
     }).join('');
     $('#dc-days').querySelectorAll('[data-dc-edit]').forEach((b) => { b.onclick = () => { dcEdit = dcEdit === Number(b.dataset.dcEdit) ? null : Number(b.dataset.dcEdit); renderDailyCtl(); }; });
     $('#dc-days').querySelectorAll('[data-dc-roll]').forEach((b) => { b.onclick = () => rollDaily(Number(b.dataset.dcRoll)); });
+    $('#dc-days').querySelectorAll('[data-dc-resetopen]').forEach((b) => { b.onclick = () => { dcReset = !dcReset; renderDailyCtl(); }; });
+    $('#dc-days').querySelectorAll('[data-dc-reset]').forEach((b) => { b.onclick = () => {
+      const how = b.dataset.dcReset;
+      dcReset = false;
+      if (how === 'same') resetDaily(null);
+      else if (how === 'new') rollDaily(0, true);
+      else renderDailyCtl();
+    }; });
     if ($('#dc-save')) {
       $('#dc-cancel').onclick = () => { dcEdit = null; renderDailyCtl(); };
       $('#dc-save').onclick = () => setDaily(dcEdit, $('#dc-s').value, $('#dc-t').value);
     }
   }
   const dcMsg = (t) => { $('#dc-msg').textContent = t || ''; };
-  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=92'));
-  async function setDaily(i, start, target) {
+  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=93'));
+  // 重置今天的挑戰：輪數加一（puzzle 為 null＝同一題）。大家的「今天已經玩過」都不算了、排行榜換成新的一輪
+  async function resetDaily(puzzle) {
+    const key = dcKeys()[0];
+    const cur = dcData[key];
+    if (!cur) return;
+    const round = roundOf(cur) + 1;
+    const next = { start: (puzzle || cur).start, target: (puzzle || cur).target, round, at: Date.now(), resetAt: Date.now(), by: puzzle ? 'admin' : (cur.by || '') };
+    if (!next.by) delete next.by;
+    try {
+      await db.ref(`stats/dailyPuzzle/d${dayOf(key)}`).set(next);
+      dcMsg(`已重置：第 ${round} 輪《${next.start}》→《${next.target}》。大家重新打開每日挑戰就能再挑戰一次`);
+      audit('重置今天的每日挑戰', `第 ${round} 輪：${next.start} → ${next.target}`);
+    } catch (e) { dcMsg(e && e.code === 'PERMISSION_DENIED' ? '存不進去：請先用 Google 登入' : `沒辦法重置：${e.message || e}`); }
+  }
+  async function setDaily(i, start, target, asReset = false) {
     const key = dcKeys()[i];
     const n = dcCount[key] || 0;
-    if (i === 0 && n && !confirm(`今天已經有 ${n} 人完成每日挑戰，換題目後排行榜會混在一起（已經打開題目的人也還是舊題目）。確定要換？`)) return;
+    // 今天已經有人玩過：換題目一定要一起重置（不然新舊題目的成績會混在同一個排行榜）
+    if (i === 0 && n && !asReset && !confirm(`今天已經有 ${n} 人完成每日挑戰。換題目會同時重置今天的挑戰：大家都能再正式挑戰一次，排行榜從零開始。確定要換？`)) return;
+    const reset = i === 0 && (asReset || n > 0);
     dcMsg('確認條目中…');
     try {
       const wiki = await loadWiki();
       const [s, t] = await Promise.all([wiki.resolveTitle('zh', start), wiki.resolveTitle('zh', target)]);
       if (s === t) { dcMsg('起點和終點不能一樣'); return; }
-      await db.ref(`stats/dailyPuzzle/d${dayOf(key)}`).set({ start: s, target: t, at: Date.now(), by: 'admin' });
-      dcEdit = null; dcMsg(`已設定${i ? '明天' : '今天'}的題目：${s} → ${t}`);
+      dcEdit = null;
+      if (reset && dcData[key]) { await resetDaily({ start: s, target: t }); return; }
+      const keep = dcData[key] && roundOf(dcData[key]) > 1 ? { round: roundOf(dcData[key]) } : {};
+      await db.ref(`stats/dailyPuzzle/d${dayOf(key)}`).set({ start: s, target: t, at: Date.now(), by: 'admin', ...keep });
+      dcMsg(`已設定${i ? '明天' : '今天'}的題目：${s} → ${t}`);
       audit(`指定${i ? '明天' : '今天'}的每日題目`, `${s} → ${t}`);
     } catch (e) { dcMsg(e && e.code === 'PERMISSION_DENIED' ? '存不進去：請先用 Google 登入' : `沒辦法設定：${e.message || e}`); }
   }
-  async function rollDaily(i) {
+  async function rollDaily(i, asReset = false) {
     dcMsg('抽題中…');
     try {
       const wiki = await loadWiki();
@@ -1256,7 +1288,7 @@
       const s = await wiki.randomTitle('zh');
       let t = s;
       for (let k = 0; k < 6 && t === s; k++) t = await wiki.randomTitle('zh');
-      await setDaily(i, s, t);
+      await setDaily(i, s, t, asReset);
     } catch (e) { dcMsg(`沒辦法抽題：${e.message || e}`); }
   }
 

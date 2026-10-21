@@ -3,8 +3,8 @@
 // 第一個算出今天題目的人會把它存進 Firebase（stats/dailyPuzzle/d<天數>），之後大家都讀這一份，
 // 所以就算當天維基百科有人改了條目、或題庫更新，同一天的題目也不會變。
 // 排行榜存在 stats/daily/<日期>/<手機代號>；沒設定 Firebase 時一樣能玩（題目靠自己算），只是沒有排行榜。
-import { getDb } from './fb.js?v=92';
-import { api } from './wiki.js?v=92';
+import { getDb } from './fb.js?v=93';
+import { api } from './wiki.js?v=93';
 
 const LAUNCH = '2026-10-21';  // 第 1 期
 const LOG = 'wikirace-daily-log';
@@ -56,7 +56,7 @@ async function linksDirectly(from, to) {
 
 // 自己從題庫算出今天的題目
 async function compute(key) {
-  const { TOPICS } = await import('./topics.js?v=92');
+  const { TOPICS } = await import('./topics.js?v=93');
   const rnd = seeded(`wikirace-daily-${key}`);
   const pick = async (avoid) => {
     for (let i = 0; i < 25; i++) {
@@ -74,6 +74,14 @@ async function compute(key) {
   return { start, target };
 }
 
+// 第幾輪：管理員在後台「重置今天的挑戰」會把輪數加一，大家都能再正式挑戰一次、排行榜重新開始。
+// 這支手機的紀錄和排行榜都照輪數分開（第 1 輪沿用原本的位置，舊資料不受影響）
+const rounds = {};
+export const roundOf = (key) => rounds[key] || 1;
+export const roundKnown = (key) => key in rounds;
+const boardKey = (key) => (roundOf(key) > 1 ? `${key}_r${roundOf(key)}` : key);
+const setRound = (key, v) => { rounds[key] = Math.max(1, Math.floor(Number(v?.round)) || 1); };
+
 const okPuzzle = (v) => !!(v && typeof v.start === 'string' && typeof v.target === 'string' && v.start && v.target && v.start !== v.target && v.start.length < 200 && v.target.length < 200);
 const puzzles = {};
 export function puzzle(key = todayKey()) {
@@ -86,7 +94,7 @@ export function puzzle(key = todayKey()) {
     if (ref) {
       try {
         const v = (await withTimeout(ref.once('value'), 6000)).val();
-        if (okPuzzle(v)) return { ...base, start: v.start, target: v.target };
+        if (okPuzzle(v)) { setRound(key, v); return { ...base, start: v.start, target: v.target, round: roundOf(key) }; }
       } catch { /* 讀不到就自己算 */ }
     }
     const mine = await compute(key);
@@ -95,23 +103,26 @@ export function puzzle(key = todayKey()) {
       try {
         const res = await withTimeout(ref.transaction((cur) => (okPuzzle(cur) ? undefined : { start: mine.start, target: mine.target, at: Date.now() })), 6000);
         const v = res?.snapshot?.val();
-        if (okPuzzle(v)) return { ...base, start: v.start, target: v.target };
+        if (okPuzzle(v)) { setRound(key, v); return { ...base, start: v.start, target: v.target, round: roundOf(key) }; }
       } catch { /* 存不進去也照樣用自己算的 */ }
     }
     return { ...base, ...mine };
   })();
-  puzzles[key].catch(() => { delete puzzles[key]; });
-  return puzzles[key];
+  const mine = puzzles[key];
+  // 過一陣子再打開就重新讀一次（管理員可能剛重置或換題）
+  mine.then(() => setTimeout(() => { if (puzzles[key] === mine) delete puzzles[key]; }, 20000), () => { delete puzzles[key]; });
+  return mine;
 }
 
 // ---------- 這支手機的紀錄 ----------
 export function loadLog() {
   try { const v = JSON.parse(localStorage.getItem(LOG) || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
 }
-export const myDay = (key) => loadLog()[key] || null;
+// 只算這一輪的紀錄（管理員重置之後，之前那一輪的紀錄就不算「今天已經玩過」）
+export const myDay = (key) => { const r = loadLog()[key]; return r && (r.r || 1) === roundOf(key) ? r : null; };
 export function saveDay(key, rec) {
   const log = loadLog();
-  log[key] = rec;
+  log[key] = { ...rec, r: roundOf(key) };
   const keys = Object.keys(log).sort();
   for (const k of keys.slice(0, Math.max(0, keys.length - 120))) delete log[k];
   try { localStorage.setItem(LOG, JSON.stringify(log)); } catch { /* 忽略 */ }
@@ -119,7 +130,7 @@ export function saveDay(key, rec) {
 // 連續完成幾天：今天還沒玩不算斷，從昨天往回數
 export function streak(key = todayKey()) {
   const log = loadLog();
-  let k = log[key]?.win ? key : prevKey(key);
+  let k = myDay(key)?.win ? key : prevKey(key);
   let n = 0;
   while (log[k]?.win) { n++; k = prevKey(k); }
   return n;
@@ -139,7 +150,7 @@ export async function board(key) {
   const db = await database();
   if (!db) return null;
   try {
-    const snap = await withTimeout(db.ref(`stats/daily/${key}`).once('value'), 6000);
+    const snap = await withTimeout(db.ref(`stats/daily/${boardKey(key)}`).once('value'), 6000);
     const v = snap.val() || {};
     return Object.entries(v).map(([id, r]) => clean(id, r)).filter(Boolean).sort((a, b) => a.s - b.s || a.t - b.t);
   } catch { return null; }
@@ -149,5 +160,5 @@ export async function board(key) {
 export async function submit(key, id, rec) {
   const db = await database();
   if (!db) return false;
-  try { await withTimeout(db.ref(`stats/daily/${key}/${id}`).set({ ...rec, at: Date.now() }), 6000); return true; } catch { return false; }
+  try { await withTimeout(db.ref(`stats/daily/${boardKey(key)}/${id}`).set({ ...rec, at: Date.now() }), 6000); return true; } catch { return false; }
 }
