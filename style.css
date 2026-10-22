@@ -1004,7 +1004,7 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .goal-home { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .goal-card { position: relative; cursor: pointer; }
 .goal-card input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.goal-card span {
+.goal-card > span {
   display: grid; justify-items: center; text-align: center; gap: 2px;
   padding: 10px 4px; border-radius: 16px; height: 100%; box-sizing: border-box; background: var(--card-2); color: var(--muted); border: 3px solid transparent;
   transition: transform .1s, background .15s, border-color .15s, color .15s;
@@ -1015,7 +1015,7 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .goal-card input:checked + span i { filter: none; opacity: 1; }
 .goal-card.speed input:checked + span { background: #e6f9ff; color: #0b7fa8; border-color: var(--sky-3); }
 .goal-card.steps input:checked + span { background: #fff4cc; color: #a06a00; border-color: var(--yellow-d); }
-.goal-card:active span { transform: scale(.96); }
+.goal-card:active > span { transform: scale(.96); }
 .goal-card input:focus-visible + span { outline: 3px solid var(--yellow); outline-offset: 2px; }
 .room-goal {
   display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 900; padding: 3px 12px; border-radius: 999px;
@@ -1125,11 +1125,44 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .pick-item small { font-size: 12px; font-weight: 800; color: var(--muted); }
 .pick-item:active { transform: scale(.97); background: var(--blue-t); }
 .goal-card.rush { grid-column: 1 / -1; }
-.goal-card.rush span { grid-template-columns: auto 1fr; grid-template-rows: auto auto; justify-items: start; text-align: left; column-gap: 12px; padding: 10px 16px; }
-.goal-card.rush i { grid-row: 1 / 3; align-self: center; }
-.goal-card.rush input:checked + span { background: #eafbea; color: #15803d; border-color: var(--green); }
-/* 選了搶分賽：道具用不到，淡掉 */
-.goal-home.is-rush .goal-card.items { opacity: .45; pointer-events: none; }
+.goal-card.rush .rush-card {
+  position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; justify-items: start; text-align: left;
+  column-gap: 12px; row-gap: 7px; padding: 12px 14px;
+  background: linear-gradient(120deg, #effcf3 0%, #f2f0fb 70%); color: var(--muted); overflow: hidden;
+}
+/* 右上角淡淡的跑道線條 */
+.goal-card.rush .rush-card::before {
+  content: ""; position: absolute; right: -30px; bottom: -40px; width: 110px; height: 110px; border-radius: 50%;
+  border: 8px solid rgba(34, 197, 94, .07); box-shadow: 0 0 0 12px rgba(34, 197, 94, .04); pointer-events: none;
+}
+.goal-card.rush .rush-ico {
+  grid-row: 1 / 3; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 16px;
+  font-size: 28px; background: #fff; box-shadow: 0 3px 0 rgba(21, 150, 74, .18); filter: grayscale(.6); opacity: .8;
+}
+.goal-card.rush .rush-txt { display: grid; gap: 1px; min-width: 0; padding-right: 22px; }
+.goal-card.rush .rush-txt b { display: flex; align-items: center; gap: 6px; font-size: 18px; color: var(--ink); opacity: .7; }
+.goal-card.rush .rush-txt small { font-size: 12px; font-weight: 700; }
+.rush-new {
+  font-style: normal; font-size: 10px; font-weight: 900; letter-spacing: .06em; color: #fff;
+  background: linear-gradient(135deg, #ff7a3d, #ff4d6d); padding: 2px 6px; border-radius: 999px; line-height: 1.4;
+}
+.goal-card.rush .rush-tags { grid-column: 2; display: flex; flex-wrap: wrap; gap: 5px; }
+.goal-card.rush .rush-tags span {
+  font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(255, 255, 255, .8); color: var(--muted); white-space: nowrap;
+}
+.goal-card.rush .rush-check {
+  position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  font-size: 13px; font-weight: 900; color: #fff; background: var(--green); transform: scale(0); transition: transform .2s cubic-bezier(.3, 1.6, .5, 1);
+}
+.goal-card.rush input:checked + .rush-card { background: linear-gradient(120deg, #dcfce7 0%, #effcf3 100%); color: #15803d; border-color: var(--green); }
+.goal-card.rush input:checked + .rush-card .rush-ico { filter: none; opacity: 1; animation: rushRun .5s ease-out; }
+.goal-card.rush input:checked + .rush-card .rush-txt b { color: #166534; opacity: 1; }
+.goal-card.rush input:checked + .rush-card .rush-tags span { background: #fff; color: #15803d; }
+.goal-card.rush input:checked + .rush-card .rush-check { transform: scale(1); }
+@keyframes rushRun { 0% { transform: translateX(-6px) rotate(-8deg); } 60% { transform: translateX(3px); } 100% { transform: none; } }
+/* 選了搶分賽：道具用不到，淡掉（上面兩種也沒有被選） */
+.goal-home.is-rush .goal-card.items { opacity: .5; pointer-events: none; }
+.goal-home.is-rush .goal-card.items i { filter: grayscale(1); opacity: .5; }
 .goal-card.items input:checked + span { background: #ffeef6; color: var(--pink-d); border-color: var(--pink); }
 .room-goal.items, .brief-goal.items { background: #ffeef6; color: var(--pink-d); }
 .stats-label.items { color: var(--pink-d); }
@@ -1501,3 +1534,12 @@ body.replaying { overflow: hidden; }
 .rush-wait { text-align: center; color: var(--muted); font-weight: 800; padding: 40px 0; }
 .row-note { margin: 0; padding: 0 18px 12px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .row-note[hidden] { display: none; }
+@media (max-width: 360px) {
+  .goal-card.rush .rush-card { column-gap: 10px; padding: 10px 12px; }
+  .goal-card.rush .rush-ico { width: 40px; height: 40px; font-size: 22px; border-radius: 13px; }
+  .goal-card.rush .rush-txt b { font-size: 16px; }
+  .goal-card.rush .rush-txt small { font-size: 11px; }
+  .goal-card.rush .rush-tags { gap: 4px; }
+  .goal-card.rush .rush-tags span { font-size: 10px; padding: 2px 6px; }
+  .goal-card.rush .rush-tags span:first-child { display: none; }  /* 副標題已經寫了「限時」 */
+}
