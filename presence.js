@@ -2,8 +2,8 @@
 // 另外給製作者後台一份「誰在線上、在做什麼」（who：只有管理員讀得到）：暱稱、在首頁／房間／比賽／單人訓練、
 // 房間代碼、模式、題目和步數。不會記下正在看哪個條目、也看不到任何人的畫面。
 // 沒有在 firebase-config.js 填設定的話，整個功能會安靜地關閉，不影響遊戲其他部分。
-import { getDb, getUid, onAuth, authOff } from './fb.js?v=106';
-import { bumpPeak } from './rooms.js?v=106';
+import { getDb, getUid, onAuth, authOff } from './fb.js?v=107';
+import { bumpPeak } from './rooms.js?v=107';
 
 let started = false;
 let retries = 0;
@@ -14,6 +14,11 @@ let liveRef = null;        // live/<自己的 key>：管理員觀戰時才寫
 let spyCb = () => {};
 const VERSION = Number(new URL(import.meta.url).searchParams.get('v')) || 0;  // 這個分頁是第幾版（後台看版本分布）
 let withV = true;  // Firebase 上還是舊規則（不認得 v）就不帶
+// 心跳：開著的分頁每分鐘回報一次「我還在」（online 的 t、who 的 at，用伺服器時間）。
+// 手機把分頁丟到背景凍結時程式完全停住，連線卻可能還留著，資料庫會以為他還在；
+// 超過 STALE_MS 沒回報就當作已經離開，線上人數和後台都不算他。
+const BEAT_MS = 60 * 1000;
+export const STALE_MS = 3 * 60 * 1000;
 
 // 管理員要看我的畫面時通知 app.js（on=true 開始、false 結束）
 export function onSpy(cb) { spyCb = cb; }
@@ -68,7 +73,8 @@ export async function initPresence(onCount) {
     const off = (p) => p?.catch?.(() => {});
     dropMe = () => { gone = true; try { off(me.remove()); off(who.remove()); } catch { /* 忽略 */ } };
     // 給後台看的詳細資料：每次狀態改變就更新
-    const whoRec = () => ({ ...activity, u: uid, t: opened, since, at: Date.now(), ...(withV && VERSION ? { v: VERSION } : {}) });
+    const TS = window.firebase.database?.ServerValue?.TIMESTAMP ?? Date.now();
+    const whoRec = () => ({ ...activity, u: uid, t: opened, since, at: TS, ...(withV && VERSION ? { v: VERSION } : {}) });
     // 被規則擋下：可能是舊規則不認得 v，拿掉再試一次
     const setWho = () => who.set(whoRec()).catch((e) => {
       if (!withV || !VERSION || !/permission/i.test(String(e?.code || e?.message))) throw e;
@@ -93,7 +99,7 @@ export async function initPresence(onCount) {
       try {
         off(me.onDisconnect().remove());
         off(who.onDisconnect().remove());
-        await me.set({ u: uid, t: opened });
+        await me.set({ u: uid, t: TS });
         await setWho();
         watchSpy();  // 規則要先確認這筆是我的，才讓我讀管理員的觀戰要求
       } catch { /* 規則擋下（還沒登入）就等登入好再寫 */ }
@@ -127,9 +133,28 @@ export async function initPresence(onCount) {
       }, () => { spying = false; /* 規則還沒更新：沒有觀戰功能 */ });
     };
     setInterval(checkSpy, 10000);
+    // 心跳（整筆重寫：被後台當成幽靈清掉的話，分頁回來後會再出現）
+    const beat = () => { if (ready()) { try { off(me.set({ u: uid, t: TS })); off(setWho()); } catch { /* 忽略 */ } } };
+    setInterval(beat, BEAT_MS);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
+    window.addEventListener('pageshow', (e) => { if (e.persisted) beat(); });
     db.ref('.info/connected').on('value', (snap) => { live = snap.val() === true; if (live) write(); });
     onAuth((id) => { if (id) write(); });
-    online.on('value', (snap) => { const n = snap.numChildren(); onCount(n); bumpPeak(n); });
+    // 人數只算最近有心跳的（用伺服器時間比，手機時間不準也沒關係）
+    let offset = 0;
+    let lastOnline = {};
+    let lastN = -1;
+    db.ref('.info/serverTimeOffset').on('value', (s) => { offset = Number(s.val()) || 0; }, () => {});
+    const recount = () => {
+      const now = new Date().getTime() + offset;  // 跟 Firebase 自己算時間差的方式一樣
+      const n = Object.values(lastOnline).filter((o) => o && Number(o.t) > now - STALE_MS).length;
+      if (n === lastN) return;
+      lastN = n;
+      onCount(n);
+      bumpPeak(n);
+    };
+    online.on('value', (snap) => { lastOnline = snap.val() || {}; lastN = -1; recount(); });
+    setInterval(recount, 30000);
     window.addEventListener('pagehide', (e) => { if (!e.persisted) { try { off(me.remove()); off(who.remove()); } catch { /* 忽略 */ } } });
   } catch { /* 連不上就安靜放棄 */ }
 }

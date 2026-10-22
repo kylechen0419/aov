@@ -101,6 +101,9 @@
   .who-row .st { grid-column: 1 / -1; font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .who-row .dt { grid-column: 1 / -1; font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who-row.home { opacity: .7; }
+  .who-stale { margin-top: 4px; display: grid; gap: 6px; }
+  .who-stale summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 4px 2px; }
+  .who-stale .ver { margin: 0; }
   .who-kick { font-size: 12px; font-weight: 800; color: var(--red); background: #4a1530; padding: 4px 10px; border-radius: 999px; border: 0; cursor: pointer; font-family: inherit; }
   .who-row .st .who-watch + .who-kick { margin-left: 0; }
   .who-row .st .who-kick:first-of-type { margin-left: auto; }
@@ -491,7 +494,7 @@
     <div id="multi-grid" class="multi-grid"></div>
   </div>
 
-  <script src="firebase-config.js?v=106"></script>
+  <script src="firebase-config.js?v=107"></script>
   <script>
   // 後台只認管理員的 Google 帳號：登入後讀得到只有管理員能讀的資料（audit）才放行，資料本身由 Firebase 規則保護
   const $ = (s) => document.querySelector(s);
@@ -518,7 +521,7 @@
     const [mine, open] = await Promise.all([can('audit'), can('rulesv/never')]);
     if (mine && !open) return true;
     gateMsg(open ? `已用 ${u.email || u.uid} 登入，但資料庫還沒上鎖（任何人都能讀寫），先發布下面的規則` : `這個帳號（${u.email || u.uid}）沒有管理員權限`);
-    import('./rules.js?v=106').then(({ rulesFor }) => {
+    import('./rules.js?v=107').then(({ rulesFor }) => {
       $('#gate-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#gate-setup').hidden = false;
       if (open) $('#gate-setup').open = true;
@@ -545,6 +548,21 @@
   let notifyCfg = null;
   let lastBcast = null;
   let lastWho = null;
+  // 心跳：遊戲每分鐘回報一次（online 的 t、who 的 at，伺服器時間）。超過 3 分鐘沒回報＝幽靈連線
+  // （多半是手機把分頁丟到背景凍結了，或是還沒有心跳的舊版），不算在線上人數；超過 15 分鐘就幫忙清掉
+  const STALE_MS = 3 * 60 * 1000, CLEAN_MS = 15 * 60 * 1000;
+  let srvOff = 0, lastOnline = {}, staleOpen = false;
+  const cleaned = new Set();
+  const srvNow = () => new Date().getTime() + srvOff;  // 跟 Firebase 自己算時間差的方式一樣
+  // 只剩 online 一筆（沒有 who）的幽靈也清掉
+  const cleanOnline = () => {
+    for (const [k, o] of Object.entries(lastOnline)) {
+      if (cleaned.has(k) || !o || srvNow() - (Number(o.t) || 0) < CLEAN_MS) continue;
+      cleaned.add(k);
+      db.ref('online/' + k).remove().catch(() => {});
+    }
+  };
+  const freshOnline = (v) => Object.values(v || {}).filter((o) => o && Number(o.t) > srvNow() - STALE_MS).length;
   let kickOpen = null, kickName = '';
   let multiMode = false, multiSel = new Set();
   let bans = {};
@@ -575,7 +593,8 @@
         $('#main').hidden = false;
         wireSecurity(auth);
         db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); }, () => { $('#status').textContent = '讀不到房間：資料庫已上鎖，請先用 Google 登入'; });
-        db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
+        db.ref('.info/serverTimeOffset').on('value', (snap) => { srvOff = Number(snap.val()) || 0; }, () => {});
+        db.ref('online').on('value', (snap) => { lastOnline = snap.val() || {}; $('#s-online').textContent = freshOnline(lastOnline); });
         db.ref('ban').on('value', (snap) => { bans = snap.val() || {}; renderBans(); renderProfiles(); }, () => { $('#ban-sum').textContent = '讀不到'; });
         db.ref('who').on('value', (snap) => { lastWho = snap.val() || {}; renderWho(); }, () => { lastWho = null; $('#who-sum').textContent = '讀不到'; $('#who').innerHTML = '<p class="empty">讀不到在線玩家：請先用 Google 登入；已登入的話，到上面「資料庫保護」重新複製規則、到 Firebase 發布一次（新版規則才有這個列表）</p>'; });
         db.ref('stats/peakOnline').on('value', (snap) => { $('#s-peak').textContent = snap.val() || '–'; });
@@ -590,7 +609,7 @@
         db.ref('errors').limitToLast(500).on('value', (snap) => { errs = Object.values(snap.val() || {}); renderErrors(); }, () => { $('#err-sum').textContent = '讀不到（規則要更新）'; $('#errlist').innerHTML = '<p class="empty">讀不到：到「資料庫保護」重新複製規則、發布一次</p>'; });
         db.ref('audit').limitToLast(200).on('value', (snap) => { audits = Object.values(snap.val() || {}); renderAudit(); }, () => { $('#audit-sum').textContent = '讀不到（規則要更新）'; $('#auditlist').innerHTML = '<p class="empty">讀不到：到「資料庫保護」重新複製規則、發布一次</p>'; });
         db.ref('config/badwords').on('value', (snap) => { badwords = snap.val() || ''; renderBadwords(true); }, () => {});
-        setInterval(() => { renderRooms(); renderWho(); renderAnn(); }, 5000);
+        setInterval(() => { renderRooms(); renderWho(); renderAnn(); $('#s-online').textContent = freshOnline(lastOnline); cleanOnline(); }, 5000);
         wireControls();
       } catch (e) { gateMsg('連不上 Firebase，等一下再重新整理這一頁'); $('#status').textContent = '連不上 Firebase'; }
     })();
@@ -669,7 +688,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=106').then(({ rulesFor, RULES_VERSION }) => {
+    import('./rules.js?v=107').then(({ rulesFor, RULES_VERSION }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
@@ -743,15 +762,15 @@
       const get = (p) => db.ref(p).once('value').then((x) => x.val(), () => null);
       const [d, y, dl, on, pk] = await Promise.all([get('stats/dayCount/' + day(Date.now())), get('stats/dayCount/' + day(Date.now() - 864e5)), get(boardPath(day(Date.now()), dcData[day(Date.now())])), get('online'), get('stats/peakOnline')]);
       const n = (v) => Number(v) || 0, c = (v) => (v ? Object.keys(v).length : 0);
-      const lines = [`🎮 對局 ${n(d && d.games)} 局${y && y.games ? `（昨天 ${y.games}）` : ''}・玩家 ${n(d && d.players)} 人次`, `📅 每日挑戰 ${c(dl)} 人完成`, `👥 現在在線 ${c(on)} 人・史上尖峰 ${n(pk)} 人`];
+      const lines = [`🎮 對局 ${n(d && d.games)} 局${y && y.games ? `（昨天 ${y.games}）` : ''}・玩家 ${n(d && d.players)} 人次`, `📅 每日挑戰 ${c(dl)} 人完成`, `👥 現在在線 ${freshOnline(on)} 人・史上尖峰 ${n(pk)} 人`];
       if (d && d.errors) lines.push(`🐞 今天有 ${d.errors} 筆錯誤紀錄，到後台看看`);
-      const { sendNtfy } = await import('./notify.js?v=106');
+      const { sendNtfy } = await import('./notify.js?v=107');
       await sendNtfy(notifyCfg.topic, 'test', `維基競速・今日摘要（${day(Date.now()).slice(5).replace('-', '/')}）`, lines.join('\n'));
       ntMsg('已傳出今日摘要，手機幾秒內會收到');
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=106');
+      const { sendNtfy } = await import('./notify.js?v=107');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -812,7 +831,7 @@
 
   // ---------- 暱稱過濾 ----------
   let badwords = '', names = null;
-  import('./names.js?v=106').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
+  import('./names.js?v=107').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
   function renderBadwords(fromDb) {
     const n = String(badwords || '').split(/[,，、\n]+/).filter((x) => x.trim()).length;
     $('#bw-sum').textContent = n ? `內建＋自訂 ${n} 個字` : '用內建清單';
@@ -871,7 +890,17 @@
   const WHO_ORDER = { game: 0, watch: 0, solo: 1, daily: 1, result: 2, room: 3, home: 4 };
   function renderWho() {
     if (!lastWho) return;  // 還沒讀到（或沒有權限）：保留原本的訊息
-    const list = Object.entries(lastWho).filter(([, w]) => w && w.s).map(([key, w]) => ({ ...w, key }));
+    const all = Object.entries(lastWho).filter(([, w]) => w && w.s).map(([key, w]) => ({ ...w, key }));
+    const now = srvNow();
+    const list = all.filter((w) => Number(w.at) > now - STALE_MS);
+    const stale = all.filter((w) => !(Number(w.at) > now - STALE_MS)).sort((a, b) => (b.at || 0) - (a.at || 0));
+    // 幽靈連線太久了：幫忙從資料庫清掉（Firebase 上要是新版規則才准；不准就算了，反正不算人數）
+    for (const w of stale) {
+      if (now - (Number(w.at) || 0) < CLEAN_MS || cleaned.has(w.key)) continue;
+      cleaned.add(w.key);
+      db.ref('who/' + w.key).remove().catch(() => {});
+      db.ref('online/' + w.key).remove().catch(() => {});
+    }
     const count = (f) => list.filter(f).length;
     const parts = [[count((w) => w.r && w.s !== 'room'), '比賽'], [count((w) => w.s === 'room'), '房間'], [count((w) => w.s === 'solo'), '單人'], [count((w) => w.s === 'daily'), '每日'], [count((w) => w.s === 'home'), '首頁']];
     $('#who-sum').textContent = [`${list.length} 人`, ...parts.filter(([n]) => n).map(([n, t]) => `${t} ${n}`)].join(' · ');
@@ -882,7 +911,13 @@
     const vk = Object.keys(vs).map(Number).sort((a, b) => b - a);
     $('#who-ver').hidden = !list.length;
     $('#who-ver').innerHTML = '版本：' + vk.map((v) => `<span class="tag ${v === newest ? 'cur' : 'old'}">${v ? 'v' + v : '更舊'} × ${vs[v]}</span>`).join('') + (vk.some((v) => v !== newest) ? '<span>舊版的人回到首頁會自動更新</span>' : '');
-    if (!list.length) { $('#who').innerHTML = '<p class="empty">目前沒有人在線上</p>'; return; }
+    const ghosts = !stale.length ? '' : `<details class="who-stale"${staleOpen ? ' open' : ''}><summary>😴 另有 ${stale.length} 個沒有回應的連線（不算人數）</summary>`
+      + '<p class="ver">超過 3 分鐘沒有回報：多半是手機把遊戲丟到背景、畫面被凍結了，或是還沒更新的舊版。回到遊戲就會重新出現；超過 15 分鐘會自動清掉。</p>'
+      + stale.map((w) => `<div class="who-row home"><span class="nm">${esc(w.n || '（還沒取暱稱）')}</span><span class="tm">${w.at ? agoLong(w.at - srvNow() + Date.now()) + '前回報' : ''}</span>`
+        + `<div class="st"><span class="tag">${(WHO[w.s] || ['', esc(w.s)])[1]}</span>${w.r ? `<span class="code" style="font-size:14px">${esc(w.r)}</span>` : ''}<span class="tag old">${w.v ? 'v' + w.v : '更舊'}</span></div></div>`).join('')
+      + '</details>';
+    const bindGhosts = () => { const d = $('#who').querySelector('.who-stale'); if (d) d.ontoggle = () => { staleOpen = d.open; }; };
+    if (!list.length) { $('#who').innerHTML = '<p class="empty">目前沒有人在線上</p>' + ghosts; bindGhosts(); return; }
     list.sort((a, b) => (WHO_ORDER[a.s] ?? 5) - (WHO_ORDER[b.s] ?? 5) || String(a.r || '').localeCompare(String(b.r || '')) || (a.since || 0) - (b.since || 0));
     $('#who').innerHTML = list.map((w) => {
       const [cls, label] = WHO[w.s] || ['', esc(w.s)];
@@ -906,7 +941,8 @@
       const pick = kickOpen === w.u ? `<div class="kick-pick">踢出 ${esc(w.n || '這位玩家')}：<button class="go" data-min="10">10 分鐘</button><button class="go" data-min="1440">1 天</button><button class="go" data-min="0">永久</button><button class="no">取消</button></div>` : '';
       return `<div class="who-row ${w.s === 'home' ? 'home' : ''}"><span class="nm">${esc(w.n || '（還沒取暱稱）')}</span><span class="tm">${w.since ? '已 ' + ago(w.since) : ''}</span>`
         + `<div class="st">${tags.join('')}${watch}${kick}</div>${detail ? `<div class="dt">${detail}</div>` : ''}${pick}</div>`;
-    }).join('');
+    }).join('') + ghosts;
+    bindGhosts();
     $('#who').querySelectorAll('.who-pick').forEach((b) => { b.onclick = () => { const k = b.dataset.key; if (multiSel.has(k)) multiSel.delete(k); else if (multiSel.size < 4) multiSel.add(k); renderWho(); }; });
     for (const k of [...multiSel]) if (!lastWho[k]) multiSel.delete(k);  // 已經離開的人
     $('#multi-go').disabled = multiSel.size < 1;
@@ -1210,7 +1246,7 @@
 
   // ---------- 題庫管理（config/topicBan：一行一個） ----------
   let topicBan = '', topicCount = 0;
-  import('./topics.js?v=106').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
+  import('./topics.js?v=107').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
   const topicList = () => String(topicBan || '').split('\n').map((t) => t.trim()).filter(Boolean);
   const topicSet = () => new Set(topicList());
   const saveTopics = (list, what) => db.ref('config/topicBan').set(list.join('\n') || null).then(() => { $('#tp-msg').textContent = '已儲存，之後的隨機出題會跳過'; audit(what[0], what[1]); }, () => { $('#tp-msg').textContent = '存不進去：請先用 Google 登入'; });
@@ -1289,7 +1325,7 @@
     }
   }
   const dcMsg = (t) => { $('#dc-msg').textContent = t || ''; };
-  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=106'));
+  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=107'));
   // 重置今天的挑戰：輪數加一（puzzle 為 null＝同一題）。大家的「今天已經玩過」都不算了、排行榜換成新的一輪
   async function resetDaily(puzzle) {
     const key = dcKeys()[0];
@@ -1374,7 +1410,7 @@
     list.sort((a, b) => pfSort === 'recent' ? b.last - a.last : pfSort === 'sus' ? (b.sus - a.sus) || (b.games - a.games) : (b.games - a.games) || (b.last - a.last));
     if (pfSort === 'sus') list = list.filter((r) => r.sus);
     $('#pf-more').hidden = list.length <= pfShow;
-    const online = new Set(Object.values(lastWho || {}).map((w) => w && w.u).filter(Boolean));
+    const online = new Set(Object.values(lastWho || {}).filter((w) => w && Number(w.at) > srvNow() - STALE_MS).map((w) => w.u).filter(Boolean));
     $('#pflist').innerHTML = list.length ? list.slice(0, pfShow).map((r) => {
       const banned = r.uid && bans[r.uid] && bans[r.uid].until > Date.now();
       const others = Object.keys(r.names).filter((n) => n !== r.name);

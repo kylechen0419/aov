@@ -1,17 +1,17 @@
-import { Net } from './net.js?v=106';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=106';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=106';
-import { initNotify, notify } from './notify.js?v=106';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=106';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=106';
-import { reportError, catchErrors } from './errors.js?v=106';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=106';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=106';
-import * as wiki from './wiki.js?v=106';
-import { tw, twTree, zhReady } from './zh.js?v=106';
-import { makeShareImage } from './share.js?v=106';
-import { solve } from './solver.js?v=106';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=106';
+import { Net } from './net.js?v=107';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=107';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=107';
+import { initNotify, notify } from './notify.js?v=107';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=107';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=107';
+import { reportError, catchErrors } from './errors.js?v=107';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=107';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=107';
+import * as wiki from './wiki.js?v=107';
+import { tw, twTree, zhReady } from './zh.js?v=107';
+import { makeShareImage } from './share.js?v=107';
+import { solve } from './solver.js?v=107';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=107';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -661,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=106').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=107').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -5210,7 +5210,10 @@ function initIdle() {
     addEventListener(ev, () => { if (!away && $('#idle-modal').hidden) lastAct = Date.now(); }, { capture: true, passive: true });
   }
   setInterval(checkIdle, 5000);
+  // 分頁從背景回來（手機凍結期間計時器都停了）：馬上檢查一次
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkIdle(); });
+  window.addEventListener('pageshow', checkIdle);
+  window.addEventListener('focus', checkIdle);
   $('#away-back').onclick = () => { try { sessionStorage.removeItem('wikirace-away'); } catch { /* 忽略 */ } location.reload(); };
 }
 
@@ -5301,7 +5304,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=106').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=107').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }
