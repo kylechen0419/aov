@@ -52,7 +52,10 @@ body {
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  overflow-x: clip;
 }
+/* 整頁永遠不能左右滑（iPhone 要連 html 一起鎖） */
+html { overflow-x: hidden; overflow-x: clip; overscroll-behavior-x: none; }
 [hidden] { display: none !important; }
 button { font: inherit; -webkit-user-select: none; user-select: none; }
 a { color: var(--blue); }
@@ -437,7 +440,7 @@ body.solo #route-grid .opp-side { display: none; }
   position: relative; max-width: 860px; margin: 14px auto 0;
   background: var(--paper); color: var(--paper-text);
   border-radius: var(--r); box-shadow: var(--shadow);
-  padding: 18px 20px 36px; min-height: 60vh; min-width: 0;
+  padding: 18px 20px 36px; min-height: 60vh; min-width: 0; overflow-x: clip;
   font-size: 16px; line-height: 1.8;
 }
 @media (max-width: 900px) { .paper { margin: 14px var(--gutter-r) 0 var(--gutter-l); } }
@@ -447,7 +450,11 @@ body.solo #route-grid .opp-side { display: none; }
   font-family: var(--font-serif); font-weight: 900; font-size: 28px;
   margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--paper-line); line-height: 1.3;
 }
-.article { overflow-wrap: anywhere; }
+.article { overflow-wrap: break-word; }
+.article td, .article th { min-width: 2.6em; }
+.article td.cell-mid, .article th.cell-mid { min-width: 5em; }
+.article td.cell-long, .article th.cell-long { min-width: 12em; }
+.article .infobox td.cell-long { min-width: 8em; }
 .article a { color: var(--paper-link); text-decoration: none; font-weight: 500; }
 .article a.wl { border-radius: 4px; }
 .article a.wl:hover { text-decoration: underline; }
@@ -465,7 +472,18 @@ body.solo #route-grid .opp-side { display: none; }
 }
 .article img { max-width: 100%; height: auto; border-radius: 8px; }
 .article table { border-collapse: collapse; max-width: 100%; }
+/* 條目裡所有表格都在自己的框裡左右捲，不能把整頁撐寬（手機上會滑到旁邊的空白） */
+.article table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; width: auto !important; }
 .article .infobox, .article table.wikitable { display: block; overflow-x: auto; font-size: 14px; }
+.article div, .article pre, .article figure, .article ul, .article ol, .article dl, .article blockquote { max-width: 100%; box-sizing: border-box; }
+.article [style*="width"] { max-width: 100% !important; }
+.article div[style*="width"], .article pre { overflow-x: auto; }
+.article pre { white-space: pre-wrap; }
+.article { overflow-wrap: break-word; }
+.article td, .article th { min-width: 2.6em; }
+.article td.cell-mid, .article th.cell-mid { min-width: 5em; }
+.article td.cell-long, .article th.cell-long { min-width: 12em; }
+.article .infobox td.cell-long { min-width: 8em; }
 .article .infobox { float: right; clear: right; max-width: 320px; margin: 0 0 12px 16px; border: 1px solid var(--paper-line); border-radius: 12px; background: #f8f9fa; }
 .article .infobox th, .article .infobox td, .article .wikitable th, .article .wikitable td { padding: 4px 6px; border: 1px solid var(--paper-line); vertical-align: top; }
 .article .thumb, .article figure { margin: 8px 0; }
@@ -1542,4 +1560,12 @@ body.replaying { overflow: hidden; }
   .goal-card.rush .rush-tags { gap: 4px; }
   .goal-card.rush .rush-tags span { font-size: 10px; padding: 2px 6px; }
   .goal-card.rush .rush-tags span:first-child { display: none; }  /* 副標題已經寫了「限時」 */
+}
+/* 表格還能往左右捲時，邊緣出現淡淡的陰影提示（捲到底就消失） */
+.article table:not(.infobox) {
+  background:
+    linear-gradient(to right, var(--paper) 30%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--paper) 30%, transparent) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(43, 33, 96, .18), transparent) left center / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(43, 33, 96, .18), transparent) right center / 10px 100% no-repeat scroll;
 }
