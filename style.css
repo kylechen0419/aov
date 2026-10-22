@@ -1620,3 +1620,5 @@ body.replaying { overflow: hidden; }
 .idle-left { display: inline-block; min-width: 1.6em; color: var(--red, #ff4d6d); font-size: 18px; }
 .idle-modal .modal-card { animation: feedIn .3s cubic-bezier(.2, 1.4, .4, 1), idleNudge 1.6s ease-in-out .6s infinite; }
 @keyframes idleNudge { 0%, 100% { transform: none; } 8% { transform: rotate(-2deg); } 16% { transform: rotate(2deg); } 24% { transform: none; } }
+
+#name-modal { z-index: 110; }  /* 在每日挑戰等視窗上面 */

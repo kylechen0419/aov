@@ -1,17 +1,17 @@
-import { Net } from './net.js?v=104';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=104';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=104';
-import { initNotify, notify } from './notify.js?v=104';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=104';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=104';
-import { reportError, catchErrors } from './errors.js?v=104';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=104';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=104';
-import * as wiki from './wiki.js?v=104';
-import { tw, twTree, zhReady } from './zh.js?v=104';
-import { makeShareImage } from './share.js?v=104';
-import { solve } from './solver.js?v=104';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=104';
+import { Net } from './net.js?v=105';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=105';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=105';
+import { initNotify, notify } from './notify.js?v=105';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=105';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=105';
+import { reportError, catchErrors } from './errors.js?v=105';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=105';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=105';
+import * as wiki from './wiki.js?v=105';
+import { tw, twTree, zhReady } from './zh.js?v=105';
+import { makeShareImage } from './share.js?v=105';
+import { solve } from './solver.js?v=105';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=105';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -626,14 +626,6 @@ function selectedMode() {
 const RESERVED_NAMES = ['你', '我', '玩家', '自己'];
 const reservedName = (n) => RESERVED_NAMES.includes(String(n || '').trim());
 
-function getName() {
-  const n = $('#nickname').value.trim();
-  if (!n) { showError('#home-error', '請先輸入暱稱'); $('#nickname').focus(); return null; }
-  if (badName(n)) { showError('#home-error', '這個暱稱不太好，換一個吧'); $('#nickname').focus(); return null; }
-  if (reservedName(n)) { showError('#home-error', `「${n}」不能當暱稱，取一個專屬的名字吧`); $('#nickname').focus(); return null; }
-  store.set('wikirace-name', n);
-  return n;
-}
 
 async function joinAsGuest(code, { auto = false } = {}) {
   showError('#home-error');
@@ -669,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=104').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=105').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -749,7 +741,7 @@ function initHome() {
   }
 
   $('#btn-create').onclick = async () => {
-    const name = getName();
+    const name = await askName();  // 沒有暱稱：跳出視窗先取一個
     if (!name) return;
     showError('#home-error');
     state.myName = name;
@@ -777,11 +769,11 @@ function initHome() {
     }
   };
 
-  const join = () => {
-    const name = getName();
-    if (!name) return;
+  const join = async () => {
     const code = $('#join-code').value.trim().toUpperCase();
     if (!code) { showError('#home-error', '請輸入房間代碼'); return; }
+    const name = await askName();  // 沒有暱稱：跳出視窗先取一個
+    if (!name) return;
     state.myName = name;
     state.myKey = guestMem.load(code) || randomKey();
     joinAsGuest(code);
@@ -1811,7 +1803,7 @@ function openDaily() {
   $('#daily-count').textContent = '–';
   $('#daily-best').textContent = '–';
   $('#daily-name').value = $('#nickname').value.trim();
-  $('#daily-name-row').hidden = !!$('#daily-name').value;
+  $('#daily-name-row').hidden = true;  // 暱稱改用跳出視窗問
   $('#daily-title').textContent = `📅 每日挑戰 #${dailyNo(key)}`;
   $('#daily-streak').textContent = streak(key);
   renderDailyMine(key);
@@ -1924,7 +1916,8 @@ async function resumeDaily(run) {
 }
 
 // 按「開始挑戰」：正式挑戰先跳一個提醒（只有一次、跳掉 3 分鐘內可以回來）；接著玩、練習就直接開始
-function dailyGo() {
+async function dailyGo() {
+  if (!(await askName())) return;  // 沒有暱稱：跳出視窗先取一個（排行榜要用）
   const key = todayKey();
   const run = dailyRun(key);
   if (run && key === dailyModalKey) { resumeDaily(run).catch((e) => { reportError('daily', e); showError('#daily-error', e.message || '接不回去，再試一次'); }); return; }
@@ -4226,7 +4219,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=104')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=105')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5299,7 +5292,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=104').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=105').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {

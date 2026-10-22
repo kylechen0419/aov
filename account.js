@@ -2,9 +2,42 @@
 // 每日挑戰排行榜也只收登入的人（資料庫規則會擋）。
 // 原本沒登入時的匿名身分會直接「升級」成這個 Google 帳號（uid 不變，之前的紀錄都接得上）；
 // 這個 Google 帳號以前在別的手機登入過，就換成那個帳號的身分（uid 會變，畫面重新載入一次）。
-import { getDb } from './fb.js?v=104';
+import { getDb } from './fb.js?v=105';
 
 const GOALS = ['speed', 'steps', 'items', 'isteps', 'rush'];
+
+// Google 新版登入（Google Identity Services）：直接開 Google 自己的登入畫面拿授權，再交給 Firebase。
+// iPhone 的瀏覽器會擋 Firebase 那種跨網站的登入視窗（要改設定才登得進去），這個方式不會被擋。
+// 載入不到（例如被擋廣告的外掛擋掉）就退回 Firebase 的登入視窗。
+const GOOGLE_CLIENT_ID = window.WIKIRACE_GOOGLE_CLIENT_ID || '693547120867-92s48ihb7j5ff722e907q33p85ijnman.apps.googleusercontent.com';
+let gisLoading = null;
+function loadGis() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve(true);
+  gisLoading ||= new Promise((ok) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.onload = () => ok(!!window.google?.accounts?.oauth2);
+    s.onerror = () => { s.remove(); gisLoading = null; ok(false); };
+    document.head.appendChild(s);
+  });
+  return gisLoading;
+}
+// 一定要在「按下按鈕的當下」呼叫（不能先等別的東西），不然 iPhone 會當成廣告視窗擋掉
+function googleToken() {
+  return new Promise((ok, no) => {
+    const err = (code) => no(Object.assign(new Error(code), { code }));
+    try {
+      window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        callback: (r) => (r?.access_token ? ok(r.access_token) : err(r?.error === 'access_denied' ? 'auth/popup-closed-by-user' : `auth/gis-${r?.error || 'failed'}`)),
+        error_callback: (e) => err(e?.type === 'popup_closed' ? 'auth/popup-closed-by-user' : e?.type === 'popup_failed_to_open' ? 'auth/popup-blocked' : `auth/gis-${e?.type || 'failed'}`),
+      }).requestAccessToken();
+    } catch { err('auth/gis-failed'); }
+  });
+}
 const cleanStat = (s) => ({ w: num(s?.w), l: num(s?.l), d: num(s?.d), streak: num(s?.streak) });
 const num = (v) => Math.max(0, Math.min(1e6, Math.floor(Number(v)) || 0));
 
@@ -28,6 +61,7 @@ export async function initAccount() {
     const auth = window.firebase.auth();
     auth.onAuthStateChanged(() => changeCb(account()));
   } catch { /* 沒有登入功能 */ }
+  loadGis();  // 先載好，按登入的當下才能馬上開 Google 的登入畫面
 }
 
 const LOGIN_ERR = {
@@ -38,10 +72,14 @@ const LOGIN_ERR = {
   'auth/unauthorized-domain': '這個網址還沒開放 Google 登入（請管理員到 Firebase 加上授權網域）',
   'auth/operation-not-allowed': 'Google 登入還沒開啟（請管理員到 Firebase 開啟）',
   'auth/network-request-failed': '網路不太穩，等一下再試一次',
+  'auth/gis-idpiframe_initialization_failed': 'Google 登入還沒設定好這個網址（請管理員到 Google Cloud 加上網址）',
 };
 
 // 用 Google 登入。回傳 { ok, switched }：switched＝換成另一個（之前就有的）帳號身分，畫面要重新載入
 export async function login() {
+  // Google 新版登入有載好：按下的當下就開 Google 的登入畫面（之後才做其他要等的事）
+  const token = window.google?.accounts?.oauth2 ? googleToken() : null;
+  token?.catch(() => {});
   if (!(await getDb())) throw new Error('連不上伺服器，等一下再試一次');
   const fb = window.firebase;
   const auth = fb.auth();
@@ -50,7 +88,19 @@ export async function login() {
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
     const u = auth.currentUser;
-    if (u && u.isAnonymous) {
+    if (token) {
+      const cred = fb.auth.GoogleAuthProvider.credential(null, await token);
+      if (u && u.isAnonymous) {
+        try {
+          await u.linkWithCredential(cred);
+        } catch (e) {
+          if (e.code !== 'auth/credential-already-in-use' && e.code !== 'auth/email-already-in-use') throw e;
+          await auth.signInWithCredential(e.credential || cred);
+        }
+      } else {
+        await auth.signInWithCredential(cred);
+      }
+    } else if (u && u.isAnonymous) {
       try {
         await u.linkWithPopup(provider);
       } catch (e) {
