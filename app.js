@@ -3590,6 +3590,46 @@ function renderRanking(g, entries) {
   $('#rank-list').replaceChildren(...items);
 }
 
+// 搶分賽：依題目整理（每一題大家各走了幾步、誰跳過、誰還沒走到）
+function renderRushQs(g, entries) {
+  const at = (e, i) => {
+    if (e.rr?.[i]) return e.rr[i];
+    if (i === e.qi && e.path?.length) return { p: e.path, r: 'open' };
+    return null;
+  };
+  const n = Math.max(0, ...entries.map((e) => (e.rr?.length || 0) + (e.path?.length ? 1 : 0)));
+  const opened = new Set([...$('#rush-qs-list').querySelectorAll('details')].filter((d) => d.dataset.gid === String(g.id) && !d.open).map((d) => d.dataset.i));
+  const blocks = [];
+  for (let i = 0; i < n; i++) {
+    const q = g.rushQ?.[i];
+    if (!q) break;
+    const rows = entries.map((e) => ({ e, x: at(e, i) })).filter((r) => r.x);
+    const okRows = rows.filter((r) => r.x.r === 'ok').sort((a, b) => a.x.p.length - b.x.p.length);
+    const rest = rows.filter((r) => r.x.r !== 'ok');
+    const d = document.createElement('details');
+    d.className = 'rq-block';
+    d.dataset.gid = String(g.id);
+    d.dataset.i = String(i);
+    d.open = !opened.has(String(i));
+    const sum = document.createElement('summary');
+    sum.append(Object.assign(document.createElement('b'), { textContent: `第 ${i + 1} 題` }), ` 《${tw(q.s)}》→《${tw(q.t)}》`,
+      Object.assign(document.createElement('span'), { className: 'rq-n', textContent: `${okRows.length} 人抵達` }));
+    d.append(sum);
+    for (const { e, x } of [...okRows, ...rest]) {
+      const row = document.createElement('div');
+      row.className = `rq-row ${x.r}`;
+      const nm = Object.assign(document.createElement('b'), { textContent: e.me ? `${e.name}（你）` : e.name });
+      nm.style.color = e.color || '';
+      const mark = x.r === 'ok' ? `✅ ${Math.max(0, x.p.length - 1)} 步` : x.r === 'skip' ? '⏭️ 跳過' : '⏱️ 沒走完';
+      row.append(avatarEl(e, 'sm'), nm, Object.assign(document.createElement('span'), { className: 'rq-mark', textContent: mark }),
+        Object.assign(document.createElement('small'), { className: 'rq-path', textContent: x.p.map(tw).join(' › ') }));
+      d.append(row);
+    }
+    blocks.push(d);
+  }
+  $('#rush-qs-list').replaceChildren(...(blocks.length ? blocks : [Object.assign(document.createElement('p'), { className: 'rush-route-none', textContent: '還沒有人走完任何一題' })]));
+}
+
 // 搶分賽的路線：每一題一段（抵達的、跳過的、最後沒走完的那題）
 function rushRoutesEl(g, e) {
   const box = document.createElement('div');
@@ -3682,6 +3722,8 @@ function showResult(update = false) {
   const { res } = info;
   if (party) renderRanking(g, info.entries);
   else renderDuelResult(g, res);
+  $('#rush-qs').hidden = !isRush(g);
+  if (isRush(g)) renderRushQs(g, info.entries);
   renderSolution(g);
   const racing = racers(g);
   $('#btn-watch').hidden = !racing.length;
@@ -3739,6 +3781,7 @@ function showSoloResult(g) {
   $('#ranking').hidden = true;
   $('#score-card').hidden = true;
   $('#btn-watch').hidden = true;
+  $('#rush-qs').hidden = true;
   $('#route-grid').hidden = false;
   const meCard = $('#res-me-path').closest('.card');
   meCard.querySelector('.card-title').textContent = '你走過的路線';

@@ -748,6 +748,18 @@ body.solo #route-grid .opp-side { display: none; }
 .rush-route-h span { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--green-d, #1c8a4a); white-space: nowrap; }
 .rush-route-h.skip span, .rush-route-h.open span { color: var(--muted); }
 .rush-routes .metro { margin-top: 2px; }
+.rush-qs { gap: 8px; }
+.rq-block { border-top: 1px solid var(--line, #e6e3f5); padding: 8px 0 2px; }
+.rq-block:first-child { border-top: 0; }
+.rq-block summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; cursor: pointer; list-style: none; font-size: 14px; overflow-wrap: anywhere; }
+.rq-block summary::-webkit-details-marker { display: none; }
+.rq-block summary b { font-weight: 900; }
+.rq-n { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.rq-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; padding: 6px 0 2px 4px; }
+.rq-row b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rq-mark { font-size: 12px; font-weight: 800; color: var(--green-d); white-space: nowrap; }
+.rq-row.skip .rq-mark, .rq-row.open .rq-mark { color: var(--muted); }
+.rq-path { grid-column: 2 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .rush-route-none { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .result-hero.place .medal { background: radial-gradient(circle at 35% 30%, #ffffff, #cfd8e8 50%, #8f9bb5); box-shadow: 0 0 0 7px #fff, 0 10px 0 7px rgba(20, 10, 80, .2); }
 .result-hero.place .medal span { color: #3e4a63; }
@@ -1629,3 +1641,5 @@ body.replaying { overflow: hidden; }
 @keyframes idleNudge { 0%, 100% { transform: none; } 8% { transform: rotate(-2deg); } 16% { transform: rotate(2deg); } 24% { transform: none; } }
 
 #name-modal { z-index: 110; }  /* 在每日挑戰等視窗上面 */
+.rq-row .avatar.sm { width: 24px; height: 24px; font-size: 11px; flex: none; }
+.rq-row .avatar.sm.has-img { box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--side, var(--blue)); }

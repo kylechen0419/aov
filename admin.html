@@ -128,9 +128,11 @@
   .gm-p .h { display: flex; gap: 8px; font-weight: 800; }
   .gm-p .h span { color: var(--muted); font-weight: 500; }
   .gm-p .path { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
-  .gm-p .rq { margin: 6px 0 0 10px; }
-  .gm-p .rq-h { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; font-weight: 700; }
-  .gm-p .rq-h span { color: var(--muted); font-weight: 700; font-size: 12px; }
+  .gm-detail .rq { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .gm-detail .rq .gm-p { margin-left: 10px; }
+  .rq-sum .h span { color: var(--muted); font-size: 12px; }
+  .rq-h { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; font-weight: 700; }
+  .rq-h span { color: var(--muted); font-weight: 700; font-size: 12px; }
   .gm-p .h { flex-wrap: wrap; }
   .gm-rp { order: 9; margin-left: auto; font-size: 12px; font-weight: 800; color: #4a3200; background: var(--yellow); padding: 2px 10px; border-radius: 999px; text-decoration: none; }
   .gl-more { width: 100%; margin-top: 8px; border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 8px; border-radius: 10px; background: var(--line); color: var(--ink); cursor: pointer; }
@@ -313,6 +315,7 @@
         <p class="nt-head">📜 所有對局 <span class="gl-sum" id="gl-sum"></span></p>
         <div class="gl-tools">
           <input id="gl-q" class="gl-q" placeholder="找玩家暱稱或題目…" autocomplete="off">
+          <button id="gl-rush" class="gl-btn" type="button" title="只看搶分賽">🏃 搶分賽</button>
           <button id="gl-sus" class="gl-btn" type="button" title="太快抵達的對局">⚠️ 可疑</button>
           <button id="gl-csv" class="gl-btn" type="button">⬇️ 匯出</button>
         </div>
@@ -638,6 +641,7 @@
     };
     $('#ann-clear').onclick = () => db && db.ref('broadcast').remove().then(() => audit('清除公告', lastBcast && lastBcast.text), denied);
     $('#gl-sus').onclick = () => { susOnly = !susOnly; $('#gl-sus').classList.toggle('on', susOnly); glShow = 30; renderStats(); };
+    $('#gl-rush').onclick = () => { rushOnly = !rushOnly; $('#gl-rush').classList.toggle('on', rushOnly); glShow = 30; renderStats(); };
     $('#gl-csv').onclick = exportCsv;
     $('#err-clear').onclick = () => { const n = errs.length; if (confirm('確定清除所有錯誤紀錄？')) db.ref('errors').remove().then(() => audit('清除錯誤紀錄', `${n} 筆`), denied); };
     $('#bw-save').onclick = () => {
@@ -1046,7 +1050,7 @@
   const MODE = { duel: '1 對 1', party: '派對', solo: '單人訓練', daily: '每日挑戰' };
   const RES = { win: '抵達', giveup: '投降', timeout: '時間到', over: '沒追上', left: '離開', oppLeft: '對手離開', oppGaveUp: '對手投降', hostLeft: '房主離開' };
   const medal = (pl) => ['🥇', '🥈', '🥉'][pl - 1] || (pl ? `第 ${pl} 名` : '');
-  let glShow = 30, glOpen = new Set(), susOnly = false, lastHit = [];
+  let glShow = 30, glOpen = new Set(), susOnly = false, rushOnly = false, lastHit = [];
   const roster = (x) => (Array.isArray(x.list) ? x.list : Object.values(x.list || {})).filter(Boolean);
   const pathOf = (p) => (Array.isArray(p.p) ? p.p : Object.values(p.p || {}));
   // 可疑：快到不太像人在點（幾秒就抵達、或平均每一步不到 1.2 秒）。只是提醒，要自己看路線判斷
@@ -1057,17 +1061,27 @@
     return '';
   }
   const arr = (v) => (Array.isArray(v) ? v : Object.values(v || {}));
-  // 搶分賽：每個人的分數、總步數，每一題的起點終點和路線（舊紀錄沒有就只顯示步數）
-  function rushDetail(p, i, sc, rq, x) {
-    const rows = arr(rq[i]).filter(Boolean);
-    const RR = { ok: '✅ 抵達', skip: '⏭️ 跳過', open: '⏱️ 沒走完' };
-    const qs = rows.map((r, j) => {
-      const path = arr(r.p);
-      const rp = path.length >= 2 ? `<a class="gm-rp" target="_blank" rel="noopener" href="index.html#replay=${encodeURIComponent(JSON.stringify({ p: path, l: x.lang || 'zh', n: p.n, t: r.t, r: r.r === 'ok' ? 'win' : 'timeout' }))}">🎬 重播</a>` : '';
-      return `<div class="rq"><div class="rq-h">第 ${j + 1} 題《${esc(r.s)}》→《${esc(r.t)}》 <span>${RR[r.r] || ''}${r.r === 'ok' ? ` · ${Math.max(0, path.length - 1)} 步` : ''}</span>${rp}</div>${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
-    }).join('');
-    const end = p.r === 'giveup' ? ' · 中途放棄' : p.r === 'left' ? ' · 離開' : '';
-    return `<div class="gm-p"><div class="h">${esc(p.n)} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${sc[i] != null ? sc[i] + ' 分 · ' : ''}共 ${p.k || 0} 步${end}${p.t ? ' · ' + dur(p.t) : ''}</span></div>${qs || '<div class="path">（舊紀錄沒有每一題的路線）</div>'}</div>`;
+  // 搶分賽：一局整理在一起——先列每個人的分數、總步數，再依題目列出大家每一題怎麼走（舊紀錄沒有每題的路線）
+  function rushGame(ps, sc, rq, x) {
+    const RR = { ok: '✅', skip: '⏭️ 跳過', open: '⏱️ 沒走完' };
+    const end = (p) => (p.r === 'giveup' ? ' · 中途放棄' : p.r === 'left' ? ' · 離開' : '');
+    const top = `<div class="rq-sum">${ps.map((p, i) => `<div class="h">${esc(p.n)} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${sc[i] != null ? sc[i] + ' 分 · ' : ''}共 ${p.k || 0} 步${end(p)}</span></div>`).join('')}</div>`;
+    const per = ps.map((p, i) => arr(rq[i]).filter(Boolean));
+    const n = Math.max(0, ...per.map((r) => r.length));
+    if (!n) return top + '<div class="path">（舊紀錄沒有每一題的路線）</div>';
+    let out = '';
+    for (let j = 0; j < n; j++) {
+      const q = per.map((r) => r[j]).find(Boolean);
+      const rows = ps.map((p, i) => ({ p, r: per[i][j] })).filter((y) => y.r).sort((a, b) => (a.r.r === 'ok' ? 0 : 1) - (b.r.r === 'ok' ? 0 : 1) || arr(a.r.p).length - arr(b.r.p).length);
+      const nOk = rows.filter((y) => y.r.r === 'ok').length;
+      out += `<div class="rq"><div class="rq-h">第 ${j + 1} 題《${esc(q.s)}》→《${esc(q.t)}》 <span>${nOk} 人抵達</span></div>`
+        + rows.map(({ p, r }) => {
+          const path = arr(r.p);
+          const rp = path.length >= 2 ? `<a class="gm-rp" target="_blank" rel="noopener" href="index.html#replay=${encodeURIComponent(JSON.stringify({ p: path, l: x.lang || 'zh', n: p.n, t: r.t, r: r.r === 'ok' ? 'win' : 'timeout' }))}">🎬 重播</a>` : '';
+          return `<div class="gm-p"><div class="h">${esc(p.n)} <span>${RR[r.r] || ''}${r.r === 'ok' ? ` ${Math.max(0, path.length - 1)} 步` : ''}</span>${rp}</div>${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
+        }).join('') + '</div>';
+    }
+    return top + out;
   }
   function renderGames(g) {
     const list = g.filter((x) => x && x.at).sort((a, b) => b.at - a.at);
@@ -1076,6 +1090,7 @@
     let hit = q ? list.filter((x) => `${x.start} ${x.target} ${roster(x).map((p) => p.n).join(' ')}`.includes(q)) : list;
     const nSus = hit.filter((x) => roster(x).some(sus)).length;
     if (susOnly) hit = hit.filter((x) => roster(x).some(sus));
+    if (rushOnly) hit = hit.filter((x) => x.goal === 'rush');
     lastHit = hit;
     $('#gl-sum').textContent = `${hit.length} 局${nSus && !susOnly ? ` · ⚠️ ${nSus} 局可疑` : ''}`;
     const shown = hit.slice(0, glShow);
@@ -1088,8 +1103,7 @@
       const who = ps.length ? ps.map((p, i) => `${p.n}${p.pl ? ' ' + medal(p.pl) : ` ${RES[p.r] || p.r || ''}`}${rush ? scoreOf(i) : ''}`).join('、') : `${x.players || '?'} 人（舊紀錄沒有名單）`;
       const id = `${x.at}-${x.start}`;
       const open = glOpen.has(id);
-      const detail = open && ps.length ? `<div class="gm-detail">${ps.map((p, i) => {
-        if (rush) return rushDetail(p, i, sc, rq, x);
+      const detail = open && ps.length && rush ? `<div class="gm-detail">${rushGame(ps, sc, rq, x)}</div>` : open && ps.length ? `<div class="gm-detail">${ps.map((p, i) => {
         const path = (Array.isArray(p.p) ? p.p : Object.values(p.p || {}));
         const why = sus(p);
         const rp = path.length >= 2 ? `<a class="gm-rp" target="_blank" rel="noopener" href="index.html#replay=${encodeURIComponent(JSON.stringify({ p: path, l: x.lang || 'zh', n: p.n, t: x.target, r: p.r }))}">🎬 重播</a>` : '';
