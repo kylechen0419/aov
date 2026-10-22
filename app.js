@@ -1,17 +1,17 @@
-import { Net } from './net.js?v=105';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=105';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=105';
-import { initNotify, notify } from './notify.js?v=105';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=105';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=105';
-import { reportError, catchErrors } from './errors.js?v=105';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=105';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=105';
-import * as wiki from './wiki.js?v=105';
-import { tw, twTree, zhReady } from './zh.js?v=105';
-import { makeShareImage } from './share.js?v=105';
-import { solve } from './solver.js?v=105';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=105';
+import { Net } from './net.js?v=106';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=106';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=106';
+import { initNotify, notify } from './notify.js?v=106';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=106';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=106';
+import { reportError, catchErrors } from './errors.js?v=106';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=106';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=106';
+import * as wiki from './wiki.js?v=106';
+import { tw, twTree, zhReady } from './zh.js?v=106';
+import { makeShareImage } from './share.js?v=106';
+import { solve } from './solver.js?v=106';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=106';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -661,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=105').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=106').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1591,7 +1591,9 @@ async function autoTakeOver() {
   setConn(onlineGuests().length ? '已連線' : (isParty() ? '等待玩家' : '等待對手'), true);
   sysChat(`${oldName} 離線了，${state.myName} 成為新房主`);
   // 舊房主在找的最佳解答跟著斷了：新房主接著找
-  if (g && !g.solution?.path) { if (g.solution?.remote) g.solution = null; prefetchSolution(g); }
+  if (g && !g.solution?.path && !isRush(g)) { if (g.solution?.remote) g.solution = null; prefetchSolution(g); }
+  // 搶分賽：舊房主出題到一半斷了，新房主接著出
+  if (g && isRush(g) && !g.finished) rushFill(g);
   toast(`${oldName} 離線了，你成為新房主`, 4000);
   sfx.ready();
   haptic('success');
@@ -4175,7 +4177,9 @@ function hostHintVote(pid, lv = 1) {
   checkHintVotes(lv);
 }
 
-function checkHintVotes(lv = 1) {
+function checkHintVotes(lv) {
+  // 沒指定哪一個：有人比完、離開、斷線時兩個提示的投票都要重算（還在比的人變少，可能就全體同意了）
+  if (lv === undefined) { checkHintVotes(1); checkHintVotes(2); return; }
   const g = state.game;
   const h = g && hintOf(g, lv);
   if (!g || h.shown || !h.votes.size) return;
@@ -4219,7 +4223,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=105')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = await popularOf(g.settings.lang); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5236,7 +5240,10 @@ async function onAccountChange(me) {
   if (!me || syncedUid === me.uid) return;
   syncedUid = me.uid;
   // 雲端和這支手機的資料合併：暱稱、頭像以雲端為準，戰績取場數多的
-  const stats = Object.fromEntries(Object.keys(GOALS).map((g) => [g, loadStats(g)]));
+  // 這支手機上的戰績是誰的：之前是別的帳號（同一支手機換人登入）就不要合併進來，直接用雲端的
+  const owner = store.get('wikirace-stats-owner');
+  const mine = !owner || owner === me.uid;
+  const stats = Object.fromEntries(Object.keys(GOALS).map((g) => [g, mine ? loadStats(g) : { w: 0, l: 0, d: 0, streak: 0 }]));
   const p = await syncProfile({ name: $('#nickname').value.trim() || store.get('wikirace-name') || '', avatar: state.myAvatar, stats });
   if (p) {
     if (p.n && !badName(p.n)) {
@@ -5246,6 +5253,7 @@ async function onAccountChange(me) {
     if (cleanAvatar(p.a)) { state.myAvatar = cleanAvatar(p.a); store.set('wikirace-avatar', state.myAvatar); }
     paintAvatar($('#home-avatar'), { name: $('#nickname').value, avatar: state.myAvatar });
     for (const [g, st] of Object.entries(p.st || {})) store.set(statsKey(g), JSON.stringify(st));
+    store.set('wikirace-stats-owner', me.uid);
     renderStats();
   }
   // 今天的每日挑戰：之前沒登入、成績還沒上榜的，現在補上
@@ -5291,17 +5299,19 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 // 年份、日期、列表、其他命名空間：當終點太無聊也太難猜
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
-async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=105').then((m) => m.TOPICS).catch(() => []);
-  return new Set((await popularKeys).map(key));
+const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
+async function popularOf(lang) {
+  popularKeys ||= import('./topics.js?v=106').then((m) => m.TOPICS).catch(() => []);
+  if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
+  return popularSets.get(lang);
 }
 async function rushPuzzle(s) {
   const lvl = RUSH_LEVELS[s.rushLevel] || RUSH_LEVELS.normal;
-  const key = s.lang === 'zh' ? (t) => tw(t) : (t) => t;
+  const key = nameKey(s.lang);
   const start = await wiki.resolveTitle(s.lang, await wiki.randomTitle(s.lang, false));
   if (lvl.hops) {
     try {
-      const pop = await popularOf(key);
+      const pop = await popularOf(s.lang);
       const seen = new Set([key(start)]);
       let cur = start;
       for (let i = 0; i < lvl.hops; i++) {
@@ -5327,7 +5337,7 @@ async function rushFill(g) {
   // 只比跑最快的人多準備幾題就好（出題要下載好幾個條目，不要一次出太多）
   const want = () => Math.max(g.rushIdx, ...[...g.others.values()].map((o) => o.qi || 0)) + 4;
   let fails = 0;
-  while (state.game === g && !allDone(g) && g.rushQ.length < 120 && fails < 8) {
+  while (state.game === g && !allDone(g) && g.rushQ.length < 120) {
     if (g.rushQ.length >= want()) { await new Promise((r) => { setTimeout(r, 1000); }); continue; }
     try {
       const q = await rushPuzzle(g.settings);
@@ -5335,10 +5345,11 @@ async function rushFill(g) {
       g.rushQ.push(q);
       net.send({ t: 'rushq', gid: g.id, list: g.rushQ });
       if (g.rushWait && !g.finished) rushGo(g);
+      fails = 0;
     } catch {
-      fails++;
+      fails++;  // 網路不穩、維基百科忙：等久一點再試（不放棄，不然大家會卡在「下一題準備中」）
     }
-    await new Promise((r) => { setTimeout(r, 300); });
+    await new Promise((r) => { setTimeout(r, fails ? Math.min(10000, 1000 * fails) : 300); });
   }
   g.rushFilling = false;
 }
@@ -5403,7 +5414,7 @@ function rushScore(g) {
   sfx.near();
   haptic('success');
   toast(`🎯 +1 分！抵達《${tw(g.settings.target)}》`, 1800);
-  sendProgress({ t: 'progress', title: g.current, clicks: g.clicks, near: false, path: g.path });
+  sendProgress({ t: 'progress', title: g.current || g.settings.start, clicks: g.clicks, near: false, path: g.path });
   renderRush(g);
   setTimeout(() => rushGo(g), 500);
 }
@@ -5425,7 +5436,7 @@ function rushSkip() {
   g.skips--;
   g.rushIdx++;
   toast(`⏭️ 跳過《${tw(g.settings.target)}》`, 1800);
-  sendProgress({ t: 'progress', title: g.current, clicks: g.clicks, near: false, path: g.path });
+  sendProgress({ t: 'progress', title: g.current || g.settings.start, clicks: g.clicks, near: false, path: g.path });  // 還在載入（current 是空的）也要有標題，不然房主會丟掉這筆
   rushGo(g);
 }
 

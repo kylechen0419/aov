@@ -491,7 +491,7 @@
     <div id="multi-grid" class="multi-grid"></div>
   </div>
 
-  <script src="firebase-config.js?v=105"></script>
+  <script src="firebase-config.js?v=106"></script>
   <script>
   // 後台只認管理員的 Google 帳號：登入後讀得到只有管理員能讀的資料（audit）才放行，資料本身由 Firebase 規則保護
   const $ = (s) => document.querySelector(s);
@@ -518,7 +518,7 @@
     const [mine, open] = await Promise.all([can('audit'), can('rulesv/never')]);
     if (mine && !open) return true;
     gateMsg(open ? `已用 ${u.email || u.uid} 登入，但資料庫還沒上鎖（任何人都能讀寫），先發布下面的規則` : `這個帳號（${u.email || u.uid}）沒有管理員權限`);
-    import('./rules.js?v=105').then(({ rulesFor }) => {
+    import('./rules.js?v=106').then(({ rulesFor }) => {
       $('#gate-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#gate-setup').hidden = false;
       if (open) $('#gate-setup').open = true;
@@ -669,7 +669,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=105').then(({ rulesFor, RULES_VERSION }) => {
+    import('./rules.js?v=106').then(({ rulesFor, RULES_VERSION }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
@@ -745,13 +745,13 @@
       const n = (v) => Number(v) || 0, c = (v) => (v ? Object.keys(v).length : 0);
       const lines = [`🎮 對局 ${n(d && d.games)} 局${y && y.games ? `（昨天 ${y.games}）` : ''}・玩家 ${n(d && d.players)} 人次`, `📅 每日挑戰 ${c(dl)} 人完成`, `👥 現在在線 ${c(on)} 人・史上尖峰 ${n(pk)} 人`];
       if (d && d.errors) lines.push(`🐞 今天有 ${d.errors} 筆錯誤紀錄，到後台看看`);
-      const { sendNtfy } = await import('./notify.js?v=105');
+      const { sendNtfy } = await import('./notify.js?v=106');
       await sendNtfy(notifyCfg.topic, 'test', `維基競速・今日摘要（${day(Date.now()).slice(5).replace('-', '/')}）`, lines.join('\n'));
       ntMsg('已傳出今日摘要，手機幾秒內會收到');
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=105');
+      const { sendNtfy } = await import('./notify.js?v=106');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -812,7 +812,7 @@
 
   // ---------- 暱稱過濾 ----------
   let badwords = '', names = null;
-  import('./names.js?v=105').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
+  import('./names.js?v=106').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
   function renderBadwords(fromDb) {
     const n = String(badwords || '').split(/[,，、\n]+/).filter((x) => x.trim()).length;
     $('#bw-sum').textContent = n ? `內建＋自訂 ${n} 個字` : '用內建清單';
@@ -1210,7 +1210,7 @@
 
   // ---------- 題庫管理（config/topicBan：一行一個） ----------
   let topicBan = '', topicCount = 0;
-  import('./topics.js?v=105').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
+  import('./topics.js?v=106').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
   const topicList = () => String(topicBan || '').split('\n').map((t) => t.trim()).filter(Boolean);
   const topicSet = () => new Set(topicList());
   const saveTopics = (list, what) => db.ref('config/topicBan').set(list.join('\n') || null).then(() => { $('#tp-msg').textContent = '已儲存，之後的隨機出題會跳過'; audit(what[0], what[1]); }, () => { $('#tp-msg').textContent = '存不進去：請先用 Google 登入'; });
@@ -1289,7 +1289,7 @@
     }
   }
   const dcMsg = (t) => { $('#dc-msg').textContent = t || ''; };
-  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=105'));
+  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=106'));
   // 重置今天的挑戰：輪數加一（puzzle 為 null＝同一題）。大家的「今天已經玩過」都不算了、排行榜換成新的一輪
   async function resetDaily(puzzle) {
     const key = dcKeys()[0];

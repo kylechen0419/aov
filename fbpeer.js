@@ -132,6 +132,11 @@ export class FbPeer extends Emitter {
 
   // 掛號：代碼沒人用、是自己（同一個瀏覽器重新整理）、或原本的房主已經 25 秒沒心跳，才搶得到
   async take() {
+    // Firebase 卡住（網路怪怪的）：8 秒內沒結果就當作失敗，改用 PeerJS，不要讓開房一直轉圈
+    return Promise.race([this.takeNow(), new Promise((_, no) => { setTimeout(() => no(new Error('timeout')), 8000); })]);
+  }
+
+  async takeNow() {
     const offset = await this.db.ref('.info/serverTimeOffset').once('value').then((s) => s.val() || 0, () => 0);
     const me = { u: this.uid, s: this.session, t: window.firebase.database.ServerValue.TIMESTAMP };
     const res = await this.hostRef().transaction((cur) => {
@@ -160,13 +165,20 @@ export class FbPeer extends Emitter {
     };
     watch.on('value', onClaim);
     this.offs.push(() => watch.off('value', onClaim));
-    const inbox = this.inboxRef();
-    const onOffer = (snap) => this.answer(snap.key, snap.val());
-    inbox.on('child_added', onOffer);
-    this.offs.push(() => inbox.off('child_added', onOffer));
+    this.listenInbox();
     this.heart = setInterval(() => { if (!this.disconnected) this.hostRef().child('t').set(window.firebase.database.ServerValue.TIMESTAMP).catch(() => {}); }, HEARTBEAT);
     this.open = true;
     this.emit('open', this.id);
+  }
+
+  // 聽信箱裡的連線邀請。信箱的讀取權限要看掛號是不是自己的：網路斷掉時 Firebase 會先把掛號清掉，
+  // 連回來時舊的監聽會被規則取消，所以每次重新掛號成功都要重新聽一次
+  listenInbox() {
+    this.offInbox?.();
+    const inbox = this.inboxRef();
+    const onOffer = (snap) => this.answer(snap.key, snap.val());
+    inbox.on('child_added', onOffer, () => { /* 被取消（還沒重新掛號）：重新掛號後會再聽 */ });
+    this.offInbox = () => inbox.off('child_added', onOffer);
   }
 
   armDisconnect() {
@@ -179,7 +191,7 @@ export class FbPeer extends Emitter {
     if (this.reclaiming || this.displaced || this.destroyed) return;
     this.reclaiming = true;
     try {
-      if (await this.take()) { this.armDisconnect(); this.emit('open', this.id); }
+      if (await this.take()) { this.armDisconnect(); this.listenInbox(); this.emit('open', this.id); }
       else if (!this.displaced) { this.displaced = true; this.stopHeart(); this.emit('error', Object.assign(new Error('unavailable-id'), { type: 'unavailable-id' })); }
     } catch { /* 下次再試 */ } finally { this.reclaiming = false; }
   }
@@ -214,7 +226,11 @@ export class FbPeer extends Emitter {
   // ---------- 玩家 ----------
   // 這個代碼現在有沒有房主掛號（有心跳）
   async has(remoteId) {
-    const v = await this.db.ref(`sigh/${remoteId}`).once('value').then((s) => s.val());
+    // 5 秒內問不到就當作沒有（改用 PeerJS 試試看），不要讓加入房間一直轉圈
+    const v = await Promise.race([
+      this.db.ref(`sigh/${remoteId}`).once('value').then((s) => s.val()),
+      new Promise((_, no) => { setTimeout(() => no(new Error('timeout')), 5000); }),
+    ]);
     return !!v;
   }
 
@@ -256,6 +272,7 @@ export class FbPeer extends Emitter {
     this.open = false;
     this.stopHeart();
     for (const off of this.offs) { try { off(); } catch { /* 忽略 */ } }
+    try { this.offInbox?.(); } catch { /* 忽略 */ }
     for (const c of [...this.conns]) c.close();
     if (this.host && !this.displaced) {
       this.hostRef().transaction((cur) => (cur && cur.s === this.session ? null : undefined), undefined, false).catch(() => {});
