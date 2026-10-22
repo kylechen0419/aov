@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=96';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=96';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=96';
-import { initNotify, notify } from './notify.js?v=96';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=96';
-import { reportError, catchErrors } from './errors.js?v=96';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=96';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=96';
-import * as wiki from './wiki.js?v=96';
-import { tw, twTree, zhReady } from './zh.js?v=96';
-import { makeShareImage } from './share.js?v=96';
-import { solve } from './solver.js?v=96';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=96';
+import { Net } from './net.js?v=97';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=97';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=97';
+import { initNotify, notify } from './notify.js?v=97';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=97';
+import { reportError, catchErrors } from './errors.js?v=97';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=97';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=97';
+import * as wiki from './wiki.js?v=97';
+import { tw, twTree, zhReady } from './zh.js?v=97';
+import { makeShareImage } from './share.js?v=97';
+import { solve } from './solver.js?v=97';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=97';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -611,6 +611,7 @@ function renderHistory() {
 
 // ---------- 首頁 ----------
 function selectedGoal() {
+  if (document.querySelector('input[name="goalHome"]:checked')?.value === 'rush') return 'rush';
   return makeGoal(document.querySelector('input[name="goalHome"]:checked')?.value === 'steps', !!$('#goal-home-items')?.checked);
 }
 
@@ -660,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=96').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=97').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -711,13 +712,14 @@ function initHome() {
   if (savedMode === 'party') document.querySelector('input[name="mode"][value="party"]').checked = true;
   const savedGoal = store.get('wikirace-goal');
   if (savedGoal && GOALS[savedGoal]) {
-    document.querySelector(`input[name="goalHome"][value="${goalSteps(savedGoal) ? 'steps' : 'speed'}"]`).checked = true;
+    document.querySelector(`input[name="goalHome"][value="${savedGoal === 'rush' ? 'rush' : goalSteps(savedGoal) ? 'steps' : 'speed'}"]`).checked = true;
     $('#goal-home-items').checked = goalItems(savedGoal);
   }
   renderStats();
   const paintMode = () => {
     const goal = selectedGoal();
-    const name = `${goalSteps(goal) ? '比步數' : '比速度'}${goalItems(goal) ? '道具' : ''}`;
+    const name = goal === 'rush' ? '搶分賽' : `${goalSteps(goal) ? '比步數' : '比速度'}${goalItems(goal) ? '道具' : ''}`;
+    $('.goal-home').classList.toggle('is-rush', goal === 'rush');
     $('#btn-create').textContent = `建立${name}${selectedMode() === 'party' ? '派對' : '對決'}房間`;
   };
   paintMode();
@@ -4150,7 +4152,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=96')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=97')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5057,7 +5059,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=96').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=97').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {

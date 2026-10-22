@@ -1124,6 +1124,12 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .pick-item b { font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-item small { font-size: 12px; font-weight: 800; color: var(--muted); }
 .pick-item:active { transform: scale(.97); background: var(--blue-t); }
+.goal-card.rush { grid-column: 1 / -1; }
+.goal-card.rush span { grid-template-columns: auto 1fr; grid-template-rows: auto auto; justify-items: start; text-align: left; column-gap: 12px; padding: 10px 16px; }
+.goal-card.rush i { grid-row: 1 / 3; align-self: center; }
+.goal-card.rush input:checked + span { background: #eafbea; color: #15803d; border-color: var(--green); }
+/* 選了搶分賽：道具用不到，淡掉 */
+.goal-home.is-rush .goal-card.items { opacity: .45; pointer-events: none; }
 .goal-card.items input:checked + span { background: #ffeef6; color: var(--pink-d); border-color: var(--pink); }
 .room-goal.items, .brief-goal.items { background: #ffeef6; color: var(--pink-d); }
 .stats-label.items { color: var(--pink-d); }

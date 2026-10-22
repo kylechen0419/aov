@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=96">
+  <link rel="stylesheet" href="style.css?v=97">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=96"></script>
+  <script src="firebase-config.js?v=97"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -92,6 +92,7 @@
           <label class="goal-card speed"><input type="radio" name="goalHome" value="speed" checked><span><i>⚡</i><b>比速度</b><small>先抵達終點的贏</small></span></label>
           <label class="goal-card steps"><input type="radio" name="goalHome" value="steps"><span><i>👣</i><b>比步數</b><small>最少步抵達的贏</small></span></label>
           <label class="goal-card items"><input type="checkbox" id="goal-home-items"><span><i>🎁</i><b>＋道具</b><small>可以搭配左邊兩種</small></span></label>
+          <label class="goal-card rush"><input type="radio" name="goalHome" value="rush"><span><i>🏃</i><b>搶分賽</b><small>限時內不停找，抵達一題 +1 分，看誰搶最多</small></span></label>
         </div>
         <button id="btn-create" class="btn primary wide">建立對決房間</button>
         <div class="divider"><span>或加入朋友的房間</span></div>
@@ -758,6 +759,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=96"></script>
+  <script type="module" src="app.js?v=97"></script>
 </body>
 </html>
