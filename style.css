@@ -1552,6 +1552,21 @@ body.replaying { overflow: hidden; }
 .rush-wait { text-align: center; color: var(--muted); font-weight: 800; padding: 40px 0; }
 .row-note { margin: 0; padding: 0 18px 12px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .row-note[hidden] { display: none; }
+/* 窄一點的手機：「限時」標籤和副標題重複，藏起來讓標籤一行放得下 */
+@media (max-width: 384px) {
+  .goal-card.rush .rush-tags span:first-child { display: none; }
+}
+/* 矮螢幕（iPhone SE 等）：搶分賽卡片收緊，首頁不用捲就看得到建立房間 */
+@media (max-height: 700px) {
+  .goal-card.rush .rush-card { padding: 8px 12px; row-gap: 5px; }
+  .goal-card.rush .rush-tags { display: none; }
+  .goal-card.rush .rush-ico { grid-row: 1; }
+  .goal-card.rush .rush-ico { width: 42px; height: 42px; font-size: 24px; border-radius: 14px; }
+  .goal-card.rush .rush-txt b { font-size: 16px; }
+  .goal-card > span { padding: 7px 4px; }
+  .goal-card i { font-size: 22px; }
+  .goal-card b { font-size: 16px; }
+}
 @media (max-width: 360px) {
   .goal-card.rush .rush-card { column-gap: 10px; padding: 10px 12px; }
   .goal-card.rush .rush-ico { width: 40px; height: 40px; font-size: 22px; border-radius: 13px; }
@@ -1559,7 +1574,6 @@ body.replaying { overflow: hidden; }
   .goal-card.rush .rush-txt small { font-size: 11px; }
   .goal-card.rush .rush-tags { gap: 4px; }
   .goal-card.rush .rush-tags span { font-size: 10px; padding: 2px 6px; }
-  .goal-card.rush .rush-tags span:first-child { display: none; }  /* 副標題已經寫了「限時」 */
 }
 /* 表格還能往左右捲時，邊緣出現淡淡的陰影提示（捲到底就消失） */
 .article table:not(.infobox) {
