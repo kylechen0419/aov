@@ -128,6 +128,9 @@
   .gm-p .h { display: flex; gap: 8px; font-weight: 800; }
   .gm-p .h span { color: var(--muted); font-weight: 500; }
   .gm-p .path { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+  .gm-p .rq { margin: 6px 0 0 10px; }
+  .gm-p .rq-h { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; font-weight: 700; }
+  .gm-p .rq-h span { color: var(--muted); font-weight: 700; font-size: 12px; }
   .gm-p .h { flex-wrap: wrap; }
   .gm-rp { order: 9; margin-left: auto; font-size: 12px; font-weight: 800; color: #4a3200; background: var(--yellow); padding: 2px 10px; border-radius: 999px; text-decoration: none; }
   .gl-more { width: 100%; margin-top: 8px; border: 0; font: inherit; font-weight: 800; font-size: 13px; padding: 8px; border-radius: 10px; background: var(--line); color: var(--ink); cursor: pointer; }
@@ -1009,7 +1012,7 @@
     const today = new Date().setHours(0, 0, 0, 0);
     $('#stats-sum').textContent = `今日 ${games.filter((x) => x && (x.at || 0) >= today).length} 局 · 總共 ${games.length} 局`;
     $('#k-players').textContent = g.reduce((n, x) => n + (x.players || 0), 0);
-    const wins = g.filter((x) => x.win);
+    const wins = g.filter((x) => x.win && x.goal !== 'rush');  // 搶分賽沒有「抵達」：不算在平均一局、平均步數裡
     $('#k-complete').textContent = g.length ? Math.round(wins.length / g.length * 100) + '%' : '–';
     const rematch = g.filter((x) => (x.round || 1) >= 2);
     $('#k-rematch').textContent = g.length ? Math.round(rematch.length / g.length * 100) + '%' : '–';
@@ -1022,7 +1025,8 @@
     $('#modes').innerHTML = Object.entries(modes).sort((a, b) => b[1] - a[1]).map(([k, n]) =>
       `<div class="bar"><span>${esc(k)}</span><div class="track"><div class="fill" style="width:${Math.round(n / max * 100)}%"></div></div><span class="n">${n}</span></div>`).join('') || '<p class="empty">還沒有資料</p>';
     // 最難題目
-    const hard = {}; for (const x of g) { if (x.win) continue; const k = `${x.start} → ${x.target}`; hard[k] = (hard[k] || 0) + 1; }
+    // 搶分賽沒有單一題目，不算
+    const hard = {}; for (const x of g) { if (x.win || x.goal === 'rush') continue; const k = `${x.start} → ${x.target}`; hard[k] = (hard[k] || 0) + 1; }
     const top = Object.entries(hard).sort((a, b) => b[1] - a[1]).slice(0, 6);
     renderGames(g);
     $('#hard').innerHTML = top.length ? top.map(([k, n]) => `<div class="hard"><span class="r">${esc(k)}</span><span class="c">${n} 次沒人到</span></div>`).join('') : '<p class="empty">沒有「沒人抵達」的對局</p>';
@@ -1052,6 +1056,19 @@
     if ((p.k || 0) >= 2 && p.t / p.k < 1200) return `平均每步 ${(p.t / p.k / 1000).toFixed(1)} 秒`;
     return '';
   }
+  const arr = (v) => (Array.isArray(v) ? v : Object.values(v || {}));
+  // 搶分賽：每個人的分數、總步數，每一題的起點終點和路線（舊紀錄沒有就只顯示步數）
+  function rushDetail(p, i, sc, rq, x) {
+    const rows = arr(rq[i]).filter(Boolean);
+    const RR = { ok: '✅ 抵達', skip: '⏭️ 跳過', open: '⏱️ 沒走完' };
+    const qs = rows.map((r, j) => {
+      const path = arr(r.p);
+      const rp = path.length >= 2 ? `<a class="gm-rp" target="_blank" rel="noopener" href="index.html#replay=${encodeURIComponent(JSON.stringify({ p: path, l: x.lang || 'zh', n: p.n, t: r.t, r: r.r === 'ok' ? 'win' : 'timeout' }))}">🎬 重播</a>` : '';
+      return `<div class="rq"><div class="rq-h">第 ${j + 1} 題《${esc(r.s)}》→《${esc(r.t)}》 <span>${RR[r.r] || ''}${r.r === 'ok' ? ` · ${Math.max(0, path.length - 1)} 步` : ''}</span>${rp}</div>${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
+    }).join('');
+    const end = p.r === 'giveup' ? ' · 中途放棄' : p.r === 'left' ? ' · 離開' : '';
+    return `<div class="gm-p"><div class="h">${esc(p.n)} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${sc[i] != null ? sc[i] + ' 分 · ' : ''}共 ${p.k || 0} 步${end}${p.t ? ' · ' + dur(p.t) : ''}</span></div>${qs || '<div class="path">（舊紀錄沒有每一題的路線）</div>'}</div>`;
+  }
   function renderGames(g) {
     const list = g.filter((x) => x && x.at).sort((a, b) => b.at - a.at);
     // 所有對局（可以用暱稱或題目搜尋）
@@ -1065,18 +1082,22 @@
     $('#gl-more').hidden = hit.length <= glShow;
     $('#glist').innerHTML = shown.length ? shown.map((x) => {
       const ps = Array.isArray(x.list) ? x.list : Object.values(x.list || {});
-      const who = ps.length ? ps.map((p) => `${p.n}${p.pl ? ' ' + medal(p.pl) : ` ${RES[p.r] || p.r || ''}`}`).join('、') : `${x.players || '?'} 人（舊紀錄沒有名單）`;
+      const rush = x.goal === 'rush';
+      const sc = arr(x.sc), rq = arr(x.rq);
+      const scoreOf = (i) => (sc[i] != null ? ` ${sc[i]} 分` : '');
+      const who = ps.length ? ps.map((p, i) => `${p.n}${p.pl ? ' ' + medal(p.pl) : ` ${RES[p.r] || p.r || ''}`}${rush ? scoreOf(i) : ''}`).join('、') : `${x.players || '?'} 人（舊紀錄沒有名單）`;
       const id = `${x.at}-${x.start}`;
       const open = glOpen.has(id);
-      const detail = open && ps.length ? `<div class="gm-detail">${ps.map((p) => {
+      const detail = open && ps.length ? `<div class="gm-detail">${ps.map((p, i) => {
+        if (rush) return rushDetail(p, i, sc, rq, x);
         const path = (Array.isArray(p.p) ? p.p : Object.values(p.p || {}));
         const why = sus(p);
         const rp = path.length >= 2 ? `<a class="gm-rp" target="_blank" rel="noopener" href="index.html#replay=${encodeURIComponent(JSON.stringify({ p: path, l: x.lang || 'zh', n: p.n, t: x.target, r: p.r }))}">🎬 重播</a>` : '';
         return `<div class="gm-p"><div class="h">${esc(p.n)}${rp} <span>${p.pl ? medal(p.pl) + ' · ' : ''}${esc(RES[p.r] || p.r || '還沒結束')} · ${p.k || 0} 步${p.t ? ' · ' + dur(p.t) : ''}</span></div>${why ? `<div class="sus">⚠️ 可疑：${esc(why)}</div>` : ''}${path.length ? `<div class="path">${path.map(esc).join(' › ')}</div>` : ''}</div>`;
       }).join('')}</div>` : '';
       const when = new Date(x.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      return `<div class="gm" data-id="${esc(id)}"><div class="gm-top"><span class="when">${when}</span><span class="tag">${MODE[x.mode] || esc(x.mode)}</span><span class="tag">${GOAL[x.goal] || ''}</span>${x.win ? '' : '<span class="tag" style="color:var(--red)">沒人抵達</span>'}${ps.some(sus) ? '<span class="tag sus">⚠️ 可疑</span>' : ''}${x.hint ? '<span class="tag">💡 提示</span>' : ''}${x.lang === 'en' ? '<span class="tag">EN</span>' : ''}</div>`
-        + `<div class="gm-route">《${esc(x.start)}》→《${esc(x.target)}》</div><div class="gm-who">${esc(who)}</div>${detail}</div>`;
+      return `<div class="gm" data-id="${esc(id)}"><div class="gm-top"><span class="when">${when}</span><span class="tag">${MODE[x.mode] || esc(x.mode)}</span><span class="tag">${GOAL[x.goal] || ''}</span>${rush ? (sc.length ? `<span class="tag">最高 ${Math.max(...sc.map(Number))} 分</span>` : '') : x.win ? '' : '<span class="tag" style="color:var(--red)">沒人抵達</span>'}${ps.some(sus) ? '<span class="tag sus">⚠️ 可疑</span>' : ''}${x.hint ? '<span class="tag">💡 提示</span>' : ''}${x.lang === 'en' ? '<span class="tag">EN</span>' : ''}</div>`
+        + `<div class="gm-route">${rush ? (rq.length ? `🏃 共 ${Math.max(...rq.map((r) => arr(r).length))} 題・第 1 題《${esc(x.start)}》→《${esc(x.target)}》` : `🏃 第 1 題《${esc(x.start)}》→《${esc(x.target)}》`) : `《${esc(x.start)}》→《${esc(x.target)}》`}</div><div class="gm-who">${esc(who)}</div>${detail}</div>`;
     }).join('') : '<p class="empty">沒有符合的對局</p>';
     $('#glist').querySelectorAll('.gm').forEach((el) => { el.onclick = (e) => { if (e.target.closest('a')) return; const id = el.dataset.id; if (glOpen.has(id)) glOpen.delete(id); else glOpen.add(id); renderStats(); }; });
   }
@@ -1200,7 +1221,7 @@
   function puzzleStats() {
     const map = {};
     for (const x of games) {
-      if (!x || !x.start || !x.target) continue;
+      if (!x || !x.start || !x.target || x.goal === 'rush') continue;  // 搶分賽一局很多題，不算進單一題目的分析
       const k = `${x.start}→${x.target}`;
       const r = (map[k] ||= { k, start: x.start, target: x.target, n: 0, pl: 0, arr: 0, steps: [], best: null, give: 0, hint: 0, last: 0, lang: x.lang });
       r.n++; r.last = Math.max(r.last, x.at || 0);
@@ -1394,7 +1415,7 @@
         r.first = Math.min(r.first, x.at); r.last = Math.max(r.last, x.at);
         r.modes[x.mode] = (r.modes[x.mode] || 0) + 1;
         if (p.r === 'win') { r.arr++; r.steps += p.k || 0; r.time += p.t || 0; }
-        if (p.pl === 1 && p.r === 'win' && x.players > 1) r.wins++;
+        if (p.pl === 1 && (p.r === 'win' || x.goal === 'rush') && x.players > 1) r.wins++;  // 搶分賽的第 1 名也算贏
         if (sus(p)) r.sus++;
         r.recent.push({ x, p });
       });

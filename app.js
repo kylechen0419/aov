@@ -1170,10 +1170,14 @@ function recordGameStats(g, info) {
   }
   const winner = champ?.finished?.reason === 'win' ? champ : null;
   const elapsed = Math.max(0, ...all.map((p) => p.finished?.elapsed || 0));
+  // 搶分賽沒有「抵達終點」：有人拿到分數就算有結果；題目記第一題（後台看每題的路線）
+  const rush = isRush(g);
+  const rushWin = rush && (info.entries || []).some((e) => e.score > 0);
+  const q0 = rush ? g.rushQ?.[0] : null;
   recordGame({
     mode: g.mode, goal: cleanGoal(g.settings.goal), players: all.length, round: state.roomScore.games,
-    start: tw(g.settings.start), target: tw(g.settings.target),
-    win: !!winner, durationMs: winner?.finished?.elapsed || elapsed, steps: winner ? winner.clicks : null,
+    start: tw(q0?.s || g.settings.start), target: tw(q0?.t || g.settings.target),
+    win: rush ? rushWin : !!winner, durationMs: rush ? elapsed : (winner?.finished?.elapsed || elapsed), steps: rush ? null : (winner ? winner.clicks : null),
     ...gameExtra(g),
   });
 }
@@ -1182,7 +1186,21 @@ function recordGameStats(g, info) {
 function gameExtra(g) {
   const list = gameRoster(g);
   const us = ranking(g).slice(0, 8).map((e) => String((e.me ? myUid : state.players.get(e.id)?.uid) || '').slice(0, 128));
-  return { list, us, lang: g.settings.lang === 'en' ? 'en' : 'zh', hint: !!g.hint?.shown };
+  return { list, us, lang: g.settings.lang === 'en' ? 'en' : 'zh', hint: !!g.hint?.shown, ...(isRush(g) ? rushExtra(g) : {}) };
+}
+
+// 搶分賽：每個人的分數（sc）和每一題的路線（rq，跟 list 同樣順序），給後台看
+function rushExtra(g) {
+  const es = ranking(g).slice(0, 8);
+  return {
+    sc: es.map((e) => Number(e.score) || 0),
+    rq: es.map((e) => {
+      const rows = (e.rr || []).map((x) => ({ s: tw(x.s), t: tw(x.t), r: x.r, p: x.p.slice(0, 60).map((t) => tw(t).slice(0, 100)) }));
+      const q = g.rushQ?.[e.qi];
+      if (q && e.path?.length > 1) rows.push({ s: tw(q.s), t: tw(q.t), r: 'open', p: cleanPath(e.path).slice(0, 60).map((t) => tw(t).slice(0, 100)) });
+      return rows.slice(0, 40);
+    }),
+  };
 }
 
 // 這一局每個人的戰績（給後台的「所有對局」）：暱稱、名次、結果、步數、時間、路線
