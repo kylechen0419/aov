@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=100';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=100';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=100';
-import { initNotify, notify } from './notify.js?v=100';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=100';
-import { reportError, catchErrors } from './errors.js?v=100';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=100';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=100';
-import * as wiki from './wiki.js?v=100';
-import { tw, twTree, zhReady } from './zh.js?v=100';
-import { makeShareImage } from './share.js?v=100';
-import { solve } from './solver.js?v=100';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=100';
+import { Net } from './net.js?v=101';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=101';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=101';
+import { initNotify, notify } from './notify.js?v=101';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=101';
+import { reportError, catchErrors } from './errors.js?v=101';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=101';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=101';
+import * as wiki from './wiki.js?v=101';
+import { tw, twTree, zhReady } from './zh.js?v=101';
+import { makeShareImage } from './share.js?v=101';
+import { solve } from './solver.js?v=101';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=101';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -661,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=100').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=101').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -4162,7 +4162,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=100')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=101')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5069,7 +5069,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=100').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=101').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {

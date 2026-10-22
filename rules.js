@@ -2,7 +2,7 @@
 // 原則：玩家（匿名登入）只能寫自己的東西、成績不能覆蓋、欄位要合理；公告、踢人、關房、通知設定只有管理員能改。
 // 規則的版本：每次改規則就加一。後台會試著讀 rulesv/v<版本>（只有這一版的規則開放這個路徑），
 // 讀得到就是 Firebase 上已經發布最新的規則，讀不到就提醒管理員重新複製發布
-export const RULES_VERSION = 3;
+export const RULES_VERSION = 4;
 
 export function rulesFor(adminUid) {
   const uid = String(adminUid || '').replace(/[^A-Za-z0-9_-]/g, '');
@@ -23,6 +23,35 @@ export function rulesFor(adminUid) {
           u: { '.validate': true },
           t: { '.validate': true },
           $other: { '.validate': false },
+        },
+      },
+      // 連線牽線（fbpeer.js）：房主在 sigh/<代碼> 掛號，25 秒沒心跳別人才能接手；登入的人都能看有沒有這個房間
+      sigh: {
+        $id: {
+          '.read': 'auth != null',
+          '.write': `auth != null && ${ok} && (!data.exists() || data.child('u').val() === auth.uid || data.child('t').val() < now - 25000) && (!newData.exists() || newData.child('u').val() === auth.uid)`,
+          '.validate': "newData.child('u').isString() && newData.child('s').isString() && newData.child('s').val().length <= 40 && newData.child('t').isNumber() && newData.child('t').val() <= now + 60000",
+          u: { '.validate': true },
+          s: { '.validate': true },
+          t: { '.validate': true },
+          $other: { '.validate': false },
+        },
+      },
+      // 連線邀請：玩家放進房主的信箱，只有房主和放的人自己看得到；房主寫回答覆
+      sigi: {
+        $id: {
+          '.read': "auth != null && root.child('sigh').child($id).child('u').val() === auth.uid",
+          '.write': "auth != null && root.child('sigh').child($id).child('u').val() === auth.uid",
+          $c: {
+            '.read': "auth != null && data.child('u').val() === auth.uid",
+            '.write': `auth != null && ${ok} && ((!data.exists() && newData.child('u').val() === auth.uid) || data.child('u').val() === auth.uid)`,
+            '.validate': "newData.child('u').isString() && newData.child('f').isString() && newData.child('f').val().length <= 60 && newData.child('o').isString() && newData.child('o').val().length <= 30000",
+            u: { '.validate': true },
+            f: { '.validate': true },
+            o: { '.validate': true },
+            a: { '.validate': 'newData.isString() && newData.val().length <= 30000' },
+            $other: { '.validate': false },
+          },
         },
       },
       // 在線玩家在做什麼（暱稱、在哪個房間、什麼模式）：本人寫、只有管理員看得到
