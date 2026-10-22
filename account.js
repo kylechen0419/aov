@@ -2,7 +2,7 @@
 // 每日挑戰排行榜也只收登入的人（資料庫規則會擋）。
 // 原本沒登入時的匿名身分會直接「升級」成這個 Google 帳號（uid 不變，之前的紀錄都接得上）；
 // 這個 Google 帳號以前在別的手機登入過，就換成那個帳號的身分（uid 會變，畫面重新載入一次）。
-import { getDb } from './fb.js?v=108';
+import { getDb } from './fb.js?v=109';
 
 const GOALS = ['speed', 'steps', 'items', 'isteps', 'rush'];
 
