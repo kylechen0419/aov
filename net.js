@@ -3,8 +3,8 @@
 // 房主兩邊都掛號：舊版的玩家、或 Firebase 暫時不能用的玩家，一樣連得進來。
 // 房主是中繼站：每位玩家只連到房主，房主再把訊息轉給其他人
 // 玩家斷線時會自動重連；房主用玩家自帶的 key 認出是誰回來了
-import { FbPeer } from './fbpeer.js?v=107';
-import { getDb, getUid } from './fb.js?v=107';
+import { FbPeer } from './fbpeer.js?v=108';
+import { getDb, getUid } from './fb.js?v=108';
 
 // Firebase 牽線能不能用：有資料庫、有登入身分（等不到就當作不能用，改走 PeerJS）
 let fbOff = false;  // 規則還沒開放牽線（沒權限）：這次打開網頁都不再試
@@ -44,7 +44,31 @@ export class Net {
     this.onHostLost = () => {};
     this.onHostBack = () => {};
     this.onDisplaced = () => {};
+    this.expectHost = 0;  // 換房主中（到這個時間為止）：等新房主掛好號就連過去
   }
+
+  // 舊房主：把代碼放掉再通知大家換人（最多等 3 秒，放不掉就照舊靠新房主重試）
+  async releaseCode() {
+    const p = this.peer;
+    if (!this.isHost || !(p instanceof FbPeer)) return;
+    await Promise.race([p.release().catch(() => {}), new Promise((ok) => { setTimeout(ok, 3000); })]);
+  }
+
+  // 玩家：房主的掛號還有沒有在更新心跳（true＝有人在當房主、false＝沒有或已經斷線、null＝不知道）
+  async hostFresh(ms = 15000) {
+    const fb = await fbSignal();
+    if (!fb) return null;
+    try {
+      const [v, off] = await Promise.all([
+        fb.db.ref(`sigh/${PREFIX}${this.code}`).once('value').then((x) => x.val()),
+        fb.db.ref('.info/serverTimeOffset').once('value').then((x) => Number(x.val()) || 0),
+      ]);
+      return !!v && new Date().getTime() + off - Number(v.t) < ms;
+    } catch { return null; }
+  }
+
+  // 玩家：知道要換房主了（新房主會用同一個代碼）
+  awaitNewHost(ms = 20000) { this.expectHost = Date.now() + ms; }
 
   // ---------- 房主 ----------
   // 指定 code 時是接手別人的房間：舊房主剛放掉這個代碼，可能要等一下才能用
@@ -225,7 +249,9 @@ export class Net {
     if (fb) {
       if (!(this.fbPeer && !this.fbPeer.destroyed && this.fbPeer.uid === fb.uid)) this.fbPeer = new FbPeer(fb.db, fb.uid);
       let there = null;
-      try { there = await this.fbPeer.has(PREFIX + this.code); } catch (e) { if (/permission/i.test(e?.message || e?.code || '')) fbOff = true; }
+      // 換房主中：等新房主掛好號（通常一秒內），不要先去連已經關掉的舊房主或改走 PeerJS
+      if (this.expectHost > Date.now()) there = await this.fbPeer.waitHost(PREFIX + this.code, Math.min(10000, this.expectHost - Date.now()));
+      if (!there) try { there = await this.fbPeer.has(PREFIX + this.code); } catch (e) { if (/permission/i.test(e?.message || e?.code || '')) fbOff = true; }
       if (there) return this.connectVia(this.fbPeer, timeout);
     }
     return this.connectVia(null, timeout);
@@ -313,11 +339,12 @@ export class Net {
     if (this.retrying && attempt === 0) return;
     this.retrying = true;
     clearTimeout(this.retryTimer);
-    const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
+    const delay = attempt === 0 && this.expectHost > Date.now() ? 50 : RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
     this.retryTimer = setTimeout(() => {
       if (!this.retrying || this.closing) return;
       this.connectToHost(7000).then(() => {
         this.retrying = false;
+        this.expectHost = 0;
         this.onHostBack();
       }, () => this.startRetry(attempt + 1));
     }, delay);

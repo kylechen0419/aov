@@ -153,7 +153,8 @@ export class FbPeer extends Emitter {
       this.fail(/permission/i.test(e?.message || e?.code || '') ? 'permission' : 'server-error', e);
       return;
     }
-    if (this.destroyed) { this.hostRef().remove().catch(() => {}); return; }
+    this.claimed = true;
+    if (this.destroyed) { this.unclaim().catch(() => {}); return; }
     this.armDisconnect();
     // 自己的掛號被別人接手了（斷線太久）：跟 PeerJS 一樣回報 unavailable-id
     const watch = this.hostRef();
@@ -198,6 +199,25 @@ export class FbPeer extends Emitter {
 
   stopHeart() { clearInterval(this.heart); this.heart = null; }
 
+  // 把自己的掛號刪掉（是別人的就不動）。手機上還沒讀到掛號時 cur 會先是 null：
+  // 這時也先送「刪掉」，伺服器發現不一樣會拿真正的資料再問一次，不會刪到別人的
+  unclaim() {
+    return this.hostRef().transaction((cur) => (!cur || cur.s === this.session ? null : undefined), undefined, false);
+  }
+
+  // 轉移房主：先把代碼放掉（已經連著的玩家不會斷），新房主收到通知時就能馬上接手
+  async release() {
+    if (!this.host || this.destroyed || this.displaced) return;
+    this.displaced = true;  // 不再重新掛號，也不要把自己的掉號當成被擠掉
+    this.stopHeart();
+    try { await this.hostRef().onDisconnect().cancel(); } catch { /* 忽略 */ }
+    try { this.offInbox?.(); } catch { /* 忽略 */ }
+    this.inboxRef().remove().catch(() => {});  // 信箱要趁掛號還是自己的時候清（規則看掛號是誰的）
+    await this.unclaim();
+    for (const off of this.offs) { try { off(); } catch { /* 忽略 */ } }
+    this.offs = [];
+  }
+
   fail(type, e) {
     if (this.destroyed) return;
     this.emit('error', Object.assign(new Error(type), { type, cause: e }));
@@ -224,6 +244,19 @@ export class FbPeer extends Emitter {
   }
 
   // ---------- 玩家 ----------
+  // 等這個代碼有房主掛號（換房主時：新房主一掛好就連過去，不用一直重試）；ms 內沒等到回傳 false
+  waitHost(remoteId, ms) {
+    return new Promise((ok) => {
+      const ref = this.db.ref(`sigh/${remoteId}`);
+      let done = false;
+      let timer = null;
+      const on = (snap) => { if (snap.val()) fin(true); };
+      const fin = (v) => { if (done) return; done = true; clearTimeout(timer); ref.off('value', on); ok(v); };
+      timer = setTimeout(() => fin(false), ms);
+      ref.on('value', on, () => fin(false));
+    });
+  }
+
   // 這個代碼現在有沒有房主掛號（有心跳）
   async has(remoteId) {
     // 5 秒內問不到就當作沒有（改用 PeerJS 試試看），不要讓加入房間一直轉圈
@@ -274,9 +307,9 @@ export class FbPeer extends Emitter {
     for (const off of this.offs) { try { off(); } catch { /* 忽略 */ } }
     try { this.offInbox?.(); } catch { /* 忽略 */ }
     for (const c of [...this.conns]) c.close();
-    if (this.host && !this.displaced) {
-      this.hostRef().transaction((cur) => (cur && cur.s === this.session ? null : undefined), undefined, false).catch(() => {});
+    if (this.host && !this.displaced && this.claimed) {
       this.inboxRef().remove().catch(() => {});
+      this.unclaim().catch(() => {});
     }
     this.emit('close');
   }

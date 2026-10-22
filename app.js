@@ -1,17 +1,17 @@
-import { Net } from './net.js?v=107';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=107';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=107';
-import { initNotify, notify } from './notify.js?v=107';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=107';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=107';
-import { reportError, catchErrors } from './errors.js?v=107';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=107';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=107';
-import * as wiki from './wiki.js?v=107';
-import { tw, twTree, zhReady } from './zh.js?v=107';
-import { makeShareImage } from './share.js?v=107';
-import { solve } from './solver.js?v=107';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=107';
+import { Net } from './net.js?v=108';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=108';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=108';
+import { initNotify, notify } from './notify.js?v=108';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=108';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=108';
+import { reportError, catchErrors } from './errors.js?v=108';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=108';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=108';
+import * as wiki from './wiki.js?v=108';
+import { tw, twTree, zhReady } from './zh.js?v=108';
+import { makeShareImage } from './share.js?v=108';
+import { solve } from './solver.js?v=108';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=108';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -296,7 +296,7 @@ const GOALS = {
   steps: { icon: '👣', name: '比步數', brief: '步數最少的贏' },
   items: { icon: '🎁', name: '道具賽・比速度', brief: '先抵達的贏；每 40 秒發一個道具，落後的人拿到比較強的' },
   isteps: { icon: '🎁', name: '道具賽・比步數', brief: '步數最少的贏；每走 3 步發一個道具，落後的人拿到比較強的' },
-  rush: { icon: '🏃', name: '搶分賽', brief: '時間內抵達一題 +1 分，馬上換下一題；大家的題目順序一樣，每人可以跳過 2 題' },
+  rush: { icon: '🏃', name: '搶分賽', brief: '時間內抵達一題 +1 分，馬上換下一題；大家的題目順序一樣，每人可以跳過 2 題；同分比總步數少的贏' },
 };
 // 搶分賽的難度：終點是從起點沿著連結隨機走幾步走到的（困難＝完全隨機的兩個條目）
 const RUSH_LEVELS = {
@@ -661,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=107').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=108').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1464,6 +1464,8 @@ async function migrateHost(toId, { leaving = false } = {}) {
   const wins = { ...state.roomScore.wins };
   if (wins[state.myId] !== undefined) { wins[myNewId] = wins[state.myId]; delete wins[state.myId]; }
   state.roomScore = { games: state.roomScore.games, wins };
+  // 先放掉房間代碼再通知：新房主收到時就能馬上接手，不用一直重試
+  await net.releaseCode();
   net.send({ t: 'migrate', to: toId, code, mode: state.mode, settings: state.settings, players, chat: state.chat.slice(-30), banned: [...state.banned], score: state.roomScore, started: notifiedStart === code, scored: state.game?.scored ? state.game.id : null });
   state.hostLocked = true;
   session.clear();
@@ -1480,6 +1482,7 @@ async function migrateHost(toId, { leaving = false } = {}) {
     state.players = new Map(players.map((p) => [p.id, p]));
     netBanner(`房主交給 ${to.name}，重新連線中…`);
     renderRoom();
+    net.awaitNewHost();
     rejoinAfterMigrate(code);
   }, 400);
 }
@@ -1495,6 +1498,7 @@ async function rejoinAfterMigrate(code, tries = 0) {
     showError('#home-error', '連不上新房主，房間可能已經解散了');
     return;
   }
+  net.expectHost = 0;
   session.save({ code, key: state.myKey, role: 'guest' });
   sendJoin();
   netBanner('');
@@ -1563,9 +1567,16 @@ async function autoTakeOver() {
   try {
     await net.createRoom(0, code, 0);  // 只試一次：代碼被佔著就是有人先接手了（或舊房主其實還在）
   } catch {
+    // 代碼還被舊房主佔著、但他已經沒有心跳了（斷線還沒被清掉）：3 秒後再搶一次，不要先去連已經不在的舊房主
+    if (await net.hostFresh() === false && Date.now() - (state.takeoverStart ||= Date.now()) < 40000) {
+      takeoverTimer = setTimeout(autoTakeOver, 3000);
+      return;
+    }
+    state.takeoverStart = 0;
     net.joinRoom(code).then(() => net.onHostBack(), () => { net.startRetry(); scheduleTakeover(TAKEOVER_STEP); });
     return;
   }
+  state.takeoverStart = 0;
   clearTimeout(hostGiveUpTimer);
   netBanner('');
   const oldName = old?.name || '房主';
@@ -2176,7 +2187,7 @@ function createGame(settings, id) {
     heart: null,
   };
   targetSet(settings);  // 先查好終點的別名，第一頁就能標出金色連結
-  if (rush) Object.assign(state.game, { rushQ: cleanRushQ(state.settings.rush), rushIdx: 0, score: 0, scoreAt: 0, skips: RUSH_SKIPS, rushWait: false });
+  if (rush) Object.assign(state.game, { rushQ: cleanRushQ(state.settings.rush), rushIdx: 0, score: 0, scoreAt: 0, skips: RUSH_SKIPS, rushWait: false, rushDone: [] });
   const party = isParty();
   const me = state.players.get(state.myId);
   $('#hud-target').textContent = tw(settings.target);
@@ -2288,7 +2299,7 @@ function gameSnapshot() {
     [state.myId]: {
       clicks: g.finished?.clicks ?? g.clicks, current: g.current || g.settings.start, path: g.finished?.path || g.path,
       near: g.near, finished: g.finished, left: false,
-      ...(isRush(g) ? { score: g.score, qi: g.rushIdx, sk: g.skips, at: g.scoreAt } : {}),
+      ...(isRush(g) ? { score: g.score, qi: g.rushIdx, sk: g.skips, at: g.scoreAt, rr: g.rushDone } : {}),
     },
   };
   for (const o of g.others.values()) {
@@ -2317,7 +2328,7 @@ function applyProgress(o, p) {
 // 搶分賽的分數欄位（別人傳來的，數字要檢查）
 const rushNum = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v)) || 0));
 function rushFields(m, o = {}) {
-  return { score: rushNum(m.score ?? o.score, 999), qi: rushNum(m.qi ?? o.qi, 999), sk: rushNum(m.sk ?? o.sk ?? RUSH_SKIPS, RUSH_SKIPS), at: rushNum(m.at ?? o.at, 864e5) };
+  return { score: rushNum(m.score ?? o.score, 999), qi: rushNum(m.qi ?? o.qi, 999), sk: rushNum(m.sk ?? o.sk ?? RUSH_SKIPS, RUSH_SKIPS), at: rushNum(m.at ?? o.at, 864e5), rr: cleanRoutes(m.rr ?? o.rr) };
 }
 
 // 玩家：重新整理後從房主給的狀態接回比賽
@@ -2336,7 +2347,7 @@ function resumeGame(snap) {
   if (isRush(g)) {
     // 搶分賽：接回自己做到第幾題、幾分
     const r = rushFields(mine);
-    Object.assign(g, { score: r.score, rushIdx: r.qi, skips: r.sk, scoreAt: r.at });
+    Object.assign(g, { score: r.score, rushIdx: r.qi, skips: r.sk, scoreAt: r.at, rushDone: r.rr });
     const q = g.rushQ[g.rushIdx];
     if (q) { g.settings.start = q.s; g.settings.target = q.t; $('#hud-target').textContent = tw(q.t); }
   }
@@ -2578,7 +2589,7 @@ function sendProgress(msg) {
   // 搶分賽：每個人的終點不一樣，不送遠近和所在位置，改送分數、第幾題、還能跳過幾次
   const g = state.game;
   if (isRush(g) && (msg.t === 'progress' || msg.t === 'finish')) {
-    msg = { ...msg, near: false, d: undefined, desc: undefined, score: g.score, qi: g.rushIdx, sk: g.skips, at: g.scoreAt };
+    msg = { ...msg, near: false, d: undefined, desc: undefined, score: g.score, qi: g.rushIdx, sk: g.skips, at: g.scoreAt, rr: g.rushDone };
   }
   if (net.isHost) net.send({ ...msg, id: state.myId });
   else net.send(msg);
@@ -3445,15 +3456,15 @@ function outcomeDuel(g) {
 function ranking(g) {
   const meP = state.players.get(state.myId);
   const entries = [
-    { id: state.myId, name: state.myName, avatar: state.myAvatar, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false, score: g.score || 0, at: g.scoreAt || 0, qi: g.rushIdx || 0 },
-    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left, offline: o.offline, offlineUntil: o.offlineUntil, score: o.score || 0, at: o.at || 0, qi: o.qi || 0 })),
+    { id: state.myId, name: state.myName, avatar: state.myAvatar, color: meP?.color || COLORS[0], me: true, finished: g.finished, clicks: g.finished?.clicks ?? g.clicks, path: g.finished?.path || g.path, left: false, score: g.score || 0, at: g.scoreAt || 0, qi: g.rushIdx || 0, rr: g.rushDone || [], cur: { s: g.settings.start, t: g.settings.target } },
+    ...[...g.others.values()].map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, color: o.color, me: false, finished: o.finished, clicks: o.clicks, path: o.path, left: o.left, offline: o.offline, offlineUntil: o.offlineUntil, score: o.score || 0, at: o.at || 0, qi: o.qi || 0, rr: o.rr || [] })),
   ];
   if (isRush(g)) {
-    // 搶分賽：分數多的在前；一樣多分的，比較早拿到最後一分的在前；再一樣就步數少的在前
-    entries.sort((a, b) => (b.score - a.score) || (a.at - b.at) || (a.clicks - b.clicks));
+    // 搶分賽：分數多的在前；一樣多分的，總步數少的贏；分數、步數都一樣才平手
+    entries.sort((a, b) => (b.score - a.score) || (a.clicks - b.clicks));
     let place = 0;
     let prev = null;
-    entries.forEach((e, i) => { place = prev && prev.score === e.score && prev.at === e.at ? place : i + 1; e.place = place; prev = e; });
+    entries.forEach((e, i) => { place = prev && prev.score === e.score && prev.clicks === e.clicks ? place : i + 1; e.place = place; prev = e; });
     return entries;
   }
   const group = (e) => {
@@ -3504,14 +3515,16 @@ function renderRanking(g, entries) {
   $('#ranking-status').textContent = done ? '最終排名' : '比賽進行中…';
   const target = g.settings.target;
   // 重畫前記住哪些人的路線是展開的：還在比的人每走一步都會重畫，不能每次都收起來
-  const opened = new Set([...$('#rank-list').querySelectorAll('li.rank-item > details[open]')].filter((d) => d.parentElement.dataset.gid === String(g.id)).map((d) => d.parentElement.dataset.id));
+  const mine = (d) => d.parentElement.dataset.gid === String(g.id);
+  const opened = new Set([...$('#rank-list').querySelectorAll('li.rank-item > details[open]')].filter(mine).map((d) => d.parentElement.dataset.id));
+  // 搶分賽：每個人每一題的路線一開始就全部展開給大家看（自己收起來的才收著）
+  const closed = new Set([...$('#rank-list').querySelectorAll('li.rank-item > details:not([open])')].filter(mine).map((d) => d.parentElement.dataset.id));
   const items = entries.map((e) => {
     const li = document.createElement('li');
     li.className = 'rank-item';
     li.dataset.id = e.id;
     li.dataset.gid = String(g.id);  // 新的一局就全部收起來
     li.classList.toggle('is-me', e.me);
-    li.classList.toggle('no-route', isRush(g));  // 搶分賽：題目很多，不展開路線
     if (e.place && e.place <= 3) li.classList.add(`p${e.place}`);
     const badge = Object.assign(document.createElement('span'), { className: 'rank-badge', textContent: e.place ? String(e.place) : '–' });
     const body = document.createElement('details');
@@ -3524,8 +3537,9 @@ function renderRanking(g, entries) {
     ol.style.setProperty('--side', e.color);
     fillPath(ol, e.path || [], target);
     body.append(sum);
-    if (!isRush(g)) body.append(ol);
-    body.open = opened.has(e.id);
+    if (isRush(g)) body.append(rushRoutesEl(g, e));
+    else body.append(ol);
+    body.open = isRush(g) ? !closed.has(e.id) : opened.has(e.id);
     if ((e.finished || e.left) && !isRush(g)) body.append(routeReplayButton(e.me ? '你' : e.name, e.path || [], g.settings, e.finished?.reason === 'win'));
     li.append(badge, body);
     if (g.finished && !e.me && !e.finished && !e.left) {
@@ -3545,6 +3559,28 @@ function renderRanking(g, entries) {
   $('#rank-list').replaceChildren(...items);
 }
 
+// 搶分賽的路線：每一題一段（抵達的、跳過的、最後沒走完的那題）
+function rushRoutesEl(g, e) {
+  const box = document.createElement('div');
+  box.className = 'rush-routes';
+  const rows = (e.rr || []).map((x) => ({ ...x }));
+  const q = g.rushQ?.[e.qi];
+  if (q && e.path?.length) rows.push({ s: q.s, t: q.t, p: e.path, r: 'open' });
+  if (!rows.length) { box.append(Object.assign(document.createElement('p'), { className: 'rush-route-none', textContent: '還沒有走過任何一題' })); return box; }
+  rows.forEach((x, i) => {
+    const head = document.createElement('div');
+    head.className = `rush-route-h ${x.r}`;
+    const mark = x.r === 'ok' ? `✅ ${Math.max(0, x.p.length - 1)} 步` : x.r === 'skip' ? '⏭️ 跳過' : '⏱️ 沒走完';
+    head.append(Object.assign(document.createElement('b'), { textContent: `第 ${i + 1} 題` }), ` 《${tw(x.s)}》→《${tw(x.t)}》`, Object.assign(document.createElement('span'), { textContent: mark }));
+    const ol = document.createElement('ol');
+    ol.className = 'metro';
+    ol.style.setProperty('--side', e.color);
+    fillPath(ol, x.p, x.r === 'ok' ? x.p[x.p.length - 1] : x.t);
+    box.append(head, ol);
+  });
+  return box;
+}
+
 // 結果畫面的資料，也用來產生分享圖
 function resultInfo(g) {
   if (isRush(g)) {
@@ -3553,7 +3589,9 @@ function resultInfo(g) {
     const first = mine.place === 1;
     const tie = first && entries.filter((e) => e.place === 1).length > 1;
     const res = !allDone(g) ? 'pending' : tie ? 'draw' : first ? 'win' : 'lose';
-    const title = !allDone(g) ? `你拿到 ${mine.score} 分！等其他人比完…` : tie ? `平手！都是 ${mine.score} 分` : first ? `第 1 名！搶到 ${mine.score} 分！` : `第 ${mine.place} 名・${mine.score} 分`;
+    // 同分的人裡贏在步數比較少
+    const sameScore = entries.some((e) => !e.me && e.score === mine.score);
+    const title = !allDone(g) ? `你拿到 ${mine.score} 分！等其他人比完…` : tie ? `平手！都是 ${mine.score} 分、${mine.clicks} 步` : first ? (sameScore ? `第 1 名！同分，你步數最少！` : `第 1 名！搶到 ${mine.score} 分！`) : `第 ${mine.place} 名・${mine.score} 分`;
     return { res, kicker: res === 'pending' ? '…' : String(mine.place), title, tone: res === 'pending' ? 'place' : first ? 'win' : 'place', entries };
   }
   if (g.mode === 'party') {
@@ -5304,7 +5342,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=107').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=108').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }
@@ -5409,7 +5447,12 @@ function renderRush(g) {
   renderGoal();
 }
 // 抵達這一題的終點：+1 分，馬上換下一題
+// 這一題走完了（抵達或跳過）：記下路線，結算時給大家看
+function rushRecord(g, r) {
+  (g.rushDone ||= []).push({ s: g.settings.start, t: g.settings.target, p: [...g.path], r });
+}
 function rushScore(g) {
+  rushRecord(g, 'ok');
   g.score++;
   g.scoreAt = elapsed();
   g.rushIdx++;
@@ -5436,6 +5479,7 @@ function rushSkip() {
     return;
   }
   disarmSkip();
+  rushRecord(g, 'skip');
   g.skips--;
   g.rushIdx++;
   toast(`⏭️ 跳過《${tw(g.settings.target)}》`, 1800);
@@ -5599,6 +5643,9 @@ net.onPeerLeave = (pid) => {
 
 // 玩家送來的進度與結果先整理過，格式不對就丟掉，免得轉給大家後讓別人的畫面出錯
 const cleanPath = (p) => (Array.isArray(p) ? p.filter((t) => typeof t === 'string').slice(0, 200).map((t) => t.slice(0, 200)) : []);
+// 搶分賽每一題走過的路線：{ s 起點, t 終點, p 路線, r 'ok' 抵達／'skip' 跳過 }
+const cleanRoutes = (rr) => (Array.isArray(rr) ? rr.slice(0, 100).filter((x) => x && typeof x.s === 'string' && typeof x.t === 'string')
+  .map((x) => ({ s: x.s.slice(0, 200), t: x.t.slice(0, 200), p: cleanPath(x.p).slice(0, 60), r: x.r === 'skip' ? 'skip' : 'ok' })) : []);
 const cleanNum = (n) => (Number.isFinite(Number(n)) && Number(n) >= 0 ? Number(n) : 0);
 function cleanProgress(msg) {
   if (typeof msg.title !== 'string' || !msg.title) return null;
@@ -5862,6 +5909,7 @@ function handleHostMessage(msg) {
       // 其他人：等新房主上線後會自動重連
       const to = (msg.players || []).find((p) => p.id === msg.to);
       state.migrating = to?.name || '新房主';
+      net.awaitNewHost();  // 舊房主斷開後，等新房主一掛好號就連過去
       const oldHost = [...state.players.values()].find((p) => p.host);
       if (oldHost && !(msg.players || []).some((p) => p.name === oldHost.name && !p.host)) state.hostLeft = oldHost.name;
       if (Array.isArray(msg.players)) state.players = new Map(msg.players.map((p) => [p.id, { ...p, avatar: cleanAvatar(p.avatar) }]));
@@ -5938,6 +5986,7 @@ net.onHostLost = () => {
 };
 
 net.onHostBack = () => {
+  state.takeoverStart = 0;
   clearTimeout(hostGiveUpTimer);
   clearTimeout(takeoverTimer);
   state.migrating = null;

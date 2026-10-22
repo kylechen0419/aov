@@ -2,8 +2,8 @@
 // 另外給製作者後台一份「誰在線上、在做什麼」（who：只有管理員讀得到）：暱稱、在首頁／房間／比賽／單人訓練、
 // 房間代碼、模式、題目和步數。不會記下正在看哪個條目、也看不到任何人的畫面。
 // 沒有在 firebase-config.js 填設定的話，整個功能會安靜地關閉，不影響遊戲其他部分。
-import { getDb, getUid, onAuth, authOff } from './fb.js?v=107';
-import { bumpPeak } from './rooms.js?v=107';
+import { getDb, getUid, onAuth, authOff } from './fb.js?v=108';
+import { bumpPeak } from './rooms.js?v=108';
 
 let started = false;
 let retries = 0;

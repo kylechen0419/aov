@@ -742,6 +742,13 @@ body.solo #route-grid .opp-side { display: none; }
 .rank-item summary b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9em; }
 .rank-stat { font-family: var(--font-num); font-weight: 700; font-size: 13px; color: var(--muted); flex-basis: 100%; padding-left: 34px; margin-top: -6px; }
 .rank-item .metro { margin-top: 6px; }
+.rush-routes { display: grid; gap: 2px; margin-top: 4px; }
+.rush-route-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 13px; margin-top: 8px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.rush-route-h b { font-weight: 900; }
+.rush-route-h span { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--green-d, #1c8a4a); white-space: nowrap; }
+.rush-route-h.skip span, .rush-route-h.open span { color: var(--muted); }
+.rush-routes .metro { margin-top: 2px; }
+.rush-route-none { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .result-hero.place .medal { background: radial-gradient(circle at 35% 30%, #ffffff, #cfd8e8 50%, #8f9bb5); box-shadow: 0 0 0 7px #fff, 0 10px 0 7px rgba(20, 10, 80, .2); }
 .result-hero.place .medal span { color: #3e4a63; }
 .result-hero.place .medal::before, .result-hero.place .medal::after { content: none; }
