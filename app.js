@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=99';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=99';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=99';
-import { initNotify, notify } from './notify.js?v=99';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=99';
-import { reportError, catchErrors } from './errors.js?v=99';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=99';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=99';
-import * as wiki from './wiki.js?v=99';
-import { tw, twTree, zhReady } from './zh.js?v=99';
-import { makeShareImage } from './share.js?v=99';
-import { solve } from './solver.js?v=99';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=99';
+import { Net } from './net.js?v=100';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=100';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=100';
+import { initNotify, notify } from './notify.js?v=100';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=100';
+import { reportError, catchErrors } from './errors.js?v=100';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=100';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=100';
+import * as wiki from './wiki.js?v=100';
+import { tw, twTree, zhReady } from './zh.js?v=100';
+import { makeShareImage } from './share.js?v=100';
+import { solve } from './solver.js?v=100';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=100';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -661,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=99').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=100').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2198,6 +2198,7 @@ function createGame(settings, id) {
   clearNewbie();
   closeFind();
   $('#article').replaceChildren();
+  $('#article-credit').replaceChildren();
   $('#article-title').textContent = '';
   $('#breadcrumb').textContent = '';
   music.stop();
@@ -2636,6 +2637,13 @@ function fillArticle(root, titleEl, art, settings) {
     }
     a.removeAttribute('target');
   });
+  // 維基百科的內容依 CC BY-SA 授權：每一頁下面標出處和授權
+  const credit = root.parentElement?.querySelector('.wiki-credit');
+  if (credit) {
+    const name = settings.lang === 'zh' ? tw(art.title) : art.title;
+    const link = (href, text) => Object.assign(document.createElement('a'), { href, textContent: text, target: '_blank', rel: 'noopener' });
+    credit.replaceChildren('本頁內容取自維基百科條目', link(wiki.articleUrl(settings.lang, art.title), `《${name}》`), '，依 ', link('https://creativecommons.org/licenses/by-sa/4.0/deed.zh-hant', 'CC BY-SA 4.0'), ' 授權使用。');
+  }
 }
 
 // ---------- 管理員觀戰：管理員從後台要看的時候，把畫面送給他（畫面上方會顯示「管理員正在觀戰」） ----------
@@ -4154,7 +4162,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=99')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=100')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5061,7 +5069,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=99').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=100').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {

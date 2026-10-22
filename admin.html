@@ -21,6 +21,13 @@
   .gate input { font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink); }
   .gate button { font: inherit; font-weight: 800; font-size: 16px; padding: 12px; border: 0; border-radius: 12px; background: var(--blue); color: #fff; cursor: pointer; }
   .gate .err { color: var(--red); font-size: 13px; min-height: 18px; }
+  .gate .ghost { background: transparent; color: var(--muted); border: 2px solid var(--line); }
+  .gate-note { text-align: left; line-height: 1.6; margin: 0; }
+  .gate-setup { display: grid; gap: 10px; text-align: left; }
+  .gate-setup summary { cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 800; text-align: center; padding: 6px; }
+  .gate-setup[open] summary { margin-bottom: 8px; }
+  .gate-setup > * + * { margin-top: 10px; }
+  .gate-setup textarea { font: 12px/1.4 ui-monospace, monospace; height: 160px; padding: 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink); resize: vertical; }
   .wrap { max-width: 640px; margin: 0 auto; }
   .stat { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 14px; }
   .stat .box { background: var(--card); border-radius: 12px; padding: 8px 4px; text-align: center; min-width: 0; }
@@ -233,9 +240,16 @@
 <body>
   <div id="gate" class="gate">
     <h1>維基競速・後台</h1>
-    <p class="sub">請輸入後台密碼</p>
-    <input id="pw" type="password" placeholder="密碼" autocomplete="off" enterkeyhint="go">
-    <button id="go">進入</button>
+    <p class="sub" id="gate-msg">檢查登入中…</p>
+    <button id="gate-login" type="button" hidden>用 Google 登入</button>
+    <p class="sub gate-note" id="gate-ios" hidden>📱 iPhone 選完帳號又跳回來、還是沒登入？到「設定」→「Chrome」打開「允許跨網站追蹤」（Safari 是「設定」→「Safari」關掉「防止跨網站追蹤」），再按一次。登入一次之後會記住。</p>
+    <details id="gate-setup" class="gate-setup" hidden>
+      <summary>我是製作者：第一次設定、或規則要更新</summary>
+      <p class="sub gate-note">複製下面的規則 → 到 Firebase → Realtime Database → 規則，整段換掉後按「發布」，再回來重新整理這一頁。只有 Firebase 專案的擁有者能發布規則，別人複製了也沒用。</p>
+      <textarea id="gate-rules" readonly></textarea>
+      <button id="gate-copy" type="button">複製規則</button>
+    </details>
+    <button id="gate-logout" class="ghost" type="button" hidden>登出，換一個帳號</button>
     <p id="err" class="err"></p>
   </div>
 
@@ -475,21 +489,44 @@
     <div id="multi-grid" class="multi-grid"></div>
   </div>
 
-  <script src="firebase-config.js?v=99"></script>
+  <script src="firebase-config.js?v=100"></script>
   <script>
-  // 後台密碼：想改就改這一行（只擋一般人，資料本身放在公開的 Firebase）
-  const ADMIN_PASS = 'sakimoru9487';
+  // 後台只認管理員的 Google 帳號：登入後讀得到只有管理員能讀的資料（audit）才放行，資料本身由 Firebase 規則保護
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  function openGate() {
-    const tryPw = () => {
-      if ($('#pw').value === ADMIN_PASS) { try { sessionStorage.setItem('wikirace-admin', '1'); } catch (e) {} start(); }
-      else $('#err').textContent = '密碼不對';
-    };
-    $('#go').onclick = tryPw;
-    $('#pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryPw(); });
-    $('#pw').focus();
+  const gateMsg = (t) => { $('#gate-msg').textContent = t; };
+  // 是不是管理員：Google 登入，而且讀得到只有管理員能讀的 audit；規則還是「任何人都能讀寫」的舊設定也不算
+  async function adminCheck(auth) {
+    const u = auth.currentUser;
+    const google = !!(u && !u.isAnonymous);
+    $('#gate-logout').hidden = !google;
+    $('#gate-logout').onclick = () => auth.signOut();
+    if (!google) {
+      gateMsg('請用管理員的 Google 帳號登入');
+      $('#gate-login').hidden = false;
+      $('#gate-ios').hidden = !(/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+      $('#gate-login').onclick = () => {
+        $('#err').textContent = '';
+        auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch((e) => { $('#err').textContent = LOGIN_ERR[e.code] ?? `登入失敗（${e.code || e.message}）`; });
+      };
+      return false;
+    }
+    const can = (path) => db.ref(path).limitToLast(1).once('value').then(() => true, () => false);
+    const [mine, open] = await Promise.all([can('audit'), can('rulesv/never')]);
+    if (mine && !open) return true;
+    gateMsg(open ? `已用 ${u.email || u.uid} 登入，但資料庫還沒上鎖（任何人都能讀寫），先發布下面的規則` : `這個帳號（${u.email || u.uid}）沒有管理員權限`);
+    import('./rules.js?v=100').then(({ rulesFor }) => {
+      $('#gate-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
+      $('#gate-setup').hidden = false;
+      if (open) $('#gate-setup').open = true;
+      $('#gate-copy').onclick = () => {
+        const box = $('#gate-rules');
+        (navigator.clipboard ? navigator.clipboard.writeText(box.value) : Promise.reject())
+          .then(() => { $('#err').textContent = '已複製！到 Firebase 發布後回來重新整理'; }, () => { box.select(); $('#err').textContent = '請長按框框全選後複製'; });
+      };
+    });
+    return false;
   }
 
   const GOAL = { speed: '⚡ 比速度', steps: '👣 比步數', items: '🎁 道具・比速度', isteps: '🎁 道具・比步數', rush: '🏃 搶分賽' };
@@ -512,10 +549,8 @@
   let db = null, lastRooms = null, games = [], sortBy = 'new', filterBy = 'all', period = 'today';
 
   function start() {
-    $('#gate').hidden = true;
-    $('#main').hidden = false;
     const CFG = window.WIKIRACE_FIREBASE;
-    if (!CFG || !CFG.databaseURL) { $('#status').textContent = '尚未設定 Firebase（firebase-config.js）'; return; }
+    if (!CFG || !CFG.databaseURL) { gateMsg('尚未設定 Firebase（firebase-config.js）'); return; }
     const load = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
     (async () => {
       try {
@@ -528,11 +563,13 @@
         db = firebase.database(app);
         // 先等登入狀態恢復再開始讀資料（規則上鎖後，房間列表、統計只有管理員讀得到）
         const auth = firebase.auth ? firebase.auth(app) : null;
-        if (auth) {
-          await new Promise((ok) => { const off = auth.onAuthStateChanged(() => { off(); ok(); }); setTimeout(ok, 5000); });
-          const first = auth.currentUser ? auth.currentUser.uid : null;
-          auth.onAuthStateChanged((u) => { if ((u ? u.uid : null) !== first) location.reload(); });  // 登入／登出後重新讀一次
-        }
+        if (!auth) { gateMsg('連不上 Google 登入，等一下再重新整理這一頁'); return; }
+        await new Promise((ok) => { const off = auth.onAuthStateChanged(() => { off(); ok(); }); setTimeout(ok, 5000); });
+        const first = auth.currentUser ? auth.currentUser.uid : null;
+        auth.onAuthStateChanged((u) => { if ((u ? u.uid : null) !== first) location.reload(); });  // 登入／登出後重新讀一次
+        if (!(await adminCheck(auth))) return;
+        $('#gate').hidden = true;
+        $('#main').hidden = false;
         wireSecurity(auth);
         db.ref('rooms').on('value', (snap) => { lastRooms = snap.val(); renderRooms(); }, () => { $('#status').textContent = '讀不到房間：資料庫已上鎖，請先用 Google 登入'; });
         db.ref('online').on('value', (snap) => { $('#s-online').textContent = snap.numChildren(); });
@@ -551,7 +588,7 @@
         db.ref('config/badwords').on('value', (snap) => { badwords = snap.val() || ''; renderBadwords(true); }, () => {});
         setInterval(() => { renderRooms(); renderWho(); renderAnn(); }, 5000);
         wireControls();
-      } catch (e) { $('#status').textContent = '連不上 Firebase'; }
+      } catch (e) { gateMsg('連不上 Firebase，等一下再重新整理這一頁'); $('#status').textContent = '連不上 Firebase'; }
     })();
   }
 
@@ -628,7 +665,7 @@
     };
     $('#sec-logout').onclick = () => auth.signOut();
     if (!google) return;
-    import('./rules.js?v=99').then(({ rulesFor, RULES_VERSION }) => {
+    import('./rules.js?v=100').then(({ rulesFor, RULES_VERSION }) => {
       $('#sec-rules').value = JSON.stringify(rulesFor(u.uid), null, 2);
       $('#sec-rules-box').hidden = false;
       $('#sec-copy').hidden = false;
@@ -704,13 +741,13 @@
       const n = (v) => Number(v) || 0, c = (v) => (v ? Object.keys(v).length : 0);
       const lines = [`🎮 對局 ${n(d && d.games)} 局${y && y.games ? `（昨天 ${y.games}）` : ''}・玩家 ${n(d && d.players)} 人次`, `📅 每日挑戰 ${c(dl)} 人完成`, `👥 現在在線 ${c(on)} 人・史上尖峰 ${n(pk)} 人`];
       if (d && d.errors) lines.push(`🐞 今天有 ${d.errors} 筆錯誤紀錄，到後台看看`);
-      const { sendNtfy } = await import('./notify.js?v=99');
+      const { sendNtfy } = await import('./notify.js?v=100');
       await sendNtfy(notifyCfg.topic, 'test', `維基競速・今日摘要（${day(Date.now()).slice(5).replace('-', '/')}）`, lines.join('\n'));
       ntMsg('已傳出今日摘要，手機幾秒內會收到');
     };
     $('#nt-test').onclick = async () => {
       if (!notifyCfg || !notifyCfg.topic) return;
-      const { sendNtfy } = await import('./notify.js?v=99');
+      const { sendNtfy } = await import('./notify.js?v=100');
       await sendNtfy(notifyCfg.topic, 'test', '測試通知', '設定成功！之後有人在玩，手機就會收到通知。');
       ntMsg('已送出，手機幾秒內應該會跳通知；沒收到請確認 ntfy 有訂閱同一個頻道名稱、而且允許通知');
     };
@@ -771,7 +808,7 @@
 
   // ---------- 暱稱過濾 ----------
   let badwords = '', names = null;
-  import('./names.js?v=99').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
+  import('./names.js?v=100').then((m) => { names = m; m.setBadWords(badwords); tryName(); }).catch(() => {});
   function renderBadwords(fromDb) {
     const n = String(badwords || '').split(/[,，、\n]+/).filter((x) => x.trim()).length;
     $('#bw-sum').textContent = n ? `內建＋自訂 ${n} 個字` : '用內建清單';
@@ -1167,7 +1204,7 @@
 
   // ---------- 題庫管理（config/topicBan：一行一個） ----------
   let topicBan = '', topicCount = 0;
-  import('./topics.js?v=99').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
+  import('./topics.js?v=100').then((m) => { topicCount = m.TOPICS.length; window.__topics = new Set(m.TOPICS); renderTopics(); }).catch(() => {});
   const topicList = () => String(topicBan || '').split('\n').map((t) => t.trim()).filter(Boolean);
   const topicSet = () => new Set(topicList());
   const saveTopics = (list, what) => db.ref('config/topicBan').set(list.join('\n') || null).then(() => { $('#tp-msg').textContent = '已儲存，之後的隨機出題會跳過'; audit(what[0], what[1]); }, () => { $('#tp-msg').textContent = '存不進去：請先用 Google 登入'; });
@@ -1246,7 +1283,7 @@
     }
   }
   const dcMsg = (t) => { $('#dc-msg').textContent = t || ''; };
-  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=99'));
+  const loadWiki = () => (wikiMod ||= import('./wiki.js?v=100'));
   // 重置今天的挑戰：輪數加一（puzzle 為 null＝同一題）。大家的「今天已經玩過」都不算了、排行榜換成新的一輪
   async function resetDaily(puzzle) {
     const key = dcKeys()[0];
@@ -1389,7 +1426,7 @@
     if (new URLSearchParams(location.search).has('_u')) { try { const u = new URL(location.href); u.searchParams.delete('_u'); history.replaceState(null, '', u.toString()); } catch (e) {} }
   })();
 
-  if (sessionStorage.getItem('wikirace-admin') === '1') start(); else openGate();
+  start();
   </script>
 </body>
 </html>
