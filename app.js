@@ -1,16 +1,17 @@
-import { Net } from './net.js?v=102';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=102';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=102';
-import { initNotify, notify } from './notify.js?v=102';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=102';
-import { reportError, catchErrors } from './errors.js?v=102';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=102';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=102';
-import * as wiki from './wiki.js?v=102';
-import { tw, twTree, zhReady } from './zh.js?v=102';
-import { makeShareImage } from './share.js?v=102';
-import { solve } from './solver.js?v=102';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=102';
+import { Net } from './net.js?v=103';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=103';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=103';
+import { initNotify, notify } from './notify.js?v=103';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=103';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=103';
+import { reportError, catchErrors } from './errors.js?v=103';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=103';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=103';
+import * as wiki from './wiki.js?v=103';
+import { tw, twTree, zhReady } from './zh.js?v=103';
+import { makeShareImage } from './share.js?v=103';
+import { solve } from './solver.js?v=103';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=103';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -527,7 +528,7 @@ function applyBroadcast(b) {
 }
 
 // ---------- 戰績（存在這支手機上，比速度和比步數各自分開記） ----------
-const statsKey = (goal) => (goal === 'steps' || goal === 'items' || goal === 'isteps' ? `wikirace-stats-${goal}` : 'wikirace-stats');
+const statsKey = (goal) => (goal === 'steps' || goal === 'items' || goal === 'isteps' || goal === 'rush' ? `wikirace-stats-${goal}` : 'wikirace-stats');
 
 function loadStats(goal) {
   try { return { w: 0, l: 0, d: 0, streak: 0, ...JSON.parse(store.get(statsKey(goal)) || '{}') }; } catch { return { w: 0, l: 0, d: 0, streak: 0 }; }
@@ -537,12 +538,14 @@ function recordResult(goal, res) {
   const st = loadStats(goal);
   if (res === 'win') { st.w++; st.streak++; } else if (res === 'lose') { st.l++; st.streak = 0; } else { st.d++; }
   store.set(statsKey(goal), JSON.stringify(st));
+  saveProfile({ goal: cleanGoal(goal), stat: st });  // 登入的話也存到雲端
 }
 
 function unrecordResult(goal, res) {
   const st = loadStats(goal);
   if (res === 'win') { st.w = Math.max(0, st.w - 1); st.streak = Math.max(0, st.streak - 1); } else if (res === 'lose') st.l = Math.max(0, st.l - 1); else st.d = Math.max(0, st.d - 1);
   store.set(statsKey(goal), JSON.stringify(st));
+  saveProfile({ goal: cleanGoal(goal), stat: st });
 }
 
 // 首頁顯示目前選到的模式的戰績
@@ -661,7 +664,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=102').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=103').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -681,6 +684,7 @@ function initHome() {
     b.onclick = () => {
       state.myAvatar = id;
       store.set('wikirace-avatar', id);
+      saveProfile({ a: id });
       paintPicker();
       paintHomeAvatar();
       toggleAvatarPick(false);
@@ -699,6 +703,8 @@ function initHome() {
   paintPicker();
   paintHomeAvatar();
   $('#nickname').addEventListener('input', paintHomeAvatar);
+  // 暱稱改好（離開輸入框）：登入的話存到雲端
+  $('#nickname').addEventListener('change', () => { const n = $('#nickname').value.trim(); if (n && !badName(n)) saveProfile({ n }); });
   // 頭像選單平常收起來，點自己的頭像才打開，首頁比較短
   const toggleAvatarPick = (open = $('#avatar-pick').hidden) => {
     $('#avatar-pick').hidden = !open;
@@ -1822,10 +1828,9 @@ function openDaily() {
   loaded.finally(() => resendDaily(key).finally(() => renderDailyBoard(key)));
 }
 
-// 排行榜上「我」是哪一筆：登入身分（資料庫規則只准本人交、不能覆蓋）；沒有登入時用手機代號
-// 登入還沒好（網路慢）就先回傳 null，等之後再送，不要用錯的身分送出去被規則擋掉
-let boardId = null;
-const myBoardId = async () => boardId || (boardId = await getUid()) || (authOff() ? deviceId : null);
+// 排行榜上「我」是哪一筆：Google 帳號的身分（資料庫規則只收 Google 登入、只准本人交、不能覆蓋）
+// 沒登入就是 null：成績先記在手機上，登入之後再補送
+const myBoardId = async () => { await getUid(); return account()?.uid || null; };
 
 // 第一次完成時網路不通、成績沒送出去：之後打開時再補送
 let resending = null;
@@ -2052,6 +2057,8 @@ function renderDailyResult(g) {
     ? (win ? '正式成績已登上今日排行榜，分享給朋友比比看！' : '今天的正式機會用掉了，可以看看排行榜上別人怎麼走，明天再來！')
     : `練習模式（不計成績）　今天的正式成績：${m?.win ? `${m.s} 步 · ${fmtTime(m.t)}` : '未完成'}`;
   $('#dres-share').hidden = !m?.win;
+  if (d.first && win && !account() && fbOn()) $('#dres-sub').textContent = '完成了！成績先記在這支手機上。';
+  paintDailyLogin(d);
   refreshDailyHome();
 }
 
@@ -4208,7 +4215,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=102')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=103')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5108,6 +5115,81 @@ function runCoach() {
   place();
 }
 
+// ---------- 帳號（Google 登入） ----------
+// 不登入也能玩；登入之後暱稱、頭像、戰績存在雲端，每日挑戰的成績才會上排行榜
+const fbOn = () => !!window.WIKIRACE_FIREBASE?.databaseURL;
+let syncedUid = null;
+function paintAccount() {
+  const me = account();
+  const btn = $('#acct-btn');
+  btn.hidden = !fbOn();
+  btn.classList.toggle('on', !!me);
+  $('#acct-label').textContent = me ? `✓ ${me.name || me.email || '已登入'}` : '用 Google 登入';
+  btn.title = me ? `已用 Google 登入：${me.email}（按一下可以登出）` : '登入後戰績存在雲端，也能登上每日排行榜';
+  $('#daily-login').hidden = !!me || !fbOn();
+  const d = state.daily;
+  if (d && !$('#daily-result').hidden) paintDailyLogin(d);
+}
+function paintDailyLogin(d) {
+  const m = myDay(d.key);
+  const need = fbOn() && !account() && d.first && d.started && !!m?.win && !m.sent;
+  $('#dres-login').hidden = !need;
+  if (need) $('#dres-sub').textContent = '完成了！成績先記在這支手機上。';
+}
+async function onAccountChange(me) {
+  paintAccount();
+  if (!me || syncedUid === me.uid) return;
+  syncedUid = me.uid;
+  // 雲端和這支手機的資料合併：暱稱、頭像以雲端為準，戰績取場數多的
+  const stats = Object.fromEntries(Object.keys(GOALS).map((g) => [g, loadStats(g)]));
+  const p = await syncProfile({ name: $('#nickname').value.trim() || store.get('wikirace-name') || '', avatar: state.myAvatar, stats });
+  if (p) {
+    if (p.n && !badName(p.n)) {
+      store.set('wikirace-name', p.n);
+      if (document.activeElement !== $('#nickname')) $('#nickname').value = p.n;
+    }
+    if (cleanAvatar(p.a)) { state.myAvatar = cleanAvatar(p.a); store.set('wikirace-avatar', state.myAvatar); }
+    paintAvatar($('#home-avatar'), { name: $('#nickname').value, avatar: state.myAvatar });
+    for (const [g, st] of Object.entries(p.st || {})) store.set(statsKey(g), JSON.stringify(st));
+    renderStats();
+  }
+  // 今天的每日挑戰：之前沒登入、成績還沒上榜的，現在補上
+  const key = todayKey();
+  resendDaily(key).then(() => {
+    refreshDailyHome();
+    const d = state.daily;
+    if (d && d.key === key && !$('#daily-result').hidden) { paintDailyLogin(d); refreshDailyRank(d); if (myDay(key)?.sent) $('#dres-sub').textContent = '正式成績已登上今日排行榜，分享給朋友比比看！'; }
+    if (!$('#daily-modal').hidden) renderDailyBoard(key);
+  });
+}
+async function doLogin(btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const r = await login();
+    // 這個 Google 帳號以前就登入過（別的手機）：換成那個身分，重新載入一次
+    if (r.switched) { toast('已登入！換成你原本的帳號…', 2000); setTimeout(() => location.reload(), 700); return; }
+    if (r.ok) { toast('✅ 已用 Google 登入：戰績會存在雲端', 2500); onAccountChange(account()); }
+  } catch (e) {
+    toast(e.message, 4000);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+function initAccountUi() {
+  onAccount((me) => onAccountChange(me));
+  initAccount();
+  paintAccount();
+  $('#acct-btn').onclick = async () => {
+    const me = account();
+    if (!me) { doLogin($('#acct-btn')); return; }
+    if (!confirm(`已用 Google 登入：${me.email}\n要登出嗎？（登出後這支手機的戰績還在，之後再登入會接回來）`)) return;
+    await logout();
+    location.reload();
+  };
+  $('#dres-login-btn').onclick = () => doLogin($('#dres-login-btn'));
+  $('#daily-login-btn').onclick = () => doLogin($('#daily-login-btn'));
+}
+
 // ---------- 搶分賽 ----------
 // 房主出題：從熱門條目出發，沿著連結隨機走幾步，走到的地方就是終點（保證走得到）；困難就是完全隨機的兩個條目
 const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q) => q && typeof q.s === 'string' && typeof q.t === 'string').map((q) => ({ s: q.s.slice(0, 200), t: q.t.slice(0, 200) })) : []);
@@ -5115,7 +5197,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=102').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=103').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {
@@ -5849,6 +5931,7 @@ if (!adminWatchKey && !location.hash.startsWith('#replay=')) {
     $('#online-chip').hidden = !(n > 0);
   });
 }
+initAccountUi();
 initRoom();
 initGame();
 initResult();

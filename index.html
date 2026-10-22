@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=102">
+  <link rel="stylesheet" href="style.css?v=103">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=102"></script>
+  <script src="firebase-config.js?v=103"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -74,6 +74,7 @@
     <section class="page">
       <div class="card">
         <div class="profile-row">
+          <button id="acct-btn" class="acct-pill" type="button" hidden><span class="g-dot" aria-hidden="true">G</span><span id="acct-label">登入</span></button>
           <button id="home-avatar-btn" class="avatar-edit" type="button" aria-label="換頭像" aria-expanded="false"><span class="avatar me-side" id="home-avatar">?</span><span class="avatar-edit-tag">換</span></button>
           <label class="field grow" for="nickname">
             <span class="field-label">你的暱稱</span>
@@ -468,6 +469,10 @@
       <div class="card daily-result" id="daily-result" hidden>
         <div class="dres-head"><b id="dres-title">📅 每日挑戰</b><span id="dres-rank" class="dres-rank"></span></div>
         <p id="dres-sub" class="dres-sub"></p>
+        <div id="dres-login" class="login-cta" hidden>
+          <p>🔐 <b>用 Google 登入</b>才能把成績登上今日排行榜，現在登入就會補上這一筆。</p>
+          <button id="dres-login-btn" class="btn google" type="button"><span class="g-dot" aria-hidden="true">G</span>用 Google 登入</button>
+        </div>
         <div class="dres-btns">
           <button id="dres-share" class="btn pink" type="button"><svg class="ic"><use href="#i-share"/></svg>分享成績</button>
           <button id="dres-board" class="btn" type="button">🏆 排行榜</button>
@@ -615,6 +620,7 @@
       <div id="daily-mine" class="daily-mine" hidden></div>
       <label class="field daily-name" for="daily-name" id="daily-name-row" hidden><span class="field-label">排行榜上的暱稱</span><input id="daily-name" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname"></label>
       <p id="daily-error" class="error" hidden></p>
+      <p id="daily-login" class="daily-login" hidden>🔐 沒登入也能玩，但要<button id="daily-login-btn" class="link-btn" type="button">用 Google 登入</button>成績才會上排行榜</p>
       <button id="daily-go" class="btn orange wide" type="button">開始挑戰</button>
       <button id="daily-share" class="btn pink" type="button" hidden><svg class="ic"><use href="#i-share"/></svg>分享成績</button>
       <div class="daily-stats">
@@ -768,6 +774,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=102"></script>
+  <script type="module" src="app.js?v=103"></script>
 </body>
 </html>

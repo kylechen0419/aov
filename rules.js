@@ -2,7 +2,7 @@
 // 原則：玩家（匿名登入）只能寫自己的東西、成績不能覆蓋、欄位要合理；公告、踢人、關房、通知設定只有管理員能改。
 // 規則的版本：每次改規則就加一。後台會試著讀 rulesv/v<版本>（只有這一版的規則開放這個路徑），
 // 讀得到就是 Firebase 上已經發布最新的規則，讀不到就提醒管理員重新複製發布
-export const RULES_VERSION = 4;
+export const RULES_VERSION = 5;
 
 export function rulesFor(adminUid) {
   const uid = String(adminUid || '').replace(/[^A-Za-z0-9_-]/g, '');
@@ -11,6 +11,8 @@ export function rulesFor(adminUid) {
   const DAY = '((now + 28800000 - (now + 28800000) % 86400000) / 86400000)';
   // 被管理員踢出伺服器的人：期限內什麼都不能寫
   const ok = "(!root.child('ban').child(auth.uid).exists() || root.child('ban').child(auth.uid).child('until').val() < now)";
+  // 用 Google 登入的玩家（匿名身分沒有 email）
+  const google = 'auth.token.email != null && auth.token.email_verified === true';
   const roomOwner = "root.child('rooms').child($code).child('owner').val() === auth.uid";
   return {
     rules: {
@@ -22,6 +24,30 @@ export function rulesFor(adminUid) {
           '.validate': "newData.child('u').val() === auth.uid && newData.child('t').isNumber()",
           u: { '.validate': true },
           t: { '.validate': true },
+          $other: { '.validate': false },
+        },
+      },
+      // 玩家帳號（Google 登入）：暱稱、頭像、戰績；本人讀寫，管理員看得到（認出同一個人）
+      users: {
+        '.read': admin,
+        $uid: {
+          '.read': `auth != null && (auth.uid === $uid || ${admin})`,
+          '.write': `auth != null && auth.uid === $uid && ${google} && ${ok}`,
+          n: { '.validate': 'newData.isString() && newData.val().length <= 16' },
+          a: { '.validate': 'newData.isString() && newData.val().length <= 20' },
+          e: { '.validate': 'newData.isString() && newData.val() === auth.token.email' },
+          g: { '.validate': 'newData.isString() && newData.val().length <= 60' },
+          at: { '.validate': 'newData.isNumber() && newData.val() <= now + 60000' },
+          st: {
+            $goal: {
+              '.validate': "$goal === 'speed' || $goal === 'steps' || $goal === 'items' || $goal === 'isteps' || $goal === 'rush'",
+              w: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000' },
+              l: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000' },
+              d: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000' },
+              streak: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000' },
+              $other: { '.validate': false },
+            },
+          },
           $other: { '.validate': false },
         },
       },
@@ -175,7 +201,8 @@ export function rulesFor(adminUid) {
           $date: {
             '.read': true,
             $uid: {
-              '.write': `auth != null && auth.uid === $uid && !data.exists() && ${ok}`,
+              // 只收用 Google 登入的玩家（一個帳號一筆，不能開一堆匿名身分刷榜）
+              '.write': `auth != null && auth.uid === $uid && !data.exists() && ${google} && ${ok}`,
               '.validate': "newData.child('n').isString() && newData.child('n').val().length <= 16 && newData.child('s').isNumber() && newData.child('t').isNumber()",
               // 走過的路線：每一站是條目名稱
               p: { $i: { '.validate': 'newData.isString() && newData.val().length <= 120' } },
