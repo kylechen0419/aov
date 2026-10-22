@@ -16,9 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=103">
+  <link rel="stylesheet" href="style.css?v=104">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=103"></script>
+  <script src="firebase-config.js?v=104"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -696,6 +696,37 @@
     </div>
   </div>
 
+  <!-- 還沒取暱稱就要開始玩：先取一個 -->
+  <div id="name-modal" class="modal" hidden>
+    <div class="modal-card ask-card" role="dialog" aria-modal="true" aria-labelledby="name-title">
+      <div class="ask-emoji" aria-hidden="true">✏️</div>
+      <h2 id="name-title">先取一個暱稱</h2>
+      <p class="ask-sub">其他玩家和排行榜上會看到這個名字</p>
+      <input id="name-input" class="ask-input" maxlength="16" placeholder="輸入暱稱" autocomplete="nickname" enterkeyhint="go">
+      <p id="name-error" class="error" hidden></p>
+      <button id="name-go" class="btn primary wide" type="button">好了，開始！</button>
+      <button id="name-cancel" class="btn ghost wide" type="button">取消</button>
+    </div>
+  </div>
+
+  <!-- 10 分鐘沒有動作：問還在不在 -->
+  <div id="idle-modal" class="modal idle-modal" hidden>
+    <div class="modal-card ask-card" role="alertdialog" aria-modal="true" aria-labelledby="idle-title">
+      <div class="ask-emoji" aria-hidden="true">👀</div>
+      <h2 id="idle-title">你還在嗎？</h2>
+      <p class="ask-sub">已經 10 分鐘沒有動作了。<b id="idle-left" class="idle-left">60</b> 秒內沒按，就會<span id="idle-what">離開房間</span>。</p>
+      <button id="idle-stay" class="btn primary wide" type="button">我還在！</button>
+    </div>
+  </div>
+  <div id="away-screen" class="modal away-screen" hidden>
+    <div class="modal-card ask-card" role="dialog" aria-modal="true" aria-labelledby="away-title">
+      <div class="ask-emoji" aria-hidden="true">💤</div>
+      <h2 id="away-title">你離開一陣子了</h2>
+      <p class="ask-sub" id="away-text">超過 10 分鐘沒有動作，已經先幫你離開。</p>
+      <button id="away-back" class="btn primary wide" type="button">我回來了</button>
+    </div>
+  </div>
+
   <div id="tutorial" class="modal tutorial" hidden>
     <div class="modal-card tut-card" role="dialog" aria-modal="true" aria-labelledby="tut-title">
       <button id="tut-skip" class="tut-skip" type="button">略過</button>
@@ -774,6 +805,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=103"></script>
+  <script type="module" src="app.js?v=104"></script>
 </body>
 </html>

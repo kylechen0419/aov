@@ -1,17 +1,17 @@
-import { Net } from './net.js?v=103';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=103';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=103';
-import { initNotify, notify } from './notify.js?v=103';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=103';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=103';
-import { reportError, catchErrors } from './errors.js?v=103';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=103';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=103';
-import * as wiki from './wiki.js?v=103';
-import { tw, twTree, zhReady } from './zh.js?v=103';
-import { makeShareImage } from './share.js?v=103';
-import { solve } from './solver.js?v=103';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=103';
+import { Net } from './net.js?v=104';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=104';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=104';
+import { initNotify, notify } from './notify.js?v=104';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=104';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=104';
+import { reportError, catchErrors } from './errors.js?v=104';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=104';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=104';
+import * as wiki from './wiki.js?v=104';
+import { tw, twTree, zhReady } from './zh.js?v=104';
+import { makeShareImage } from './share.js?v=104';
+import { solve } from './solver.js?v=104';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=104';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -622,10 +622,15 @@ function selectedMode() {
   return document.querySelector('input[name="mode"]:checked')?.value || 'duel';
 }
 
+// 畫面上用來指「自己」的字，不能拿來當暱稱（不然線上名單一堆人叫「你」）
+const RESERVED_NAMES = ['你', '我', '玩家', '自己'];
+const reservedName = (n) => RESERVED_NAMES.includes(String(n || '').trim());
+
 function getName() {
   const n = $('#nickname').value.trim();
   if (!n) { showError('#home-error', '請先輸入暱稱'); $('#nickname').focus(); return null; }
   if (badName(n)) { showError('#home-error', '這個暱稱不太好，換一個吧'); $('#nickname').focus(); return null; }
+  if (reservedName(n)) { showError('#home-error', `「${n}」不能當暱稱，取一個專屬的名字吧`); $('#nickname').focus(); return null; }
   store.set('wikirace-name', n);
   return n;
 }
@@ -664,7 +669,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=103').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=104').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -1715,7 +1720,7 @@ function openSolo() {
 }
 
 function initSolo() {
-  $('#btn-solo').onclick = openSolo;
+  $('#btn-solo').onclick = async () => { if (await askName()) openSolo(); };
   $('#btn-newbie').onclick = startNewbie;
   $('#btn-rush-skip').onclick = rushSkip;
   $('#solo-close').onclick = () => { $('#solo-modal').hidden = true; };
@@ -1746,7 +1751,7 @@ async function startTraining() {
   btn.textContent = '準備路線中…';
   $('#solo-error').hidden = true;
   try {
-    soloSetup($('#nickname').value.trim() || '你');
+    soloSetup($('#nickname').value.trim() || store.get('wikirace-name') || '玩家');
     state.daily = null;
     const s = {
       ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed',
@@ -1985,6 +1990,12 @@ async function startDaily() {
   if (badName(name)) {
     $('#daily-name-row').hidden = false;
     showError('#daily-error', '這個暱稱不太好，換一個吧');
+    $('#daily-name').focus();
+    return;
+  }
+  if (reservedName(name)) {
+    $('#daily-name-row').hidden = false;
+    showError('#daily-error', `「${name}」不能當暱稱，取一個專屬的名字吧`);
     $('#daily-name').focus();
     return;
   }
@@ -4215,7 +4226,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=103')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=104')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5115,6 +5126,97 @@ function runCoach() {
   place();
 }
 
+// ---------- 暱稱一定要取 ----------
+// 單人訓練、新手第一局：還沒有暱稱就先跳出視窗取一個（線上名單、排行榜上才不會一堆人沒名字）
+function askName() {
+  const cur = $('#nickname').value.trim();
+  if (cur && !badName(cur) && !reservedName(cur)) { store.set('wikirace-name', cur); return Promise.resolve(cur); }
+  return new Promise((resolve) => {
+    const m = $('#name-modal');
+    m.hidden = false;
+    $('#name-input').value = cur;
+    showError('#name-error', !cur ? '' : reservedName(cur) ? `「${cur}」不能當暱稱，取一個專屬的名字吧` : '這個暱稱不太好，換一個吧');
+    setTimeout(() => $('#name-input').focus(), 60);
+    const done = (v) => { m.hidden = true; resolve(v); };
+    $('#name-go').onclick = () => {
+      const n = $('#name-input').value.trim();
+      if (!n) { showError('#name-error', '請輸入暱稱'); $('#name-input').focus(); return; }
+      if (badName(n)) { showError('#name-error', '這個暱稱不太好，換一個吧'); $('#name-input').focus(); return; }
+      if (reservedName(n)) { showError('#name-error', `「${n}」不能當暱稱，取一個專屬的名字吧`); $('#name-input').focus(); return; }
+      $('#nickname').value = n;
+      store.set('wikirace-name', n);
+      $('#nickname').dispatchEvent(new Event('input'));
+      saveProfile({ n });
+      done(n);
+    };
+    $('#name-input').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#name-go').click(); } };
+    $('#name-cancel').onclick = () => done(null);
+  });
+}
+
+// ---------- 閒置檢查 ----------
+// 10 分鐘沒有任何動作（點、滑、打字）就問「你還在嗎？」，1 分鐘內沒按就離開：
+// 在房間或多人比賽中＝離開房間（房主交給下一位），其他時候＝離開線上名單、顯示「你離開一陣子了」。
+// 觀戰中、倒數中不檢查（本來就不用碰螢幕）。
+const IDLE_MS = 10 * 60 * 1000;
+let idleGrace = 60 * 1000;
+let lastAct = Date.now();
+let idleTimer = null;
+let away = false;
+function idleExempt() {
+  return state.view === 'watch' || !$('#countdown').hidden || !!adminWatchKey || !$('#away-screen').hidden;
+}
+function checkIdle() {
+  if (away || !$('#idle-modal').hidden) return;
+  if (idleExempt()) { lastAct = Date.now(); return; }
+  if (Date.now() - lastAct >= IDLE_MS) openIdle();
+}
+const inRoomNow = () => !!net.code && !state.solo;
+function openIdle() {
+  const m = $('#idle-modal');
+  m.hidden = false;
+  $('#idle-what').textContent = inRoomNow() ? '離開房間' : '離開線上名單';
+  sfx.alarm();
+  haptic('warning');
+  const end = Date.now() + idleGrace;
+  const tickIdle = () => {
+    const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+    $('#idle-left').textContent = String(left);
+    if (left <= 0) { clearInterval(idleTimer); goAway(); }
+  };
+  tickIdle();
+  clearInterval(idleTimer);
+  idleTimer = setInterval(tickIdle, 250);
+  $('#idle-stay').onclick = () => { clearInterval(idleTimer); m.hidden = true; lastAct = Date.now(); };
+}
+function goAway() {
+  $('#idle-modal').hidden = true;
+  away = true;
+  try { sessionStorage.setItem('wikirace-away', inRoomNow() ? 'room' : 'online'); } catch { /* 忽略 */ }
+  if (inRoomNow()) {
+    // 房主不見：房間交給下一位（跟按「離開」一樣），沒有其他人就直接關掉
+    const next = net.isHost && onlineGuests()[0];
+    if (next) migrateHost(next.id, { leaving: true });
+    else leaveRoom();
+    return;
+  }
+  showAway('online');
+}
+function showAway(kind) {
+  away = true;
+  leaveOnline();
+  $('#away-text').textContent = kind === 'room' ? '超過 10 分鐘沒有動作，已經幫你離開房間了。' : '超過 10 分鐘沒有動作，已經先把你從線上名單拿掉。';
+  $('#away-screen').hidden = false;
+}
+function initIdle() {
+  for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll']) {
+    addEventListener(ev, () => { if (!away && $('#idle-modal').hidden) lastAct = Date.now(); }, { capture: true, passive: true });
+  }
+  setInterval(checkIdle, 5000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkIdle(); });
+  $('#away-back').onclick = () => { try { sessionStorage.removeItem('wikirace-away'); } catch { /* 忽略 */ } location.reload(); };
+}
+
 // ---------- 帳號（Google 登入） ----------
 // 不登入也能玩；登入之後暱稱、頭像、戰績存在雲端，每日挑戰的成績才會上排行榜
 const fbOn = () => !!window.WIKIRACE_FIREBASE?.databaseURL;
@@ -5197,7 +5299,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=103').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=104').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {
@@ -5358,10 +5460,11 @@ function renderNewbieHome() {
 let newbieBusy = false;
 async function startNewbie() {
   if (newbieBusy) return;
+  const path = NEWBIE[Math.floor(Math.random() * NEWBIE.length)];
+  if (!(await askName())) return;  // 一定要先取暱稱
   newbieBusy = true;
   const btn = $('#btn-newbie');
   btn.disabled = true;
-  const path = NEWBIE[Math.floor(Math.random() * NEWBIE.length)];
   const s = { ...DEFAULT_SETTINGS, lang: 'zh', goal: 'speed', start: path[0], target: path[path.length - 1], allowBack: true, trueRandom: false, allowFind: false, newbie: path };
   try {
     // 換成維基百科上的正式標題（抵達終點要比對標題）
@@ -5375,7 +5478,7 @@ async function startNewbie() {
     btn.disabled = false;
   }
   if (state.view !== 'home') return;
-  soloSetup($('#nickname').value.trim() || '你');
+  soloSetup($('#nickname').value.trim());
   state.daily = null;
   state.settings = s;
   for (const m of ['#solo-modal', '#tutorial', '#daily-modal']) $(m).hidden = true;
@@ -5880,7 +5983,7 @@ window.addEventListener('beforeunload', (e) => {
 window.addEventListener('pagehide', (e) => { if (!e.persisted) net.destroy(); });
 
 // 測試用：讓自動化測試可以模擬斷線
-window.__wikirace = { net, state };
+window.__wikirace = { net, state, idle: { ago(ms) { lastAct = Date.now() - ms; checkIdle(); }, grace(ms) { idleGrace = ms; } } };  // idle：測試用（不用真的等 10 分鐘）
 
 // ---------- 自動更新：網站更新後，開著的分頁（或加到主畫面的捷徑）不會自己換新版 ----------
 // 每隔一下、或切回這個分頁時，偷看伺服器上的 index.html 用的是第幾版；比自己新就更新：
@@ -5925,7 +6028,12 @@ initHome();
 // 管理員從後台打開觀戰（?adminwatch=<玩家 key>）：這個分頁只用來觀戰，不算一個在線玩家
 const adminWatchKey = new URLSearchParams(location.search).get('adminwatch');
 // 從後台打開的重播連結（#replay=…）也不算一個在線玩家
-if (!adminWatchKey && !location.hash.startsWith('#replay=')) {
+// 上次因為閒置太久被請出去：先顯示「你離開一陣子了」，按「我回來了」才重新算在線上
+let awayKind = null;
+try { awayKind = sessionStorage.getItem('wikirace-away'); } catch { /* 忽略 */ }
+if (awayKind) showAway(awayKind);
+else if (!adminWatchKey) initIdle();
+if (!adminWatchKey && !awayKind && !location.hash.startsWith('#replay=')) {
   initPresence((n) => {
     $('#online-count').textContent = n.toLocaleString('en-US');
     $('#online-chip').hidden = !(n > 0);

@@ -1608,3 +1608,15 @@ body.replaying { overflow: hidden; }
 .login-cta[hidden], .daily-login[hidden] { display: none; }
 .daily-login { margin: 0; font-size: 12px; color: var(--muted); text-align: center; line-height: 1.6; }
 .daily-login .link-btn { font-size: 12px; padding: 0 2px; }
+
+/* 取暱稱、還在嗎、離開一陣子：同一種簡單的小視窗 */
+.ask-card { width: min(100%, 360px); text-align: center; padding: 22px 18px 18px; gap: 12px; }
+.ask-card h2 { margin: 0; font-size: 22px; color: var(--ink); }
+.ask-emoji { font-size: 44px; line-height: 1; }
+.ask-sub { margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted); }
+.ask-input { font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--card-2); color: var(--ink); text-align: center; }
+.ask-input:focus { outline: none; border-color: var(--blue); background: #fff; }
+.idle-modal, .away-screen { z-index: 120; }
+.idle-left { display: inline-block; min-width: 1.6em; color: var(--red, #ff4d6d); font-size: 18px; }
+.idle-modal .modal-card { animation: feedIn .3s cubic-bezier(.2, 1.4, .4, 1), idleNudge 1.6s ease-in-out .6s infinite; }
+@keyframes idleNudge { 0%, 100% { transform: none; } 8% { transform: rotate(-2deg); } 16% { transform: rotate(2deg); } 24% { transform: none; } }
