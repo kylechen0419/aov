@@ -3099,6 +3099,7 @@ function renderFind() {
   for (const a of $('#article').querySelectorAll('a.wl')) {
     const title = a.dataset.title;
     if (!title || seen.has(title)) continue;
+    if (!a.getClientRects().length) continue;  // 藏起來的連結（看不到、也捲不過去）不列
     const text = a.textContent.replace(/\s+/g, ' ').trim();
     const name = tw(title);
     if (q && !(`${text} ${name}`.toLowerCase().includes(q) || `${text} ${name}`.toLowerCase().includes(tw(q)))) continue;
@@ -3118,14 +3119,26 @@ function renderFind() {
   }));
 }
 // 捲到那個連結、閃一下（要不要點還是玩家自己決定）
+// 手機上鍵盤收起來時畫面高度會變，平滑捲動會被打斷、停在半路：先等鍵盤收好再捲，捲完再確認一次有沒有停在那個字上
 function jumpToLink(a) {
+  const kb = !!window.visualViewport && visualViewport.height < innerHeight - 80;
   closeFind();
   if (!a.isConnected) return;
-  a.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  a.classList.remove('find-hit');
-  void a.offsetWidth;
-  a.classList.add('find-hit');
-  setTimeout(() => a.classList.remove('find-hit'), 2600);
+  const go = (behavior) => a.scrollIntoView({ behavior, block: 'center', inline: 'nearest' });
+  const visible = () => {
+    const r = a.getBoundingClientRect();
+    const top = $('#hud').getBoundingClientRect().bottom;
+    const bottom = Math.min(innerHeight, document.querySelector('#view-game .tabbar')?.getBoundingClientRect().top || innerHeight);
+    return r.height > 0 && r.top >= top && r.bottom <= bottom;
+  };
+  setTimeout(() => {
+    go('smooth');
+    a.classList.remove('find-hit');
+    void a.offsetWidth;
+    a.classList.add('find-hit');
+    setTimeout(() => a.classList.remove('find-hit'), 2600);
+    setTimeout(() => { if (a.isConnected && !visible()) go('auto'); }, 900);
+  }, kb ? 350 : 0);
 }
 
 function feed(parts, tag, color) {
