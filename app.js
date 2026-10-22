@@ -1,16 +1,16 @@
-import { Net } from './net.js?v=101';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=101';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=101';
-import { initNotify, notify } from './notify.js?v=101';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=101';
-import { reportError, catchErrors } from './errors.js?v=101';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=101';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=101';
-import * as wiki from './wiki.js?v=101';
-import { tw, twTree, zhReady } from './zh.js?v=101';
-import { makeShareImage } from './share.js?v=101';
-import { solve } from './solver.js?v=101';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=101';
+import { Net } from './net.js?v=102';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=102';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=102';
+import { initNotify, notify } from './notify.js?v=102';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=102';
+import { reportError, catchErrors } from './errors.js?v=102';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=102';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=102';
+import * as wiki from './wiki.js?v=102';
+import { tw, twTree, zhReady } from './zh.js?v=102';
+import { makeShareImage } from './share.js?v=102';
+import { solve } from './solver.js?v=102';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=102';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -661,7 +661,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=101').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=102').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2162,6 +2162,7 @@ function createGame(settings, id) {
     timer: null,
     heart: null,
   };
+  targetSet(settings);  // 先查好終點的別名，第一頁就能標出金色連結
   if (rush) Object.assign(state.game, { rushQ: cleanRushQ(state.settings.rush), rushIdx: 0, score: 0, scoreAt: 0, skips: RUSH_SKIPS, rushWait: false });
   const party = isParty();
   const me = state.players.get(state.myId);
@@ -2525,7 +2526,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
     $('#path-count').textContent = g.path.length;
     $('#btn-back').disabled = g.stack.length === 0;
 
-    const reached = art.title === g.settings.target;
+    const reached = art.title === g.settings.target || isTargetLink(art.title, g.settings);  // 終點用別的名字（重新導向、簡繁）也算
     const near = !reached && !!$('#article a.is-target');
     if (near && !g.near) { sfx.near(); haptic('success'); }
     g.near = near;
@@ -2611,6 +2612,44 @@ function restoreSpot(spot) {
 }
 
 // 把條目內容放進畫面：比賽和觀戰共用
+// 終點的所有名字（重新導向、簡繁寫法）：條目裡的連結常常用別的名字連到終點，也要標成金色
+const nameKey = (lang) => (lang === 'zh' ? (t) => tw(t) : (t) => t);
+const targetNames = new Map();  // 「語言:終點」→ 名字的集合（還在查就是 Promise）
+function targetSet(settings) {
+  if (!settings?.target) return null;
+  const k = `${settings.lang}:${settings.target}`;
+  const v = targetNames.get(k);
+  if (v instanceof Set) return v;
+  if (!v) {
+    targetNames.set(k, namesOf(settings.lang, settings.target, nameKey(settings.lang)).then(
+      (set) => { targetNames.set(k, set); return set; },
+      () => { targetNames.delete(k); return null; },
+    ));
+  }
+  return null;
+}
+const isTargetLink = (t, settings, names = targetSet(settings)) => {
+  const key = nameKey(settings.lang);
+  return t === settings.target || key(t) === key(settings.target) || !!names?.has(key(t));
+};
+// 終點的別名查好之後，把這一頁漏掉的終點連結補標起來；比賽中的話也補上「終點就在這一頁」
+function markTargets(root, settings, names) {
+  let added = false;
+  for (const a of root.querySelectorAll('a.wl:not(.is-target)')) {
+    if (isTargetLink(a.dataset.title, settings, names)) { a.classList.add('is-target'); added = true; }
+  }
+  const g = state.game;
+  if (!added || root !== $('#article') || !g || g.settings !== settings || g.finished || g.loading || g.near) return;
+  g.near = true;
+  sfx.near();
+  haptic('success');
+  $('#hud-alert-me').hidden = false;
+  $('#hud-alert-me').textContent = '終點連結就在這一頁！快找！';
+  g.dist = 1;
+  sendProgress({ t: 'progress', title: g.current, clicks: g.clicks, near: true, path: g.path, d: 1 });
+  if (g.settings.newbie) newbieStep(g);
+}
+
 function fillArticle(root, titleEl, art, settings) {
   const tmp = document.createElement('div');
   tmp.innerHTML = art.displayTitle || art.title;
@@ -2623,7 +2662,7 @@ function fillArticle(root, titleEl, art, settings) {
   // 表格裡字多的格子給夠寬度（手機上表格在自己的框裡左右捲，不要把文字擠成一個字一行）
   root.querySelectorAll('td, th').forEach((c) => { const n = c.textContent.trim().length; if (n > 24) c.classList.add('cell-long'); else if (n > 8) c.classList.add('cell-mid'); });
   if (settings.lang === 'zh') twTree(root);
-  const target = settings.target;
+  const names = targetSet(settings);
   root.querySelectorAll('a').forEach((a) => {
     const href = a.getAttribute('href') || '';
     if (href.startsWith('#')) return;
@@ -2631,12 +2670,19 @@ function fillArticle(root, titleEl, art, settings) {
     if (t) {
       a.dataset.title = t;
       a.classList.add('wl');
-      if (t === target) a.classList.add('is-target');
+      if (isTargetLink(t, settings, names)) a.classList.add('is-target');
     } else {
       a.classList.add('dead');
     }
     a.removeAttribute('target');
   });
+  // 終點的別名還在查：查好再補標（這一頁還在畫面上才補）
+  root.dataset.page = art.title;
+  if (!names && settings.target) {
+    const pending = targetNames.get(`${settings.lang}:${settings.target}`);
+    const target = settings.target;
+    pending?.then?.((set) => { if (set && root.isConnected && root.dataset.page === art.title && settings.target === target) markTargets(root, settings, set); });
+  }
   // 維基百科的內容依 CC BY-SA 授權：每一頁下面標出處和授權
   const credit = root.parentElement?.querySelector('.wiki-credit');
   if (credit) {
@@ -4162,7 +4208,7 @@ function applyHintTally(msg) {
 async function nearTarget(g) {
   const { set, key } = await loadBackSet(g);
   let pop = new Set();
-  try { pop = new Set((await import('./topics.js?v=101')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
+  try { pop = new Set((await import('./topics.js?v=102')).TOPICS.map(key)); } catch { /* 題庫讀不到：照名字長短挑 */ }
   const avoid = new Set([key(g.settings.target), key(g.settings.start), ...g.path.map(key)]);
   const all = [...set].filter((t) => !avoid.has(t) && !/[:：]/.test(t));
   const hash = (t) => { let h = 2166136261; for (const c of `${g.id}|${t}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -5069,7 +5115,7 @@ const cleanRushQ = (list) => (Array.isArray(list) ? list.slice(0, 120).filter((q
 const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.test(t);
 let popularKeys = null;
 async function popularOf(key) {
-  popularKeys ||= import('./topics.js?v=101').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=102').then((m) => m.TOPICS).catch(() => []);
   return new Set((await popularKeys).map(key));
 }
 async function rushPuzzle(s) {
@@ -5144,6 +5190,7 @@ function rushGo(g) {
   g.rushWait = false;
   g.settings.start = q.s;
   g.settings.target = q.t;
+  targetSet(g.settings);
   g.path = [];
   g.stack = [];
   g.spots = [];
