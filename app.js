@@ -3262,20 +3262,24 @@ function renderGoal() {
   el.classList.remove('hot');
   if (best === null) { el.textContent = '👣 比步數'; return; }
   if (g.mode === 'party' || g.finished) { el.textContent = `最佳 ${best} 步`; return; }
+  if (g.outstepped) { el.textContent = `追不上了（對手 ${best} 步）· 可以走完或投降`; return; }
   const left = best - 1 - g.clicks;
   el.textContent = `${best - 1} 步內抵達才能贏 · 剩 ${Math.max(0, left)} 步`;
   el.classList.add('hot');
 }
 
-// 對決比步數：對手已經抵達，而你再怎麼走都不會比他少，就直接結束
+// 對決比步數：對手已經抵達，而你再怎麼走都不會比他少——勝負已定（你輸了），
+// 但比賽不會被結束：可以繼續走到終點或投降，先抵達的對手可以一直觀戰
 function checkOutstepped() {
   const g = state.game;
   if (!g || g.finished || !isSteps(g) || g.mode === 'party') return false;
+  if (g.outstepped) return true;
   const best = bestSteps(g);
   // 下一步就抵達也要 clicks + 1 步，一樣多步時先抵達的對手贏
   if (best === null || g.clicks + 1 < best) return false;
-  toast(`步數已經追不上了（對手 ${best} 步）`, 3000);
-  finishGame('over');
+  g.outstepped = best;
+  toast(`步數已經追不上了（對手 ${best} 步）。可以繼續走完，或按投降結束`, 4000);
+  renderGoal();
   return true;
 }
 
@@ -3470,8 +3474,8 @@ function outcomeDuel(g) {
       if (me.clicks !== opp.clicks) return me.clicks < opp.clicks ? 'win' : 'lose';
       return me.elapsed === opp.elapsed ? 'draw' : (me.elapsed < opp.elapsed ? 'win' : 'lose');
     }
-    // 你先抵達，對手還在走：等他走完才知道勝負
-    if (me.reason === 'win') return !opp && o && !o.left ? 'pending' : 'win';
+    // 你先抵達，對手還在走：他還有機會用更少的步數抵達就要等；已經追不上了（下一步就到也不會比你少）就算你贏，他可以繼續走完
+    if (me.reason === 'win') return !opp && o && !o.left && (o.clicks || 0) + 1 < me.clicks ? 'pending' : 'win';
     if (me.reason === 'over') return 'lose';
   }
   if (me.reason === 'win' && opp && opp.reason === 'win') {
