@@ -104,6 +104,7 @@
   .who-kick { font-size: 12px; font-weight: 800; color: var(--red); background: #4a1530; padding: 4px 10px; border-radius: 999px; border: 0; cursor: pointer; font-family: inherit; }
   .who-row .st .who-watch + .who-kick { margin-left: 0; }
   .who-row .st .who-kick:first-of-type { margin-left: auto; }
+  .who-me { margin-left: auto; font-size: 12px; font-weight: 800; color: #ffe08a; background: #4a3a10; padding: 4px 10px; border-radius: 999px; }
   .kick-pick { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); padding-top: 4px; }
   .kick-pick button { border: 0; font: inherit; font-weight: 800; font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer; background: var(--line); color: var(--ink); }
   .kick-pick button.go { background: #4a1530; color: var(--red); }
@@ -899,7 +900,9 @@
       const canWatch = w.st && ['game', 'result', 'watch', 'solo', 'daily'].includes(w.s);
       const watch = !canWatch ? '' : multiMode ? `<button class="who-pick ${multiSel.has(w.key) ? 'on' : ''}" type="button" data-key="${esc(w.key)}">${multiSel.has(w.key) ? '✓ 已選' : '選擇'}</button>` : `<a class="who-watch" href="index.html?adminwatch=${encodeURIComponent(w.key)}" target="_blank" rel="noopener">👀 觀戰</a>`;
       const me = firebase.auth && firebase.auth().currentUser && firebase.auth().currentUser.uid === w.u;
-      const kick = w.u && !me ? `<button class="who-kick" type="button" data-uid="${esc(w.u)}" data-name="${esc(w.n || '')}">🚫 踢出</button>` : '';
+      // 自己（跟後台同一個瀏覽器、同一個 Google 帳號）不能踢，標出來免得以為按鈕壞了
+      const kick = me ? '<span class="who-me" title="這是你自己（跟後台同一個登入身分），不能踢出自己">👑 你自己</span>'
+        : w.u ? `<button class="who-kick" type="button" data-uid="${esc(w.u)}" data-name="${esc(w.n || '')}">🚫 踢出</button>` : '';
       const pick = kickOpen === w.u ? `<div class="kick-pick">踢出 ${esc(w.n || '這位玩家')}：<button class="go" data-min="10">10 分鐘</button><button class="go" data-min="1440">1 天</button><button class="go" data-min="0">永久</button><button class="no">取消</button></div>` : '';
       return `<div class="who-row ${w.s === 'home' ? 'home' : ''}"><span class="nm">${esc(w.n || '（還沒取暱稱）')}</span><span class="tm">${w.since ? '已 ' + ago(w.since) : ''}</span>`
         + `<div class="st">${tags.join('')}${watch}${kick}</div>${detail ? `<div class="dt">${detail}</div>` : ''}${pick}</div>`;
