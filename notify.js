@@ -1,7 +1,7 @@
 // 製作者的手機通知：有人開房間、開始比賽、單人訓練時，透過 ntfy（免費的推播 App）通知製作者的手機。
 // 頻道名稱和要通知哪些事件，由後台存在 Firebase 的 config/notify；沒設定就什麼都不送。
 // 通知內容刻意不放暱稱和房間代碼：ntfy 的頻道知道名字就看得到，詳細資料請到後台看。
-import { getDb } from './fb.js?v=109';
+import { getDb } from './fb.js?v=110';
 
 export const NTFY = 'https://ntfy.sh';
 const TAGS = { room: 'video_game', start: 'checkered_flag', solo: 'dart', test: 'bell' };

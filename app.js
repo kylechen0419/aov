@@ -1,18 +1,18 @@
 // 維基競速 © 2026 kylechen0419 保留所有權利。未經同意不得複製、修改或另外架設（見 LICENSE）。
-import { Net } from './net.js?v=109';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=109';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=109';
-import { initNotify, notify } from './notify.js?v=109';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=109';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=109';
-import { reportError, catchErrors } from './errors.js?v=109';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=109';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=109';
-import * as wiki from './wiki.js?v=109';
-import { tw, twTree, zhReady } from './zh.js?v=109';
-import { makeShareImage } from './share.js?v=109';
-import { solve } from './solver.js?v=109';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=109';
+import { Net } from './net.js?v=110';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=110';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=110';
+import { initNotify, notify } from './notify.js?v=110';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=110';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=110';
+import { reportError, catchErrors } from './errors.js?v=110';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=110';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=110';
+import * as wiki from './wiki.js?v=110';
+import { tw, twTree, zhReady } from './zh.js?v=110';
+import { makeShareImage } from './share.js?v=110';
+import { solve } from './solver.js?v=110';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=110';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -662,7 +662,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=109').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=110').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2700,7 +2700,14 @@ function fillArticle(root, titleEl, art, settings) {
 
   root.innerHTML = art.html;
   // 拿掉點不了的引用標記與參考文獻，條目比較清爽
-  root.querySelectorAll('.mw-editsection, .mw-empty-elt, script, sup.reference, .reflist, ol.references, .mw-references-wrap').forEach((el) => el.remove());
+  root.querySelectorAll('.mw-editsection, .mw-empty-elt, script, iframe, object, embed, sup.reference, .reflist, ol.references, .mw-references-wrap').forEach((el) => el.remove());
+  // 條目內容只當文字和連結用：拿掉裡面「點了就執行」的程式（例如維基百科手機版章節標題的 onclick="mfTempOpenSection(…)"，
+  // 我們這裡沒有那個函式，點了會報錯）和 javascript: 連結
+  for (const el of root.querySelectorAll('*')) {
+    for (const at of [...el.attributes]) {
+      if (/^on/i.test(at.name) || (/^(href|src|xlink:href)$/i.test(at.name) && /^\s*javascript:/i.test(at.value))) el.removeAttribute(at.name);
+    }
+  }
   root.querySelectorAll('img').forEach((img) => { img.loading = 'lazy'; img.decoding = 'async'; });
   // 表格裡字多的格子給夠寬度（手機上表格在自己的框裡左右捲，不要把文字擠成一個字一行）
   root.querySelectorAll('td, th').forEach((c) => { const n = c.textContent.trim().length; if (n > 24) c.classList.add('cell-long'); else if (n > 8) c.classList.add('cell-mid'); });
@@ -5421,7 +5428,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=109').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=110').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }
