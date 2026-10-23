@@ -1321,6 +1321,9 @@ html:has(#view-game:not([hidden])) { overflow-anchor: none; }
 .items-steps li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: start; font-size: 14px; line-height: 1.55; color: #4b4570; }
 .items-steps li > span { width: 28px; height: 28px; border-radius: 50%; background: var(--pink); color: #fff; font-weight: 900; display: grid; place-items: center; font-size: 14px; }
 .items-steps b { color: var(--ink); }
+.rush-steps li > span { background: var(--orange); }
+.rush-example { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--card-2, #f2f0fb); font-size: 14px; font-weight: 700; color: #4b4570; line-height: 1.5; }
+.room-items-help.rush { color: #c2560f; }
 .items-group { margin: 4px 6px 0; font-size: 13px; font-weight: 900; color: var(--muted); }
 .items-list li.atk i { background: #ffe7ec; border-radius: 10px; }
 .items-list li.self i { background: var(--green-t); border-radius: 10px; }

@@ -29,9 +29,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=110">
+  <link rel="stylesheet" href="style.css?v=111">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=110"></script>
+  <script src="firebase-config.js?v=111"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -166,7 +166,7 @@
         <div>
           <div class="eyebrow">房間代碼</div>
           <div class="room-code" id="room-code">-----</div>
-          <div id="room-goal" class="room-goal"></div><button id="btn-change-goal" class="room-change" type="button" hidden>✏️ 換玩法</button><button id="room-items-help" class="room-items-help" type="button" hidden>📖 道具說明</button>
+          <div id="room-goal" class="room-goal"></div><button id="btn-change-goal" class="room-change" type="button" hidden>✏️ 換玩法</button><button id="room-items-help" class="room-items-help" type="button" hidden>📖 道具說明</button><button id="room-rush-help" class="room-items-help rush" type="button" hidden>📖 搶分賽規則</button>
         </div>
         <div class="head-actions">
           <button id="btn-copy-link" class="btn pink small"><svg class="ic"><use href="#i-share"/></svg>邀請</button>
@@ -601,6 +601,20 @@
     </div>
   </div>
 
+  <div id="rush-modal" class="modal" hidden>
+    <div class="modal-card items-card rush-card" role="dialog" aria-modal="true" aria-labelledby="rush-title">
+      <div class="modal-head"><b id="rush-title">🏃 搶分賽怎麼玩</b><button id="rush-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
+      <ol class="items-steps rush-steps">
+        <li><span>1</span><div><b>一題接一題</b>：抵達這一題的終點就 <b>+1 分</b>，馬上換下一題，不用等別人。</div></li>
+        <li><span>2</span><div><b>大家的題目一樣</b>：每個人拿到的題目順序都相同，比的是時間內誰抵達最多題。</div></li>
+        <li><span>3</span><div><b>卡住就跳過</b>：每局可以跳過 <b>2 題</b>，跳過不加分。按一下「跳過」會先問你，3 秒內再按一次才會跳。</div></li>
+        <li><span>4</span><div><b>時間到比分數</b>：分數多的贏；一樣多分時，<b>總步數少的贏</b>。</div></li>
+      </ol>
+      <p class="rush-example">例：小明 3 分、共 12 步，小華 3 分、共 15 步 → <b>小明贏</b></p>
+      <button id="rush-ok" class="btn primary" type="button">我知道了！</button>
+    </div>
+  </div>
+
   <div id="music-modal" class="modal" hidden>
     <div class="modal-card music-card" role="dialog" aria-modal="true" aria-labelledby="music-title">
       <div class="modal-head"><b id="music-title">🎵 音樂設定</b><button id="music-close" class="icon-btn" type="button" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></div>
@@ -823,6 +837,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=110"></script>
+  <script type="module" src="app.js?v=111"></script>
 </body>
 </html>

@@ -1,18 +1,18 @@
 // 維基競速 © 2026 kylechen0419 保留所有權利。未經同意不得複製、修改或另外架設（見 LICENSE）。
-import { Net } from './net.js?v=110';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=110';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=110';
-import { initNotify, notify } from './notify.js?v=110';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=110';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=110';
-import { reportError, catchErrors } from './errors.js?v=110';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=110';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=110';
-import * as wiki from './wiki.js?v=110';
-import { tw, twTree, zhReady } from './zh.js?v=110';
-import { makeShareImage } from './share.js?v=110';
-import { solve } from './solver.js?v=110';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=110';
+import { Net } from './net.js?v=111';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=111';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=111';
+import { initNotify, notify } from './notify.js?v=111';
+import { getDb, getUid, authOff, onAuth } from './fb.js?v=111';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=111';
+import { reportError, catchErrors } from './errors.js?v=111';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=111';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=111';
+import * as wiki from './wiki.js?v=111';
+import { tw, twTree, zhReady } from './zh.js?v=111';
+import { makeShareImage } from './share.js?v=111';
+import { solve } from './solver.js?v=111';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=111';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -662,7 +662,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=110').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=111').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -938,6 +938,12 @@ function paintRoomGoal() {
   $('#row-timelimit').hidden = rush;
   form().querySelector('details[data-fold="route"]').hidden = rush;
   $('#rush-level-desc').textContent = (RUSH_LEVELS[state.settings.rushLevel] || RUSH_LEVELS.normal).desc;
+  $('#room-rush-help').hidden = !rush;
+  // 第一次玩搶分賽：進房間時先看一次規則
+  if (rush && state.view === 'room' && !store.get('wikirace-rush-guide') && $('#rush-modal').hidden && $('#items-modal').hidden && !state.rushGuideShown) {
+    state.rushGuideShown = true;
+    setTimeout(() => { if (state.view === 'room') $('#rush-modal').hidden = false; }, 400);
+  }
   // 第一次玩道具賽：進房間時先看一次教學
   if (goalItems(goal) && state.view === 'room' && !store.get('wikirace-items-guide') && $('#items-modal').hidden && !state.itemsGuideShown) {
     state.itemsGuideShown = true;
@@ -4768,6 +4774,12 @@ function initItems() {
   $('#items-ok').onclick = close;
   $('#items-close').onclick = close;
   $('#items-modal').addEventListener('click', (e) => { if (e.target.id === 'items-modal') close(); });
+  // 搶分賽規則
+  const closeRush = () => { $('#rush-modal').hidden = true; store.set('wikirace-rush-guide', '1'); };
+  $('#room-rush-help').onclick = () => { $('#rush-modal').hidden = false; };
+  $('#rush-ok').onclick = closeRush;
+  $('#rush-close').onclick = closeRush;
+  $('#rush-modal').addEventListener('click', (e) => { if (e.target.id === 'rush-modal') closeRush(); });
 }
 
 // ---------- 觀戰：比完的人看還在比的人 ----------
@@ -5208,13 +5220,22 @@ const COACH = [
   { sel: ['#article a.wl'], title: '點藍色連結前進', text: '每點一次算一步，看到金色的連結就是終點！' },
   { sel: ['.tabbar'], title: '下方的小工具', text: '走錯了按「上一頁」，也能看路線、丟表情或投降。' },
 ];
+// 第一次玩搶分賽：指出分數、這一題的終點、跳過鍵
+const COACH_RUSH = [
+  { sel: ['.hud-target'], title: '這一題的終點', text: '抵達就 +1 分，馬上換下一題！旁邊會顯示現在是第幾題。' },
+  { sel: ['.racer-steps'], title: '這是你的分數', text: '時間內搶越多分越好；同分時比總步數，步數少的贏。' },
+  { sel: ['#btn-rush-skip'], title: '卡住就跳過', text: '每局可以跳過 2 題（不加分）。按一下會先問你，再按一次才會跳。' },
+  { sel: ['#article a.wl'], title: '點藍色連結前進', text: '跟一般比賽一樣，只能點條目裡的連結。開始搶分吧！' },
+];
 
 function runCoach() {
-  if (store.get('wikirace-coach-done') || state.view !== 'game' || state.game?.finished) return;
+  const rush = isRush();
+  const steps = rush ? COACH_RUSH : COACH, key = rush ? 'wikirace-rush-coach-done' : 'wikirace-coach-done';
+  if (store.get(key) || state.view !== 'game' || state.game?.finished) return;
   const coach = $('#coach');
   let step = 0;
   const place = () => {
-    const s = COACH[step];
+    const s = steps[step];
     const el = s.sel.flatMap((q) => [...document.querySelectorAll(q)]).find((e) => {
       const r = e.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && r.top < innerHeight && r.bottom > 0;
@@ -5226,7 +5247,7 @@ function runCoach() {
     Object.assign(ring.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
     $('#coach-title').textContent = s.title;
     $('#coach-text').textContent = s.text;
-    $('#coach-step').textContent = `${step + 1} / ${COACH.length}　點一下繼續`;
+    $('#coach-step').textContent = `${step + 1} / ${steps.length}　點一下繼續`;
     const bubble = $('#coach-bubble');
     const below = r.bottom + 160 < innerHeight;
     bubble.style.top = below ? `${r.bottom + 14}px` : '';
@@ -5235,9 +5256,9 @@ function runCoach() {
   };
   const next = () => {
     step++;
-    if (step >= COACH.length || state.view !== 'game' || state.game?.finished) {
+    if (step >= steps.length || state.view !== 'game' || state.game?.finished) {
       coach.hidden = true;
-      store.set('wikirace-coach-done', '1');
+      store.set(key, '1');
       return;
     }
     place();
@@ -5428,7 +5449,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=110').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=111').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }
