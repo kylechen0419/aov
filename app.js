@@ -1,18 +1,18 @@
 // 維基競速 © 2026 kylechen0419 保留所有權利。未經同意不得複製、修改或另外架設（見 LICENSE）。
-import { Net } from './net.js?v=112';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=112';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=112';
-import { initNotify, notify } from './notify.js?v=112';
-import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=112';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=112';
-import { reportError, catchErrors } from './errors.js?v=112';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=112';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=112';
-import * as wiki from './wiki.js?v=112';
-import { tw, twTree, zhReady } from './zh.js?v=112';
-import { makeShareImage } from './share.js?v=112';
-import { solve } from './solver.js?v=112';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=112';
+import { Net } from './net.js?v=113';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=113';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=113';
+import { initNotify, notify } from './notify.js?v=113';
+import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=113';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=113';
+import { reportError, catchErrors } from './errors.js?v=113';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=113';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=113';
+import * as wiki from './wiki.js?v=113';
+import { tw, twTree, zhReady } from './zh.js?v=113';
+import { makeShareImage } from './share.js?v=113';
+import { solve } from './solver.js?v=113';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=113';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -664,7 +664,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=112').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=113').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -3760,12 +3760,14 @@ function showResult(update = false) {
   if (g.finished.reason === 'oppGaveUp') sub += '（對手投降）';
   if (g.finished.reason === 'oppLeft') sub += '（對手離線）';
   if (g.finished.reason === 'timeout' && !isRush(g)) sub += '（時間到）';
-  if (party && !allDone(g)) sub += '　等待其他玩家…';
+  if (party && !net.connected) sub += '　其他人都離線了';
+  else if (party && !allDone(g)) sub += '　等待其他玩家…';
   if (isSteps(g)) sub = `👣 比步數　${sub}`;
   $('#btn-share').disabled = res === 'pending';
   $('#result-sub').textContent = sub;
-  $('#btn-rematch').disabled = !net.connected;
-  $('#btn-rematch').textContent = net.connected ? '再來一局' : (party ? '其他人都離線了' : '對手已離線');
+  // 其他人都離線了：不能卡在結算畫面（重新整理也會回到這裡）。房主回房間等人或從那裡離開；玩家直接離開
+  $('#btn-rematch').disabled = false;
+  $('#btn-rematch').textContent = net.connected ? '再來一局' : (net.isHost ? '回到房間' : '離開房間');
 
   syncRoom(true);
   settleGame(g);
@@ -4991,6 +4993,7 @@ async function openShare() {
 function initResult() {
   $('#btn-rematch').onclick = () => {
     if (state.solo) { if (state.daily) openDaily(); else openSolo(); return; }  // 單人訓練：再出一題；每日挑戰：回到今天的題目
+    if (!net.connected && !net.isHost) { leaveRoom(); return; }  // 房主已經不在了
     // 派對還沒全部比完就先回房間：用目前的名次記進最近對戰
     const g = state.game;
     if (g?.finished && !loadHistory().some((h) => h.id === g.id)) saveHistory(g, resultInfo(g));
@@ -5452,7 +5455,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=112').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=113').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }
