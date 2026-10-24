@@ -3,7 +3,7 @@ import { Net } from './net.js?v=111';
 import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=111';
 import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=111';
 import { initNotify, notify } from './notify.js?v=111';
-import { getDb, getUid, authOff, onAuth } from './fb.js?v=111';
+import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=111';
 import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=111';
 import { reportError, catchErrors } from './errors.js?v=111';
 import { badName, cleanName, maskText, watchBadWords } from './names.js?v=111';
@@ -180,6 +180,8 @@ function reportActivity() {
     Object.assign(a, { s: v, r: net.code, h: !!net.isHost, m: state.mode, g: cleanGoal(state.settings.goal) });
     if (race) Object.assign(a, race, { done: !!g.finished });
   }
+  // 在多人房間、比賽、觀戰時一直連著 Firebase（房主要收新玩家、斷線要能換房主）；其他時候用到才連（見 fb.js）
+  need('room', !!net.code && v !== 'home');
   setActivity(a);
   pushAdminLive();
 }
@@ -2821,6 +2823,7 @@ $('#admin-msg-ok').onclick = () => { $('#admin-msg-pop').hidden = true; };
 
 // 管理員那一邊（後台按「觀戰」打開 ?adminwatch=<key>）：用觀戰畫面顯示那位玩家
 async function startAdminWatch(firstKey) {
+  need('admin');
   document.body.classList.add('admin-watching');
   // 後台的多人觀戰把這一頁嵌在格子裡：只顯示畫面
   const embed = new URLSearchParams(location.search).has('embed');
@@ -6201,6 +6204,8 @@ if (!adminWatchKey && !awayKind && !location.hash.startsWith('#replay=')) {
     $('#online-count').textContent = n.toLocaleString('en-US');
     $('#online-chip').hidden = !(n > 0);
   });
+  // 同時連線的人太多（Firebase 免費方案有上限）：告訴大家哪些照樣能玩
+  onBusy((b) => { $('#busy-note').hidden = !b; if (b) $('#online-chip').hidden = true; });
 }
 initAccountUi();
 initRoom();

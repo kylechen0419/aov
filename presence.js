@@ -2,7 +2,7 @@
 // 另外給製作者後台一份「誰在線上、在做什麼」（who：只有管理員讀得到）：暱稱、在首頁／房間／比賽／單人訓練、
 // 房間代碼、模式、題目和步數。不會記下正在看哪個條目、也看不到任何人的畫面。
 // 沒有在 firebase-config.js 填設定的話，整個功能會安靜地關閉，不影響遊戲其他部分。
-import { getDb, getUid, onAuth, authOff } from './fb.js?v=111';
+import { getDb, getUid, onAuth, authOff, touch, need, isConnected } from './fb.js?v=111';
 import { bumpPeak } from './rooms.js?v=111';
 
 let started = false;
@@ -19,6 +19,14 @@ let withV = true;  // Firebase 上還是舊規則（不認得 v）就不帶
 // 超過 STALE_MS 沒回報就當作已經離開，線上人數和後台都不算他。
 const BEAT_MS = 60 * 1000;
 export const STALE_MS = 3 * 60 * 1000;
+// 平常沒連著（見 fb.js）：開著畫面、最近有在動的分頁，每 PULSE_MS 短暫連上一下回報「我還在」、順便更新人數。
+// 線上紀錄不會在斷線時刪掉（不然短暫斷開就被當成離開了），太久沒更新（CLEAN_MS）的由大家順手清掉
+const PULSE_MS = window.__wrConn?.pulse || 100 * 1000;  // __wrConn：測試用，縮短時間
+const PULSE_HOLD = window.__wrConn?.hold || 10 * 1000;
+const IDLE_MS = 10 * 60 * 1000;
+const CLEAN_MS = 10 * 60 * 1000;
+let lastInput = Date.now();
+for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true });
 
 // 管理員要看我的畫面時通知 app.js（on=true 開始、false 結束）
 export function onSpy(cb) { spyCb = cb; }
@@ -97,8 +105,6 @@ export async function initPresence(onCount) {
       watchBan();  // 被踢的人寫不進資料（規則會擋），所以先聽踢出名單
       if (!ready()) return;
       try {
-        off(me.onDisconnect().remove());
-        off(who.onDisconnect().remove());
         await me.set({ u: uid, t: TS });
         await setWho();
         watchSpy();  // 規則要先確認這筆是我的，才讓我讀管理員的觀戰要求
@@ -118,6 +124,7 @@ export async function initPresence(onCount) {
       liveRef = on ? lref : null;
       if (on) off(lref.onDisconnect().remove());
       else { try { off(lref.remove()); } catch { /* 忽略 */ } }
+      need('spy', on);  // 管理員在看：一直連著，畫面才傳得過去
       spyCb(on);
     };
     let spying = false;
@@ -134,26 +141,41 @@ export async function initPresence(onCount) {
     };
     setInterval(checkSpy, 10000);
     // 心跳（整筆重寫：被後台當成幽靈清掉的話，分頁回來後會再出現）
-    const beat = () => { if (ready()) { try { off(me.set({ u: uid, t: TS })); off(setWho()); } catch { /* 忽略 */ } } };
+    const beat = () => { if (ready() && isConnected()) { try { off(me.set({ u: uid, t: TS })); off(setWho()); } catch { /* 忽略 */ } } };
     setInterval(beat, BEAT_MS);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
-    window.addEventListener('pageshow', (e) => { if (e.persisted) beat(); });
+    // 沒連著的時候：短暫連上一下（連上時 .info/connected 會觸發 write，重寫自己的紀錄）
+    const pulse = () => { if (!document.hidden && Date.now() - lastInput < IDLE_MS) touch(PULSE_HOLD); };
+    setInterval(pulse, PULSE_MS);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastInput = Date.now(); pulse(); beat(); } });
+    window.addEventListener('pageshow', (e) => { if (e.persisted) { pulse(); beat(); } });
     db.ref('.info/connected').on('value', (snap) => { live = snap.val() === true; if (live) write(); });
     onAuth((id) => { if (id) write(); });
     // 人數只算最近有心跳的（用伺服器時間比，手機時間不準也沒關係）
     let offset = 0;
     let lastOnline = {};
     let lastN = -1;
+    let syncedAt = 0;  // 最後一次跟伺服器同步人數的時間：斷開期間用這個時間算，不然名單沒更新、大家會慢慢「過期」
     db.ref('.info/serverTimeOffset').on('value', (s) => { offset = Number(s.val()) || 0; }, () => {});
     const recount = () => {
-      const now = new Date().getTime() + offset;  // 跟 Firebase 自己算時間差的方式一樣
+      if (isConnected()) syncedAt = new Date().getTime() + offset;  // 跟 Firebase 自己算時間差的方式一樣
+      const now = syncedAt;
       const n = Object.values(lastOnline).filter((o) => o && Number(o.t) > now - STALE_MS).length;
       if (n === lastN) return;
       lastN = n;
       onCount(n);
       bumpPeak(n);
     };
-    online.on('value', (snap) => { lastOnline = snap.val() || {}; lastN = -1; recount(); });
+    let canClean = true;  // Firebase 上還是舊規則（不准清別人的）就不再試
+    const clean = () => {
+      if (!canClean || !isConnected()) return;
+      const old = new Date().getTime() + offset - CLEAN_MS;
+      const stale = Object.keys(lastOnline).filter((k) => k !== me.key && Number(lastOnline[k]?.t) < old).slice(0, 10);
+      for (const k of stale) {
+        online.child(k).remove().catch(() => { canClean = false; });
+        db.ref(`who/${k}`).remove().catch(() => { canClean = false; });
+      }
+    };
+    online.on('value', (snap) => { lastOnline = snap.val() || {}; lastN = -1; recount(); clean(); });
     setInterval(recount, 30000);
     window.addEventListener('pagehide', (e) => { if (!e.persisted) { try { off(me.remove()); off(who.remove()); } catch { /* 忽略 */ } } });
   } catch { /* 連不上就安靜放棄 */ }

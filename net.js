@@ -4,7 +4,7 @@
 // 房主是中繼站：每位玩家只連到房主，房主再把訊息轉給其他人
 // 玩家斷線時會自動重連；房主用玩家自帶的 key 認出是誰回來了
 import { FbPeer } from './fbpeer.js?v=111';
-import { getDb, getUid } from './fb.js?v=111';
+import { getDb, getUid, need, whenConnected } from './fb.js?v=111';
 
 // Firebase 牽線能不能用：有資料庫、有登入身分（等不到就當作不能用，改走 PeerJS）
 let fbOff = false;  // 規則還沒開放牽線（沒權限）：這次打開網頁都不再試
@@ -13,7 +13,8 @@ async function fbSignal() {
   const ready = (async () => {
     const db = await getDb();
     const uid = db && await getUid();
-    return db && uid ? { db, uid } : null;
+    // 連不上伺服器（例如同時連線的人太多）：改走 PeerJS，不要卡在 Firebase 等
+    return db && uid && await whenConnected(5000) ? { db, uid } : null;
   })();
   return Promise.race([ready, new Promise((ok) => { setTimeout(() => ok(null), 6000); })]).catch(() => null);
 }
@@ -73,6 +74,7 @@ export class Net {
   // ---------- 房主 ----------
   // 指定 code 時是接手別人的房間：舊房主剛放掉這個代碼，可能要等一下才能用
   async createRoom(tries = 0, code = null, maxTries = 20) {
+    need('net');  // 開房、在房裡：一直連著 Firebase（見 fb.js）
     const fb = await fbSignal();
     if (fb) {
       try {
@@ -237,6 +239,7 @@ export class Net {
 
   // ---------- 玩家 ----------
   joinRoom(code) {
+    need('net');
     this.isHost = false;
     this.closing = false;
     this.code = code.toUpperCase();
@@ -382,6 +385,7 @@ export class Net {
   }
 
   destroy() {
+    need('net', false);
     this.closing = true;
     this.stopRetry();
     clearTimeout(this.retryTimer);

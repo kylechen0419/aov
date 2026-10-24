@@ -42,6 +42,12 @@ function signIn(app) {
 // 回傳 Realtime Database 實例（成功後只會初始化一次）；連不上或沒設定就回傳 null。
 // 第一次載入失敗（例如剛打開時網路不穩）不會被記住：之後再呼叫會重新載入，網路恢復就能用。
 export function getDb() {
+  touch();
+  return dbOnly();
+}
+
+// 跟 getDb 一樣，但不算「要用連線」（線上狀態自己的回報用：不要因為回報就一直連著）
+function dbOnly() {
   if (!CFG || !CFG.databaseURL) return Promise.resolve(null);
   if (!dbPromise && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
   if (!dbPromise) {
@@ -55,7 +61,9 @@ export function getDb() {
         }
         const app = window.firebase.apps?.length ? window.firebase.app() : window.firebase.initializeApp(CFG);
         if (window.firebase.auth) await withTimeout(signIn(app), 12000).catch(() => {});
-        return window.firebase.database(app);
+        const db = window.firebase.database(app);
+        watchConn(db);
+        return db;
       } catch {
         return null;
       }
@@ -68,7 +76,7 @@ export function getDb() {
 
 // 這個瀏覽器的登入身分（匿名）；沒有登入時回傳 null。登入還在跑的話會再多等一下。
 export async function getUid() {
-  if (!(await getDb())) return null;
+  if (!(await dbOnly())) return null;
   const fb = window.firebase;
   try {
     // 登入功能上次沒載入成功、或上次登入因為網路失敗：再試一次
@@ -86,6 +94,90 @@ export const authOff = () => !window.firebase?.SDK_VERSION || authState === 'off
 
 // 登入身分改變時通知（例如網路慢、晚一點才登入好）；沒有登入功能就什麼都不做
 export async function onAuth(cb) {
-  if (!(await getDb())) return;
+  if (!(await dbOnly())) return;
   try { window.firebase.auth().onAuthStateChanged((u) => cb(u?.uid || null)); } catch { /* 忽略 */ }
 }
+
+// ===== 只在需要時才連線 =====
+// Firebase 免費方案同時最多 100 個連線，所以平常不一直連著：
+// 有東西要讀寫時（getDb）連上，用完 GRACE_MS 後斷開；在多人房間、後台這種需要一直收訊息的地方（need）才一直連著。
+// 斷線時已經掛著的監聽會暫停，連回來後 Firebase 會自動補上最新資料。
+const T = (typeof window !== 'undefined' && window.__wrConn) || {};  // 測試用：縮短時間
+const GRACE_MS = T.grace || 30000;
+const BUSY_MS = T.busy || 12000;  // 想連卻連不上超過這麼久：多半是同時連線的人太多（或網路不好）
+const needs = new Set();
+let until = 0;
+let conn = null;     // 連上之後的 db
+let offline = false; // 是不是我們主動斷開的
+let offTimer = null;
+let connected = false;
+let busyTimer = null;
+let busy = false;
+const busyCbs = [];
+const connWaits = [];
+
+function setBusy(b) {
+  if (b === busy) return;
+  busy = b;
+  for (const cb of busyCbs) { try { cb(b); } catch { /* 忽略 */ } }
+}
+
+function checkBusy() {
+  clearTimeout(busyTimer);
+  if (connected || offline || !conn) { setBusy(false); return; }
+  busyTimer = setTimeout(() => { if (!connected && !offline && navigator.onLine !== false) setBusy(true); }, BUSY_MS);
+}
+
+function settle() {
+  clearTimeout(offTimer);
+  if (!conn) return;
+  const left = until - Date.now();
+  if (needs.size || left > 0) {
+    if (offline) { offline = false; try { conn.goOnline(); } catch { /* 忽略 */ } checkBusy(); }
+    if (!needs.size) offTimer = setTimeout(settle, left + 50);
+    return;
+  }
+  if (!offline) { offline = true; try { conn.goOffline(); } catch { /* 忽略 */ } checkBusy(); }
+}
+
+function watchConn(db) {
+  conn = db;
+  try {
+    db.ref('.info/connected').on('value', (snap) => {
+      connected = snap.val() === true;
+      if (connected) while (connWaits.length) connWaits.shift()();
+      checkBusy();
+    });
+  } catch { /* 忽略 */ }
+  settle();
+  checkBusy();
+}
+
+// 接下來 ms 毫秒內要用連線（getDb 會自動呼叫）
+export function touch(ms = GRACE_MS) {
+  until = Math.max(until, Date.now() + ms);
+  settle();
+}
+
+// 某件事需要一直連著（例如 'room'：在多人房間裡；'admin'：後台）；on=false 就不需要了
+export function need(tag, on = true) {
+  if (on === needs.has(tag)) return;
+  if (on) needs.add(tag); else needs.delete(tag);
+  if (!on) until = Math.max(until, Date.now() + GRACE_MS);  // 剛離開房間：留一下，收尾的寫入才送得出去
+  settle();
+}
+
+// 等連上伺服器，最多等 ms 毫秒；連得上回傳 true
+export function whenConnected(ms) {
+  if (connected) return Promise.resolve(true);
+  return new Promise((ok) => {
+    const done = () => { clearTimeout(t); ok(true); };
+    const t = setTimeout(() => { const i = connWaits.indexOf(done); if (i >= 0) connWaits.splice(i, 1); ok(false); }, ms);
+    connWaits.push(done);
+  });
+}
+
+export const isConnected = () => connected;
+
+// 連不上（人太多）的狀態改變時通知：cb(true) 連不上、cb(false) 恢復了
+export function onBusy(cb) { busyCbs.push(cb); if (busy) cb(true); }

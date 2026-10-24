@@ -2,7 +2,7 @@
 // 原則：玩家（匿名登入）只能寫自己的東西、成績不能覆蓋、欄位要合理；公告、踢人、關房、通知設定只有管理員能改。
 // 規則的版本：每次改規則就加一。後台會試著讀 rulesv/v<版本>（只有這一版的規則開放這個路徑），
 // 讀得到就是 Firebase 上已經發布最新的規則，讀不到就提醒管理員重新複製發布
-export const RULES_VERSION = 6;
+export const RULES_VERSION = 7;
 
 export function rulesFor(adminUid) {
   const uid = String(adminUid || '').replace(/[^A-Za-z0-9_-]/g, '');
@@ -16,11 +16,12 @@ export function rulesFor(adminUid) {
   const roomOwner = "root.child('rooms').child($code).child('owner').val() === auth.uid";
   return {
     rules: {
-      // 線上人數：每個分頁一筆，只能動自己的（管理員可以清掉很久沒心跳的幽靈連線）
+      // 線上人數：每個分頁一筆，只能動自己的（管理員可以清掉很久沒心跳的幽靈連線；
+      // 超過 10 分鐘沒更新的，誰都可以順手清掉：平常不一直連著，斷線時不會自動刪）
       online: {
         '.read': true,
         $id: {
-          '.write': `(auth != null && (!data.exists() || data.child('u').val() === auth.uid) && (!newData.exists() || ${ok})) || (${admin} && !newData.exists())`,
+          '.write': `(auth != null && (!data.exists() || data.child('u').val() === auth.uid) && (!newData.exists() || ${ok})) || (${admin} && !newData.exists()) || (auth != null && !newData.exists() && data.child('t').val() < now - 600000)`,
           '.validate': "newData.child('u').val() === auth.uid && newData.child('t').isNumber()",
           u: { '.validate': true },
           t: { '.validate': true },
@@ -84,7 +85,7 @@ export function rulesFor(adminUid) {
       who: {
         '.read': admin,
         $id: {
-          '.write': `(auth != null && (!data.exists() || data.child('u').val() === auth.uid) && (!newData.exists() || ${ok})) || (${admin} && !newData.exists())`,
+          '.write': `(auth != null && (!data.exists() || data.child('u').val() === auth.uid) && (!newData.exists() || ${ok})) || (${admin} && !newData.exists()) || (auth != null && !newData.exists() && data.child('at').val() < now - 600000)`,
           '.validate': "newData.child('u').val() === auth.uid && newData.child('t').isNumber() && newData.child('s').isString() && newData.child('s').val().length <= 12",
           u: { '.validate': true },
           t: { '.validate': true },
