@@ -2864,7 +2864,20 @@ async function startAdminWatch(firstKey) {
   };
   setInterval(beat, 20000);
   window.addEventListener('pagehide', () => { try { cur?.spy.remove(); } catch { /* 忽略 */ } });
-  setInterval(() => { if (!o.current) $('#watch-timer').textContent = '--:--'; else if (!o.finished) $('#watch-timer').textContent = fmtTime(elapsed()); }, 500);
+  // 多人觀戰（嵌在後台的格子裡）：把這一格的狀態告訴後台，後台用來畫格子上方的名字、步數、狀態和總覽
+  let lastPost = '';
+  const post = () => {
+    if (!embed || window.parent === window) return;
+    const msg = {
+      wr: 'mw', name: o.name, av: o.avatar, k: o.clicks, p: o.current ? tw(o.current) : '', tg: o.current && g.settings.target ? tw(g.settings.target) : '',
+      near: !!o.near, fin: o.finished?.reason || '', left: !!o.left, status: $('#watch-status').textContent, t: o.current ? $('#watch-timer').textContent : '',
+    };
+    const j = JSON.stringify(msg);
+    if (j === lastPost) return;
+    lastPost = j;
+    try { window.parent.postMessage(msg, location.origin); } catch { /* 忽略 */ }
+  };
+  setInterval(() => { if (!o.current) $('#watch-timer').textContent = '--:--'; else if (!o.finished) $('#watch-timer').textContent = fmtTime(elapsed()); post(); }, 500);
 
   // 換看另一位玩家：前一位的「管理員正在觀戰」會消失
   const watchKey = (key) => {

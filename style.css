@@ -1523,6 +1523,9 @@ body.replaying { overflow: hidden; }
 .admin-say .btn { flex: none; padding: 8px 14px; font-size: 14px; }
 /* 後台的多人觀戰（嵌在格子裡）：只留畫面，切換玩家和返回交給後台 */
 .admin-embed #watch-tabs, .admin-embed #btn-watch-back, .admin-embed .admin-say { display: none !important; }
+/* 多人觀戰的小格子：名字、步數、目標由後台畫在格子上方，這裡只留路線和條目，字才不會太小 */
+.admin-embed .watch-bar, .admin-embed #emote-fab { display: none !important; }
+.admin-embed .watch-paper { margin-top: 0; }
 /* 每日挑戰：按開始時跳出的提醒（一天只有一次；跳掉 3 分鐘內可以接著玩） */
 .daily-confirm { text-align: center; max-width: 360px; }
 .daily-confirm .dcf-icon { font-size: 46px; line-height: 1; margin: 4px 0 6px; }

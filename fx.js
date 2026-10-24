@@ -7,6 +7,10 @@ try {
   prefs.sfx = localStorage.getItem('wikirace-sfx') !== '0';
   prefs.music = localStorage.getItem('wikirace-music') !== '0';
 } catch { /* 忽略 */ }
+// 後台「多人觀戰」裡的小格子：完全不出聲（好幾格一起播會全部疊在一起），也不用下載音效。
+// 只改這一頁，不存進設定，自己玩的時候聲音照舊
+const EMBED = new URLSearchParams(location.search).has('embed');
+if (EMBED) { prefs.sfx = false; prefs.music = false; }
 
 function savePref(k, v) {
   prefs[k] = v;
@@ -15,7 +19,7 @@ function savePref(k, v) {
 
 function makeAudio(src, loop = false) {
   const a = new Audio(src);
-  a.preload = 'auto';
+  a.preload = EMBED ? 'none' : 'auto';  // 多人觀戰的小格子不下載
   a.loop = loop;
   a.playsInline = true;
   a.setAttribute('playsinline', '');
@@ -45,7 +49,7 @@ for (const name of SFX_NAMES) {
   const isClick = name.startsWith('click-');
   const src = isClick ? `audio/${CLICK_SOUNDS[name.slice(6)].file}.wav?v=5` : `audio/sfx-${name}.mp3?v=3`;
   const n = isClick ? 4 : name === 'tick' || name === 'flip' ? 3 : 2;
-  pools[name] = { els: Array.from({ length: n }, () => makeAudio(src)), i: 0 };
+  pools[name] = { els: EMBED ? [] : Array.from({ length: n }, () => makeAudio(src)), i: 0 };
 }
 
 // 低延遲播放：音效先解碼放在記憶體，用 Web Audio 播放，比 <audio> 快很多。
@@ -56,7 +60,7 @@ const buffers = {};
 try {
   // iOS 17 以上：讓音效跟音樂一樣，不受靜音鍵影響
   if (navigator.audioSession) navigator.audioSession.type = 'playback';
-  if (AC) {
+  if (AC && !EMBED) {
     ctx = new AC({ latencyHint: 'interactive' });
     for (const name of SFX_NAMES) {
       fetch(pools[name].els[0].src)
@@ -327,6 +331,7 @@ const PATTERNS = {
 };
 
 export function haptic(kind = 'light') {
+  if (EMBED) return;
   const pattern = PATTERNS[kind] || PATTERNS.light;
   try {
     // 瀏覽器規定使用者點過畫面之後才能震動
