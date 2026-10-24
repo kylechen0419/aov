@@ -946,6 +946,7 @@ function paintRoomGoal() {
   form().querySelector('details[data-fold="route"]').hidden = rush;
   $('#rush-level-desc').textContent = (RUSH_LEVELS[state.settings.rushLevel] || RUSH_LEVELS.normal).desc;
   $('#room-rush-help').hidden = !rush;
+  $('#rush-items-line').hidden = !(rush && state.settings.rushItems);
   // 第一次玩搶分賽：進房間時先看一次規則
   if (rush && state.view === 'room' && !store.get('wikirace-rush-guide') && $('#rush-modal').hidden && $('#items-modal').hidden && !state.rushGuideShown) {
     state.rushGuideShown = true;
@@ -4618,7 +4619,12 @@ function giveItem(g) {
   renderItems();
   sfx.ready();
   haptic('success');
-  toast(`🎁 拿到 ${ITEMS[it].icon} ${ITEMS[it].name}！${TIER_NOTE[tier] ? `（${TIER_NOTE[tier]}）` : ''}`, 2200);
+  // 第一次拿到這種道具：多說一句它做什麼
+  let seen = [];
+  try { seen = JSON.parse(store.get('wikirace-seen-items') || '[]'); } catch { /* 忽略 */ }
+  const first = !seen.includes(it);
+  if (first) store.set('wikirace-seen-items', JSON.stringify([...seen, it].slice(-40)));
+  toast(`🎁 拿到 ${ITEMS[it].icon} ${ITEMS[it].name}！${TIER_NOTE[tier] ? `（${TIER_NOTE[tier]}）` : ''}${first ? `\n${ITEMS[it].desc}` : ''}`, first ? 4200 : 2200);
 }
 
 // 比步數：每走 3 步發一個（換頁成功後呼叫）
@@ -4958,9 +4964,17 @@ function openItemsGuide() {
   if (guideKind === 'rush') {
     $('#items-step1').innerHTML = '<b>道具會自動發</b>：比賽開始後每 40 秒發一個，最多帶 2 個，右下角會顯示下一個還要幾秒。';
     $('#items-step2').innerHTML = '<b>落後的人拿比較強的</b>：比第一名少 2 分以上，才拿得到搶分、抄答案、黃金時刻；第一名只拿得到鎖住跳過、匿蹤這種。';
+    $('#items-step3').innerHTML = '<b>點右下角的道具就能用</b>：換終點、鎖住跳過在派對模式可以選要丟給誰；搶分會自動搶分數最高的人；其他的馬上生效。';
+    $('#items-group-atk').textContent = '⚔️ 對付別人';
+    $('#items-group-self').textContent = '💚 自己用、全場一起';
+    $('#items-list-atk').replaceChildren(...list.filter((it) => it.kind === 'attack').map(row));
+    $('#items-list-self').replaceChildren(...list.filter((it) => it.kind !== 'attack').map(row));
     $('#items-modal').hidden = false;
     return;
   }
+  $('#items-step3').innerHTML = '<b>點右下角的道具就能用</b>：攻擊道具在派對模式可以選要丟給誰，自己用的道具會馬上生效。';
+  $('#items-group-atk').textContent = '⚔️ 攻擊對手';
+  $('#items-group-self').textContent = '💚 自己用';
   $('#items-step1').innerHTML = steps
     ? '<b>道具會自動發</b>：每走 3 步發一個，最多帶 2 個，右下角會顯示還要走幾步。'
     : '<b>道具會自動發</b>：比賽開始後每 40 秒發一個，最多帶 2 個，右下角會顯示下一個還要幾秒。';
@@ -5435,10 +5449,19 @@ const COACH_RUSH = [
   { sel: ['#article a.wl'], title: '點藍色連結前進', text: '跟一般比賽一樣，只能點條目裡的連結。開始搶分吧！' },
 ];
 
+// 第一次玩有道具的比賽：多指一下右下角的道具欄（玩過一般道具賽、第一次玩搶分賽道具也會再指一次，道具不一樣）
+const coachItem = (rush) => ({ sel: ['#item-dock .item-meta', '#item-dock'], title: rush ? '搶分賽道具' : '道具欄', text: rush
+  ? '每 40 秒發一個，最多帶 2 個，點一下就能用。落後越多拿到越強的（搶分、抄答案）。點 🎁 或「說明」看每個道具做什麼。'
+  : '每 40 秒發一個，最多帶 2 個，點一下就能用。落後的人拿到比較強的。點 🎁 或「說明」看每個道具做什麼。' });
+
 function runCoach() {
   const rush = isRush();
-  const steps = rush ? COACH_RUSH : COACH, key = rush ? 'wikirace-rush-coach-done' : 'wikirace-coach-done';
-  if (store.get(key) || state.view !== 'game' || state.game?.finished) return;
+  const baseKey = rush ? 'wikirace-rush-coach-done' : 'wikirace-coach-done';
+  const itemKey = rush ? 'wikirace-rush-items-coach-done' : 'wikirace-items-coach-done';
+  const withItems = isItems() && !isSteps();  // 比步數的道具是走 3 步發一個，教學另外寫在道具說明裡
+  const steps = [...(store.get(baseKey) ? [] : rush ? COACH_RUSH : COACH), ...(withItems && !store.get(itemKey) ? [coachItem(rush)] : [])];
+  const key = { set: (_, v) => { store.set(baseKey, v); if (withItems) store.set(itemKey, v); } };
+  if (!steps.length || state.view !== 'game' || state.game?.finished) return;
   const coach = $('#coach');
   let step = 0;
   const place = () => {
@@ -5465,7 +5488,7 @@ function runCoach() {
     step++;
     if (step >= steps.length || state.view !== 'game' || state.game?.finished) {
       coach.hidden = true;
-      store.set(key, '1');
+      key.set(null, '1');
       return;
     }
     place();

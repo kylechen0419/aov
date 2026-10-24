@@ -593,11 +593,11 @@
       <ol class="items-steps">
         <li><span>1</span><div id="items-step1"><b>道具會自動發</b>：比賽開始後每 40 秒發一個，最多帶 2 個，右下角會顯示下一個還要幾秒。</div></li>
         <li><span>2</span><div id="items-step2"><b>落後的人拿比較強的</b>：離終點越遠，越容易拿到閃電、冰凍這種強力道具；領先的人只拿得到比較弱的。</div></li>
-        <li><span>3</span><div><b>點右下角的道具就能用</b>：攻擊道具在派對模式可以選要丟給誰，自己用的道具會馬上生效。</div></li>
+        <li><span>3</span><div id="items-step3"><b>點右下角的道具就能用</b>：攻擊道具在派對模式可以選要丟給誰，自己用的道具會馬上生效。</div></li>
       </ol>
-      <p class="items-group">⚔️ 攻擊對手</p>
+      <p id="items-group-atk" class="items-group">⚔️ 攻擊對手</p>
       <ul id="items-list-atk" class="items-list"></ul>
-      <p class="items-group">💚 自己用</p>
+      <p id="items-group-self" class="items-group">💚 自己用</p>
       <ul id="items-list-self" class="items-list"></ul>
       <button id="items-ok" class="btn primary" type="button">我知道了！</button>
     </div>
@@ -611,6 +611,7 @@
         <li><span>2</span><div><b>大家的題目一樣</b>：每個人拿到的題目順序都相同，比的是時間內誰抵達最多題。</div></li>
         <li><span>3</span><div><b>卡住就跳過</b>：每局可以跳過 <b>2 題</b>，跳過不加分。按一下「跳過」會先問你，3 秒內再按一次才會跳。</div></li>
         <li><span>4</span><div><b>時間到比分數</b>：分數多的贏；一樣多分時，<b>總步數少的贏</b>。</div></li>
+        <li id="rush-items-line" hidden><span>🎁</span><div><b>這一局有道具</b>：每 40 秒發一個搶分賽專用道具（雙倍分、搶分、抄答案…），點右下角就能用。按「📖 道具說明」看每一個做什麼。</div></li>
       </ol>
       <p class="rush-example">例：小明 3 分、共 12 步，小華 3 分、共 15 步 → <b>小明贏</b></p>
       <button id="rush-ok" class="btn primary" type="button">我知道了！</button>
