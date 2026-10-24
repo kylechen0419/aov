@@ -1,18 +1,18 @@
 // 維基競速 © 2026 kylechen0419 保留所有權利。未經同意不得複製、修改或另外架設（見 LICENSE）。
-import { Net } from './net.js?v=114';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=114';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=114';
-import { initNotify, notify } from './notify.js?v=114';
-import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=114';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=114';
-import { reportError, catchErrors } from './errors.js?v=114';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=114';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=114';
-import * as wiki from './wiki.js?v=114';
-import { tw, twTree, zhReady } from './zh.js?v=114';
-import { makeShareImage } from './share.js?v=114';
-import { solve } from './solver.js?v=114';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=114';
+import { Net } from './net.js?v=115';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin, sendExtraToAdmin } from './presence.js?v=115';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=115';
+import { initNotify, notify } from './notify.js?v=115';
+import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=115';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=115';
+import { reportError, catchErrors } from './errors.js?v=115';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=115';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=115';
+import * as wiki from './wiki.js?v=115';
+import { tw, twTree, zhReady } from './zh.js?v=115';
+import { makeShareImage } from './share.js?v=115';
+import { solve } from './solver.js?v=115';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=115';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -154,9 +154,21 @@ const deviceId = (() => {
   return d;
 })();
 
+// 玩家畫面上跳出過的訊息（最近幾則）：管理員觀戰時一起傳過去，看得到他看到了什麼
+const notes = [];
+let adminWatching = false;  // 管理員正在看我的畫面（放在前面：一打開網頁就可能有訊息要記）
+function note(kind, text) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  if (!t || state.adminWatch) return;
+  notes.push({ k: kind, t, a: Date.now() });
+  while (notes.length > 12) notes.shift();
+  pushAdminExtra();
+}
+
 let toastTimer;
 function toast(msg, ms = 2600) {
   const el = $('#toast');
+  note('toast', msg);
   el.textContent = msg;
   el.hidden = false;
   clearTimeout(toastTimer);
@@ -668,7 +680,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=114').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=115').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -2592,7 +2604,7 @@ async function goTo(title, { first = false, back = false, restore = false, prelo
 
     const reached = art.title === g.settings.target || isTargetLink(art.title, g.settings);  // 終點用別的名字（重新導向、簡繁）也算
     const near = !reached && !!$('#article a.is-target');
-    if (near && !g.near) { sfx.near(); haptic('success'); }
+    if (near && !g.near) { sfx.near(); haptic('success'); note('alert', '⭐ 終點連結就在這一頁！快找！'); }
     g.near = near;
     $('#hud-alert-me').hidden = !near;
     $('#hud-alert-me').textContent = '終點連結就在這一頁！快找！';
@@ -2707,6 +2719,7 @@ function markTargets(root, settings, names) {
   g.near = true;
   sfx.near();
   haptic('success');
+  note('alert', '⭐ 終點連結就在這一頁！快找！');
   $('#hud-alert-me').hidden = false;
   $('#hud-alert-me').textContent = '終點連結就在這一頁！快找！';
   g.dist = 1;
@@ -2764,7 +2777,6 @@ function fillArticle(root, titleEl, art, settings) {
 }
 
 // ---------- 管理員觀戰：管理員從後台要看的時候，把畫面送給他（畫面上方會顯示「管理員正在觀戰」） ----------
-let adminWatching = false;
 let lastView = null;
 let lastTap = null;
 function pushAdminLive() {
@@ -2782,11 +2794,44 @@ function pushAdminLive() {
   };
   if (lastTap?.p === cur) { data.n = lastTap.n; data.tapAt = lastTap.at; }
   sendLiveToAdmin(data);
+  pushAdminExtra();
 }
+
+// 管理員觀戰：結算畫面（整個畫面的 HTML，後台放在不能跑程式的框裡）、看到的訊息、💡 提示的內容
+let extraTimer = null;
+let lastExtra = '';
+function pushAdminExtra() {
+  if (!adminWatching || extraTimer) return;
+  extraTimer = setTimeout(() => {
+    extraTimer = null;
+    if (!adminWatching) return;
+    const g = state.game;
+    let res = '';
+    if (g && state.view === 'result') {
+      const v = $('#view-result').cloneNode(true);
+      v.querySelectorAll('script, iframe, object, embed, form input').forEach((el) => el.remove());
+      v.hidden = false;
+      res = v.outerHTML;
+      if (res.length > 300000) res = '';
+    }
+    const hint = g ? {
+      h1: g.hint?.shown ? $('#hint-text').textContent.slice(0, 800) : '',
+      h2: g.hint2?.shown ? [...$('#hint-near-list').children].map((e) => e.textContent.slice(0, 100)).slice(0, 8) : [],
+      ask: !$('#hint-bar').hidden ? $('#hint-ask-text').textContent.slice(0, 200) : '',
+    } : {};
+    const data = { res, cls: document.body.className.slice(0, 200), ev: JSON.stringify(notes.slice(-10)).slice(0, 6000), hint: JSON.stringify(hint).slice(0, 3000) };
+    const j = JSON.stringify(data);
+    if (j === lastExtra) return;
+    lastExtra = j;
+    sendExtraToAdmin(data);
+  }, 600);
+}
+// 結算畫面會一直變（別人比完、解答找到）：管理員在看的時候定時檢查
+setInterval(() => { if (adminWatching && state.view === 'result') pushAdminExtra(); }, 2000);
 onSpy((on) => {
   adminWatching = on;
   $('#admin-eye').hidden = !on;
-  if (on) { toast('👀 管理員正在觀戰你的畫面', 3000); pushAdminLive(); }
+  if (on) { toast('👀 管理員正在觀戰你的畫面', 3000); lastExtra = ''; pushAdminLive(); }
 });
 
 // ---------- 被管理員踢出伺服器：馬上斷線，期限內整個遊戲都擋住 ----------
@@ -2889,6 +2934,56 @@ async function startAdminWatch(firstKey) {
   };
   setInterval(() => { if (!o.current) $('#watch-timer').textContent = '--:--'; else if (!o.finished) $('#watch-timer').textContent = fmtTime(elapsed()); post(); }, 500);
 
+  // 他的提示、看到的訊息、結算畫面（玩家傳來的 HTML 放在 sandbox 框裡：不能跑任何程式，也碰不到後台）
+  // 框只在管理員觀戰時才建立（一般玩家的頁面不需要）
+  const frame = Object.assign(document.createElement('iframe'), { id: 'aw-result', className: 'aw-result', title: '玩家的結算畫面', hidden: true });
+  frame.setAttribute('sandbox', '');
+  $('.watch-paper').after(frame);
+  let lastRes = '';
+  let picked = false;  // 管理員自己點了分頁：就照他選的，不自動切
+  const setTab = (t) => {
+    const res = t === 'res' && !$('#aw-tab-res').hidden;
+    $('#aw-tab-art').classList.toggle('on', !res);
+    $('#aw-tab-res').classList.toggle('on', res);
+    $('.watch-paper').hidden = res;
+    $('#aw-result').hidden = !res;
+  };
+  $('#aw-tab-art').onclick = () => { picked = true; setTab('art'); };
+  $('#aw-tab-res').onclick = () => { picked = true; setTab('res'); };
+  const clock = (a) => new Date(a).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const paintExtra = (x) => {
+    $('#aw-extra').hidden = false;
+    let ev = [];
+    let h = {};
+    try { ev = JSON.parse(x?.ev || '[]'); } catch { /* 忽略 */ }
+    try { h = JSON.parse(x?.hint || '{}'); } catch { /* 忽略 */ }
+    ev = Array.isArray(ev) ? ev.filter((e) => e && typeof e.t === 'string').slice(-10).reverse() : [];
+    $('#aw-note-list').replaceChildren(...(ev.length ? ev.map((e) => {
+      const li = document.createElement('li');
+      li.append(Object.assign(document.createElement('time'), { textContent: clock(Number(e.a) || Date.now()) }), Object.assign(document.createElement('span'), { textContent: e.t.slice(0, 160) }));
+      return li;
+    }) : [Object.assign(document.createElement('li'), { className: 'aw-empty', textContent: '還沒有' })]));
+    const h2 = Array.isArray(h.h2) ? h.h2.filter((t) => typeof t === 'string').slice(0, 8) : [];
+    const parts = [];
+    if (typeof h.ask === 'string' && h.ask) parts.push(Object.assign(document.createElement('div'), { textContent: `🗳️ ${h.ask.slice(0, 200)}` }));
+    if (typeof h.h1 === 'string' && h.h1) parts.push(Object.assign(document.createElement('div'), { textContent: `第一個提示（終點的簡介）：${h.h1.slice(0, 800)}` }));
+    if (h2.length) {
+      const row = Object.assign(document.createElement('div'), { className: 'aw-h2' });
+      row.append('第二個提示（離終點一步的條目）：', ...h2.map((t) => Object.assign(document.createElement('span'), { textContent: t.slice(0, 100) })));
+      parts.push(row);
+    }
+    $('#aw-hints').hidden = !parts.length;
+    $('#aw-hint-body').replaceChildren(...parts);
+    const res = typeof x?.res === 'string' ? x.res : '';
+    $('#aw-tab-res').hidden = !res;
+    if (res && res !== lastRes) {
+      lastRes = res;
+      const cls = String(x.cls || '').replace(/[^\w -]/g, '').slice(0, 200);
+      $('#aw-result').srcdoc = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="style.css?v=${MY_VERSION}"><style>#view-result{display:block!important;animation:none!important}</style></head><body class="${cls}">${res}</body></html>`;
+    }
+    if (!res) { lastRes = ''; picked = false; setTab('art'); } else if (!picked) setTab('res');
+  };
+
   // 換看另一位玩家：前一位的「管理員正在觀戰」會消失
   const watchKey = (key) => {
     if (cur?.key === key) return;
@@ -2896,7 +2991,13 @@ async function startAdminWatch(firstKey) {
       try { cur.spy.onDisconnect().cancel(); cur.spy.remove().catch(() => {}); } catch { /* 忽略 */ }
       cur.whoRef.off('value', cur.whoCb);
       cur.liveRef.off('value', cur.liveCb);
+      cur.xRef.off('value', cur.xCb);
     }
+    lastRes = '';
+    picked = false;
+    $('#aw-tab-res').hidden = true;
+    setTab('art');
+    paintExtra(null);
     Object.assign(o, { name: '玩家', avatar: '', clicks: 0, current: '', path: [], near: false, finished: null, left: false });
     g.settings = { ...DEFAULT_SETTINGS };
     g.startAt = performance.now();
@@ -2910,7 +3011,7 @@ async function startAdminWatch(firstKey) {
     status('連線中…');
     const spy = db.ref(`spy/${key}`);
     spy.onDisconnect().remove();
-    cur = { key, spy, whoRef: db.ref(`who/${key}`), liveRef: db.ref(`live/${key}`) };
+    cur = { key, spy, whoRef: db.ref(`who/${key}`), liveRef: db.ref(`live/${key}`), xRef: db.ref(`livex/${key}`) };
     const mine = cur;
     let lastTapAt = 0;
     let lastGame = null;
@@ -2923,6 +3024,8 @@ async function startAdminWatch(firstKey) {
       o.avatar = cleanAvatar(w.av);
       renderWatch();
     }, denied);
+    // 結算畫面和提示：規則還沒更新（讀不到）就只是沒有這一塊
+    cur.xCb = cur.xRef.on('value', (snap) => { if (cur === mine) paintExtra(snap.val()); }, () => {});
     cur.liveCb = cur.liveRef.on('value', (snap) => {
       if (cur !== mine) return;
       const v = snap.val();
@@ -3220,6 +3323,7 @@ function feed(parts, tag, color) {
   // 放在 HUD 正下方，避免蓋住警告
   box.style.top = `${$('#hud').getBoundingClientRect().bottom + 8}px`;
   box.append(el);
+  note('feed', `${tag ? `【${tag}】` : ''}${el.textContent.slice(String(tag || '').length)}`);
   while (box.children.length > 3) box.firstChild.remove();
   setTimeout(() => el.remove(), 2700);
 }
@@ -3235,6 +3339,7 @@ function refreshDanger() {
   $('#hud-alert-opp').hidden = !on;
   if (on) {
     const names = near.map((o) => o.name).slice(0, 2).join('、') + (near.length > 2 ? ` 等 ${near.length} 人` : '');
+    if ($('#hud-alert-opp').textContent !== `${names} 只差一步就到終點！`) note('alert', `⚠️ ${names} 只差一步就到終點！`);
     $('#hud-alert-opp').textContent = `${names} 只差一步就到終點！`;
   }
   if (on && !was) {
@@ -4885,6 +4990,7 @@ function onItemBlocked(by, item, from) {
 
 let hitTimer;
 function showHit(icon, text, good = false) {
+  note('hit', `${icon} ${text}`);
   const el = $('#item-hit');
   $('#item-hit-icon').textContent = icon;
   $('#item-hit-text').textContent = text;
@@ -5679,7 +5785,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=114').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=115').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }

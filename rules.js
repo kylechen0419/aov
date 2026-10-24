@@ -2,7 +2,7 @@
 // 原則：玩家（匿名登入）只能寫自己的東西、成績不能覆蓋、欄位要合理；公告、踢人、關房、通知設定只有管理員能改。
 // 規則的版本：每次改規則就加一。後台會試著讀 rulesv/v<版本>（只有這一版的規則開放這個路徑），
 // 讀得到就是 Firebase 上已經發布最新的規則，讀不到就提醒管理員重新複製發布
-export const RULES_VERSION = 7;
+export const RULES_VERSION = 8;
 
 export function rulesFor(adminUid) {
   const uid = String(adminUid || '').replace(/[^A-Za-z0-9_-]/g, '');
@@ -113,6 +113,20 @@ export function rulesFor(adminUid) {
         $id: {
           '.read': `${admin} || (auth != null && root.child('who').child($id).child('u').val() === auth.uid)`,
           '.write': admin,
+        },
+      },
+      // 管理員觀戰：玩家的結算畫面（HTML，後台放在不能跑程式的框裡顯示）和看到的提示
+      livex: {
+        $id: {
+          '.read': admin,
+          '.write': `auth != null && root.child('who').child($id).child('u').val() === auth.uid && (!newData.exists() || ${ok})`,
+          '.validate': "newData.child('at').isNumber()",
+          at: { '.validate': true },
+          res: { '.validate': 'newData.isString() && newData.val().length <= 300000' },
+          cls: { '.validate': 'newData.isString() && newData.val().length <= 200' },
+          ev: { '.validate': 'newData.isString() && newData.val().length <= 6000' },
+          hint: { '.validate': 'newData.isString() && newData.val().length <= 3000' },
+          $other: { '.validate': false },
         },
       },
       live: {

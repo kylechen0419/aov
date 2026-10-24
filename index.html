@@ -29,9 +29,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=114">
+  <link rel="stylesheet" href="style.css?v=115">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=114"></script>
+  <script src="firebase-config.js?v=115"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -464,6 +464,12 @@
         <input id="admin-say-text" maxlength="100" placeholder="💬 傳一句話給這位玩家…" enterkeyhint="send" aria-label="傳訊息給玩家">
         <button class="btn blue" type="submit">送出</button>
       </form>
+      <!-- 管理員觀戰：玩家的提示、看到的訊息；比完可以切到他的結算畫面 -->
+      <div id="aw-extra" class="aw-extra" hidden>
+        <div class="aw-tabs" role="tablist"><button id="aw-tab-art" class="on" type="button" role="tab">📄 他在看的條目</button><button id="aw-tab-res" type="button" role="tab" hidden>🏁 他的結算畫面</button></div>
+        <details id="aw-hints" class="aw-box" hidden open><summary>💡 他拿到的提示</summary><div id="aw-hint-body"></div></details>
+        <details id="aw-notes" class="aw-box" open><summary>📣 他看到的訊息</summary><ol id="aw-note-list" class="aw-note-list"><li class="aw-empty">還沒有</li></ol></details>
+      </div>
     </header>
     <article class="paper watch-paper">
       <p id="watch-path" class="breadcrumb"></p>
@@ -840,6 +846,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=114"></script>
+  <script type="module" src="app.js?v=115"></script>
 </body>
 </html>

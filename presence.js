@@ -2,8 +2,8 @@
 // 另外給製作者後台一份「誰在線上、在做什麼」（who：只有管理員讀得到）：暱稱、在首頁／房間／比賽／單人訓練、
 // 房間代碼、模式、題目和步數。不會記下正在看哪個條目、也看不到任何人的畫面。
 // 沒有在 firebase-config.js 填設定的話，整個功能會安靜地關閉，不影響遊戲其他部分。
-import { getDb, getUid, onAuth, authOff, touch, need, isConnected } from './fb.js?v=114';
-import { bumpPeak } from './rooms.js?v=114';
+import { getDb, getUid, onAuth, authOff, touch, need, isConnected } from './fb.js?v=115';
+import { bumpPeak } from './rooms.js?v=115';
 
 let started = false;
 let retries = 0;
@@ -11,6 +11,8 @@ let activity = { s: 'home' };  // 目前在做什麼（app.js 透過 setActivity
 let since = Date.now();        // 這個狀態從什麼時候開始
 let pushWho = () => {};
 let liveRef = null;        // live/<自己的 key>：管理員觀戰時才寫
+let extraRef = null;       // livex/<自己的 key>：管理員觀戰時，結算畫面和看到的提示（舊規則沒有這個位置，寫不進去就算了）
+let extraOff = false;
 let spyCb = () => {};
 const VERSION = Number(new URL(import.meta.url).searchParams.get('v')) || 0;  // 這個分頁是第幾版（後台看版本分布）
 let withV = true;  // Firebase 上還是舊規則（不認得 v）就不帶
@@ -47,6 +49,12 @@ export function leaveOnline() { dropMe(); }
 export function sendLiveToAdmin(data) {
   if (!liveRef) return;
   try { liveRef.set({ ...data, at: Date.now() })?.catch?.(() => {}); } catch { /* 忽略 */ }
+}
+
+// 管理員觀戰時：結算畫面（HTML）和玩家看到的提示；規則還沒更新（寫不進去）就不再試
+export function sendExtraToAdmin(data) {
+  if (!extraRef || extraOff) return;
+  try { extraRef.set({ ...data, at: Date.now() })?.catch?.(() => { extraOff = true; }); } catch { /* 忽略 */ }
 }
 
 // 遊戲畫面或進度改變時呼叫；內容一樣就不重寫
@@ -114,6 +122,7 @@ export async function initPresence(onCount) {
     // 超過 60 秒沒看到更新就當作沒在看了（用自己看到更新的時間算，手機時間不準也沒關係）
     const spyRef = db.ref(`spy/${me.key}`);
     const lref = db.ref(`live/${me.key}`);
+    const xref = db.ref(`livex/${me.key}`);
     let spyMark = null;
     let spySeen = 0;
     let spyOn = false;
@@ -122,8 +131,9 @@ export async function initPresence(onCount) {
       if (on === spyOn) return;
       spyOn = on;
       liveRef = on ? lref : null;
-      if (on) off(lref.onDisconnect().remove());
-      else { try { off(lref.remove()); } catch { /* 忽略 */ } }
+      extraRef = on ? xref : null;
+      if (on) { off(lref.onDisconnect().remove()); off(xref.onDisconnect().remove()); }
+      else { try { off(lref.remove()); if (!extraOff) off(xref.remove()); } catch { /* 忽略 */ } }
       need('spy', on);  // 管理員在看：一直連著，畫面才傳得過去
       spyCb(on);
     };
