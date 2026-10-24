@@ -1203,8 +1203,6 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .goal-card.rush input:checked + .rush-card .rush-check { transform: scale(1); }
 @keyframes rushRun { 0% { transform: translateX(-6px) rotate(-8deg); } 60% { transform: translateX(3px); } 100% { transform: none; } }
 /* 選了搶分賽：道具用不到，淡掉（上面兩種也沒有被選） */
-.goal-home.is-rush .goal-card.items { opacity: .5; pointer-events: none; }
-.goal-home.is-rush .goal-card.items i { filter: grayscale(1); opacity: .5; }
 .goal-card.items input:checked + span { background: #ffeef6; color: var(--pink-d); border-color: var(--pink); }
 .room-goal.items, .brief-goal.items { background: #ffeef6; color: var(--pink-d); }
 .stats-label.items { color: var(--pink-d); }
@@ -1227,6 +1225,13 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .fx-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 900; padding: 3px 10px; border-radius: 999px; background: #fff; color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, .12); }
 .fx-chip.bad { background: var(--red); color: #fff; }
 .fx-chip.good { background: var(--green); color: #fff; }
+/* 搶分賽道具：抄答案的路線、中繼站 */
+.rush-note { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 0; padding: 8px 10px; border-radius: 12px; background: #efe4ff; color: #3b1f73; font-size: 13px; font-weight: 800; line-height: 1.5; }
+.rush-note[hidden] { display: none; }
+.rush-note span { flex: 1; min-width: 0; }
+.rush-note button { flex: none; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0 2px; opacity: .7; }
+#btn-rush-skip.locked { opacity: .55; position: relative; }
+#btn-rush-skip.locked::after { content: '🔒'; position: absolute; top: 2px; right: 6px; font-size: 12px; }
 #article.fx-fog { filter: blur(4.5px); transition: filter .4s; }
 #article.fx-flip { transform: rotate(180deg); transition: transform .5s; }
 #article { transition: filter .4s, transform .5s; }

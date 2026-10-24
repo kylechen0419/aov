@@ -29,9 +29,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=113">
+  <link rel="stylesheet" href="style.css?v=114">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=113"></script>
+  <script src="firebase-config.js?v=114"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -106,7 +106,7 @@
         <div class="goal-home" role="radiogroup" aria-label="比賽方式">
           <label class="goal-card speed"><input type="radio" name="goalHome" value="speed" checked><span><i>⚡</i><b>比速度</b><small>先抵達終點的贏</small></span></label>
           <label class="goal-card steps"><input type="radio" name="goalHome" value="steps"><span><i>👣</i><b>比步數</b><small>最少步抵達的贏</small></span></label>
-          <label class="goal-card items"><input type="checkbox" id="goal-home-items"><span><i>🎁</i><b>＋道具</b><small>可以搭配左邊兩種</small></span></label>
+          <label class="goal-card items"><input type="checkbox" id="goal-home-items"><span><i>🎁</i><b>＋道具</b><small>每種玩法都能加</small></span></label>
           <label class="goal-card rush"><input type="radio" name="goalHome" value="rush"><span class="rush-card">
             <i class="rush-ico" aria-hidden="true">🏃</i>
             <span class="rush-txt"><b>搶分賽<em class="rush-new">NEW</em></b><small>一題接一題，限時內搶最多分</small></span>
@@ -357,6 +357,7 @@
       </div>
       <div id="hud-opp-page" class="opp-where"></div>
       <div id="fx-bar" class="fx-bar" hidden></div>
+      <div id="rush-note" class="rush-note" hidden><span id="rush-note-text"></span><button id="rush-note-close" type="button" aria-label="收起">✕</button></div>
       <div id="hint-bar" class="hint-bar" hidden><span id="hint-ask-text"></span><button id="btn-hint-vote" class="btn small primary" type="button">💡 我要提示</button></div>
       <ul id="hud-strip" class="hud-strip" hidden></ul>
       <div id="hud-alert-opp" class="banner danger" hidden></div>
@@ -838,6 +839,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=113"></script>
+  <script type="module" src="app.js?v=114"></script>
 </body>
 </html>
