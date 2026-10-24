@@ -1398,17 +1398,7 @@ function initRoom() {
     }
   };
 
-  $('#btn-leave').onclick = () => {
-    // 房主離開時，房間交給下一位玩家，不用整間解散
-    const next = net.isHost && onlineGuests()[0];
-    if (next) {
-      if (!confirm(`離開後房主會交給 ${next.name}，確定要離開嗎？`)) return;
-      migrateHost(next.id, { leaving: true });
-      return;
-    }
-    if (!confirm('確定要離開房間嗎？')) return;
-    leaveRoom();
-  };
+  $('#btn-leave').onclick = backToLobby;
 
   $('#btn-transfer').onclick = async () => {
     const list = onlineGuests();
@@ -1684,6 +1674,19 @@ function closePick(id = null) {
 }
 
 // 主動離開：先告訴大家，房主則直接解散房間
+// 離開房間回到大廳（首頁）：房間右上角的「大廳」、多人結算的「回大廳」
+function backToLobby() {
+  // 房主離開時，房間交給下一位玩家，不用整間解散
+  const next = net.isHost && onlineGuests()[0];
+  if (next) {
+    if (!confirm(`回到大廳後，房主會交給 ${next.name}。確定要離開房間嗎？`)) return;
+    migrateHost(next.id, { leaving: true });
+    return;
+  }
+  if (!confirm('確定要離開房間、回到大廳嗎？')) return;
+  leaveRoom();
+}
+
 function leaveRoom() {
   leavingRoom = true;
   session.clear();
@@ -3737,7 +3740,9 @@ function showResult(update = false) {
   const party = g.mode === 'party' || isRush(g);  // 搶分賽 1 對 1 也用排名表
   // 從單人訓練切回一般對局時，把被訓練結算改過的元素還原
   $('#btn-share').hidden = false;
-  $('#btn-solo-home').hidden = true;
+  $('#btn-solo-home').hidden = false;
+  $('#btn-solo-home').textContent = '🏠 回大廳';
+  $('.result-actions').classList.add('three');
   $('#daily-result').hidden = true;
   const info = resultInfo(g);
   const { res } = info;
@@ -3815,6 +3820,8 @@ function showSoloResult(g) {
   // 按鈕：再練一題 / 回首頁，藏掉分享
   $('#btn-share').hidden = true;
   $('#btn-solo-home').hidden = false;
+  $('#btn-solo-home').textContent = '回首頁';
+  $('.result-actions').classList.remove('three');
   $('#btn-rematch').disabled = false;
   $('#btn-rematch').textContent = state.daily ? '📅 再挑戰一次' : '🎯 再練一題';
   if (state.view !== 'result') show('result');
@@ -4999,7 +5006,7 @@ function initResult() {
     if (g?.finished && !loadHistory().some((h) => h.id === g.id)) saveHistory(g, resultInfo(g));
     enterRoom(net.code);
   };
-  $('#btn-solo-home').onclick = exitSolo;
+  $('#btn-solo-home').onclick = () => { if (state.solo) exitSolo(); else backToLobby(); };
   $('#btn-share').onclick = openShare;
   $('#pick-close').onclick = () => closePick(null);
   $('#pick-modal').addEventListener('click', (e) => { if (e.target.id === 'pick-modal') closePick(null); });

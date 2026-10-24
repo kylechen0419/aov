@@ -87,6 +87,8 @@ symbol .fill { fill: currentColor; stroke: none; }
 .masthead .icon-btn, .room-head .icon-btn { background: rgba(255, 255, 255, .22); color: #fff; }
 .icon-btn:active { transform: scale(.88); }
 .icon-btn .ic { width: 20px; height: 20px; }
+.icon-btn.lobby-btn { width: 46px; height: 46px; border-radius: 14px; display: inline-flex; flex-direction: column; justify-content: center; gap: 1px; font-weight: 800; font-size: 11px; line-height: 1; }
+.icon-btn.lobby-btn .ic { width: 18px; height: 18px; }
 .icon-btn.off, .tab.off { opacity: .45; }
 .icon-btn.off .ic, .tab.off .ic { stroke-dasharray: 2 3; }
 
@@ -895,6 +897,7 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 
 /* ---------- 結果畫面按鈕與分享 ---------- */
 .result-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.result-actions.three #btn-solo-home { grid-column: 1 / -1; order: 3; }  /* 多人結算：「回大廳」放在最下面一整排 */
 .result-actions .btn { padding: 15px 10px; font-size: 18px; border-radius: 18px; }
 .modal {
   position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
