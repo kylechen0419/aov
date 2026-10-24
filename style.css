@@ -1226,7 +1226,7 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .fx-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 900; padding: 3px 10px; border-radius: 999px; background: #fff; color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, .12); }
 .fx-chip.bad { background: var(--red); color: #fff; }
 .fx-chip.good { background: var(--green); color: #fff; }
-/* 搶分賽道具：抄答案的路線、中繼站 */
+/* 搶分賽道具：抄答案的路線 */
 .rush-note { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 0; padding: 8px 10px; border-radius: 12px; background: #efe4ff; color: #3b1f73; font-size: 13px; font-weight: 800; line-height: 1.5; }
 .rush-note[hidden] { display: none; }
 .rush-note span { flex: 1; min-width: 0; }
