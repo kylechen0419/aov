@@ -29,9 +29,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=116">
+  <link rel="stylesheet" href="style.css?v=117">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="firebase-config.js?v=116"></script>
+  <script src="firebase-config.js?v=117"></script>
 </head>
 <body>
   <!-- 圖示 -->
@@ -265,6 +265,16 @@
           </div>
         </div>
         <label class="row" for="set-items"><span class="row-label">🎁 道具<small id="set-items-desc">撿道具整對手</small></span><input id="set-items" class="switch" type="checkbox" name="roomItems"></label>
+        <div id="item-pick" class="item-pick" hidden>
+          <div class="item-pick-head"><b>要用哪些道具</b><span id="item-pick-count"></span><button id="item-pick-reset" class="item-pick-reset" type="button">恢復預設</button></div>
+          <div class="segmented item-mode" role="radiogroup" aria-label="道具怎麼決定">
+            <label><input type="radio" name="itemMode" value="random" checked><span>🎲 每局隨機</span></label>
+            <label><input type="radio" name="itemMode" value="custom"><span>✋ 自己選</span></label>
+          </div>
+          <p id="item-pick-random" class="item-pick-tip"></p>
+          <div id="item-pick-list"></div>
+          <p id="item-pick-tip-custom" class="item-pick-tip">點道具可以開關；比賽中只會發有勾的道具。想知道每個做什麼，按上面的「📖 道具說明」。</p>
+        </div>
         <div class="row stack">
           <span class="row-label">人數</span>
           <div class="segmented" role="radiogroup" aria-label="人數">
@@ -591,6 +601,8 @@
       <button id="item-guide" class="item-guide-btn" type="button" aria-label="道具說明">📖 說明</button>
     </div>
   </div>
+  <div id="fx-dark" class="fx-dark" hidden></div>
+  <div id="fx-layer" class="fx-layer" aria-hidden="true"></div>
   <div id="item-hit" class="item-hit" hidden><span id="item-hit-icon"></span><b id="item-hit-text"></b></div>
 
   <div id="items-modal" class="modal" hidden>
@@ -846,6 +858,6 @@
   <canvas id="confetti" class="confetti" hidden></canvas>
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js?v=116"></script>
+  <script type="module" src="app.js?v=117"></script>
 </body>
 </html>

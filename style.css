@@ -1226,6 +1226,41 @@ body.has-fab [data-chat] { margin-bottom: calc(80px + env(safe-area-inset-bottom
 .fx-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 900; padding: 3px 10px; border-radius: 999px; background: #fff; color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, .12); }
 .fx-chip.bad { background: var(--red); color: #fff; }
 .fx-chip.good { background: var(--green); color: #fff; }
+/* 房間設定：勾選要用哪些道具（照分類） */
+.item-pick { margin: -2px 0 6px; padding: 10px 12px; border-radius: 16px; background: var(--card-2); }
+.item-pick[hidden] { display: none; }
+.item-pick-head { display: flex; gap: 8px; align-items: baseline; }
+.item-pick-head b { font-size: 14px; }
+.item-pick-head span { flex: 1; font-size: 12px; color: var(--muted); font-weight: 700; }
+.item-pick-reset { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 800; color: var(--blue); cursor: pointer; padding: 0; }
+.item-pick-reset:disabled { visibility: hidden; }
+.item-pick-reset[hidden] { display: none; }
+.item-pick .segmented.item-mode { margin: 8px 0 2px; background: #fff; }
+#item-pick-list[hidden], .item-pick-tip[hidden] { display: none; }
+.ipick-cat { margin: 8px 0 4px; font-size: 12px; font-weight: 900; color: var(--muted); }
+.ipick-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ipick { position: relative; display: inline-flex; }
+.ipick input { position: absolute; opacity: 0; pointer-events: none; }
+.ipick span { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 800; background: #fff; color: var(--muted); border: 2px solid transparent; cursor: pointer; user-select: none; }
+.ipick input:checked + span { color: var(--ink); border-color: var(--pink); background: #fff0f7; }
+.ipick input:not(:checked) + span { opacity: .6; text-decoration: line-through; }
+.ipick input:disabled + span { cursor: default; }
+.ipick input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: 2px; }
+.item-pick-tip { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+/* 畫面干擾道具 */
+.fx-dark { position: fixed; inset: 0; z-index: 46; pointer-events: none; --x: 50vw; --y: 45vh; background: radial-gradient(circle 120px at var(--x) var(--y), transparent 55%, rgba(6, 4, 20, .97) 100%); }
+.fx-dark[hidden] { display: none; }
+#article.fx-ink a.wl, #article.fx-ink a.wl.is-target, #article.fx-ink a.wl.crystal { color: inherit !important; background: none !important; box-shadow: none !important; text-decoration: none !important; border: 0 !important; padding: 0 !important; font-weight: inherit !important; animation: none !important; }
+#article.fx-tiny { zoom: .45; }
+@keyframes quake { 0%, 100% { transform: translate(0, 0) rotate(0); } 20% { transform: translate(-5px, 2px) rotate(-.7deg); } 40% { transform: translate(4px, -3px) rotate(.6deg); } 60% { transform: translate(-3px, 4px) rotate(-.4deg); } 80% { transform: translate(5px, -1px) rotate(.5deg); } }
+.paper.fx-quake { animation: quake .22s linear infinite; }
+.fx-layer { position: fixed; inset: 0; z-index: 47; pointer-events: none; overflow: hidden; }
+.fx-splat { position: absolute; pointer-events: auto; cursor: pointer; opacity: .96; animation: splatIn .25s cubic-bezier(.2, 1.6, .4, 1); transition: opacity .25s, transform .25s; }
+.fx-splat.gone, .fx-bubble.gone { opacity: 0; transform: scale(1.3); }
+@keyframes splatIn { from { transform: scale(.2); } }
+.fx-bubble { position: absolute; bottom: -120px; pointer-events: auto; cursor: pointer; border-radius: 50%; background: radial-gradient(circle at 32% 30%, rgba(255, 255, 255, .95) 0 12%, rgba(190, 225, 255, .55) 30%, rgba(140, 190, 255, .35) 70%, rgba(255, 255, 255, .7) 100%); box-shadow: inset 0 0 12px rgba(255, 255, 255, .8); animation: bubbleUp linear forwards; transition: opacity .2s, transform .2s; }
+@keyframes bubbleUp { from { transform: translateY(0) translateX(0); } 50% { transform: translateY(-55vh) translateX(24px); } to { transform: translateY(-120vh) translateX(-12px); } }
+@media (prefers-reduced-motion: reduce) { .paper.fx-quake { animation-duration: .6s; } }
 /* 搶分賽道具：抄答案的路線 */
 .rush-note { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 0; padding: 8px 10px; border-radius: 12px; background: #efe4ff; color: #3b1f73; font-size: 13px; font-weight: 800; line-height: 1.5; }
 .rush-note[hidden] { display: none; }

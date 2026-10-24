@@ -1,18 +1,18 @@
 // 維基競速 © 2026 kylechen0419 保留所有權利。未經同意不得複製、修改或另外架設（見 LICENSE）。
-import { Net } from './net.js?v=116';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin, sendExtraToAdmin } from './presence.js?v=116';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=116';
-import { initNotify, notify } from './notify.js?v=116';
-import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=116';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=116';
-import { reportError, catchErrors } from './errors.js?v=116';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=116';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=116';
-import * as wiki from './wiki.js?v=116';
-import { tw, twTree, zhReady } from './zh.js?v=116';
-import { makeShareImage } from './share.js?v=116';
-import { solve } from './solver.js?v=116';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=116';
+import { Net } from './net.js?v=117';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin, sendExtraToAdmin } from './presence.js?v=117';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=117';
+import { initNotify, notify } from './notify.js?v=117';
+import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=117';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=117';
+import { reportError, catchErrors } from './errors.js?v=117';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=117';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=117';
+import * as wiki from './wiki.js?v=117';
+import { tw, twTree, zhReady } from './zh.js?v=117';
+import { makeShareImage } from './share.js?v=117';
+import { solve } from './solver.js?v=117';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=117';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -25,7 +25,8 @@ const DEFAULT_SETTINGS = {
   oppView: 'hint', allowBack: true, trueRandom: false,
   allowFind: false,  // 比賽中可以打字找這一頁的連結（房主決定，預設不行）
   rushMin: 5, rushLevel: 'normal',  // 搶分賽：總共幾分鐘、題目難度
-  rushItems: false,  // 搶分賽加道具（搶分賽專用的一套道具）
+  rushItems: false,  // 搶分賽加道具
+  itemPick: {},  // 房主勾選要用的道具：{ speed: [...], steps: [...], rush: [...] }；沒有就用預設
 };
 const MAX_PLAYERS = { duel: 2, party: 8 };
 // 斷線後保留位置的時間：比賽中久一點，房間裡短一點
@@ -216,6 +217,7 @@ function show(view) {
   if (view !== 'watch') { stopWatchTimer(); $('#btn-follow').hidden = true; }
   if (view !== 'room' && view !== 'game') closePick(null);
   if (view !== 'game') closeHint();
+  if (view !== 'game') { $('#fx-dark').hidden = true; $('#fx-layer').replaceChildren(); }  // 停電、潑漆、泡泡只在比賽畫面
   $('#item-dock').hidden = !(view === 'game' && isItems() && !state.game?.finished);
   closeEmotes();
   if (view === 'home' || view === 'room') music.play('lobby');
@@ -680,7 +682,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=116').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=117').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -766,7 +768,7 @@ function initHome() {
     showError('#home-error');
     state.myName = name;
     state.mode = selectedMode();
-    state.settings = { ...state.settings, goal: selectedGoal(), rushItems: selectedGoal() === 'rush' && !!$('#goal-home-items')?.checked };
+    state.settings = { ...state.settings, goal: selectedGoal(), rushItems: selectedGoal() === 'rush' && !!$('#goal-home-items')?.checked, itemPick: savedItemPick() };
     $('#btn-create').disabled = true;
     setConn('建立中…');
     try {
@@ -838,7 +840,84 @@ function readForm() {
     rushMin: [3, 5, 8, 10].includes(Number(f.rushMin.value)) ? Number(f.rushMin.value) : 5,
     rushLevel: RUSH_LEVELS[f.rushLevel.value] ? f.rushLevel.value : 'normal',
     rushItems: f.roomGoal.value === 'rush' && f.roomItems.checked,
+    itemPick: readItemPick(),
   };
+}
+
+// ---------- 房間設定：要用哪些道具（照分類勾選） ----------
+// 選項跟著玩法（比速度／比步數／搶分賽）換；每種玩法各記各的，房主的選擇也記在這支手機上，下次開房間沿用
+const roomKind = () => { const f = form().elements; return f.roomGoal.value === 'rush' ? 'rush' : f.roomGoal.value === 'steps' ? 'steps' : 'speed'; };
+function readItemPick() {
+  const kind = roomKind();
+  const boxes = [...$('#item-pick-list').querySelectorAll('input[name="itemPick"]')];
+  const pick = { ...(state.settings.itemPick || {}) };
+  if (!boxes.length || $('#item-pick-list').dataset.kind !== kind) return pick;
+  if (form().elements.itemMode.value === 'random') delete pick[kind];
+  else pick[kind] = boxes.filter((b) => b.checked).map((b) => b.value);
+  return pick;
+}
+function renderItemPick(s) {
+  const kind = itemKindOf(s);
+  const list = $('#item-pick-list');
+  const custom = customPick(s, kind);
+  // 隨機模式：勾選框先放預設那一組，按「自己選」就從這裡開始改
+  const on = new Set(custom ? pickedItems(s, kind) : DEFAULT_PICK[kind]);
+  const all = itemsFor(kind);
+  form().elements.itemMode.value = custom ? 'custom' : 'random';
+  for (const r of form().elements.itemMode) r.disabled = !net.isHost;
+  list.hidden = !custom;
+  $('#item-pick-tip-custom').hidden = !custom;
+  $('#item-pick-random').hidden = custom;
+  $('#item-pick-random').textContent = `每一局開始時，從這個玩法的 ${all.length} 個道具裡隨機挑 ${Math.min(RANDOM_ITEMS, all.length)} 個，大家同一組。想自己決定的話選「✋ 自己選」。`;
+  if (list.dataset.kind !== kind || list.querySelectorAll('input').length !== all.length) {
+    list.dataset.kind = kind;
+    const groups = Object.entries(ITEM_CATS).map(([cat, title]) => [title, all.filter(([, it]) => it.cat === cat)]).filter(([, l]) => l.length);
+    list.replaceChildren(...groups.flatMap(([title, l]) => {
+      const row = Object.assign(document.createElement('div'), { className: 'ipick-row' });
+      row.append(...l.map(([k, it]) => {
+        const lab = Object.assign(document.createElement('label'), { className: 'ipick', title: it.desc });
+        lab.append(Object.assign(document.createElement('input'), { type: 'checkbox', name: 'itemPick', value: k }), Object.assign(document.createElement('span'), { textContent: `${it.icon} ${it.name}` }));
+        return lab;
+      }));
+      return [Object.assign(document.createElement('p'), { className: 'ipick-cat', textContent: title }), row];
+    }));
+  }
+  for (const b of list.querySelectorAll('input')) { b.checked = on.has(b.value); b.disabled = !net.isHost; }
+  $('#item-pick-count').textContent = custom ? `開了 ${on.size} / ${all.length} 個` : '';
+  const def = DEFAULT_PICK[kind];
+  $('#item-pick-reset').hidden = !custom;
+  $('#item-pick-reset').disabled = !net.isHost || (on.size === def.length && def.every((k) => on.has(k)));
+}
+function initItemPick() {
+  // 至少要留一個；房主改了就記下來
+  $('#item-pick-list').addEventListener('change', (e) => {
+    const box = e.target.closest('input[name="itemPick"]');
+    if (!box) return;
+    if (!$('#item-pick-list').querySelector('input:checked')) { box.checked = true; toast('至少要留一個道具'); return; }
+    const kind = roomKind();
+    store.set(`wikirace-pick-${kind}`, JSON.stringify([...$('#item-pick-list').querySelectorAll('input:checked')].map((b) => b.value)));
+  }, true);
+  // 隨機／自己選：也記下來
+  for (const r of form().elements.itemMode) {
+    r.addEventListener('change', () => {
+      const kind = roomKind();
+      store.set(`wikirace-pick-${kind}`, r.value === 'random' ? '' : JSON.stringify([...$('#item-pick-list').querySelectorAll('input:checked')].map((b) => b.value)));
+    });
+  }
+  $('#item-pick-reset').onclick = () => {
+    const kind = roomKind();
+    store.set(`wikirace-pick-${kind}`, '');
+    for (const b of $('#item-pick-list').querySelectorAll('input')) b.checked = DEFAULT_PICK[kind].includes(b.value);
+    form().dispatchEvent(new Event('change'));
+  };
+}
+// 開房間時：沿用這支手機上次勾的
+function savedItemPick() {
+  const out = {};
+  for (const kind of ['speed', 'steps', 'rush']) {
+    try { const v = JSON.parse(store.get(`wikirace-pick-${kind}`) || 'null'); if (Array.isArray(v) && v.length) out[kind] = v.filter((k) => ITEMS[k]?.modes.includes(kind)); } catch { /* 忽略 */ }
+  }
+  return out;
 }
 
 // 「對手位置」三個選項各自的說明，跟著選到的那個換
@@ -859,6 +938,7 @@ function writeForm(s) {
   f.rushMin.value = String(s.rushMin || 5);
   f.rushLevel.value = RUSH_LEVELS[s.rushLevel] ? s.rushLevel : 'normal';
   f.roomItems.checked = itemsOn(s);
+  renderItemPick(s);
   f.roomMode.value = isParty() ? 'party' : 'duel';
   f.timeLimit.value = String(s.timeLimit);
   f.lastCall.value = String(s.lastCall || 0);
@@ -950,6 +1030,8 @@ function paintRoomGoal() {
   $('#room-goal').classList.toggle('steps', goalClass(goal) === 'steps');
   $('#room-goal').classList.toggle('items', goalClass(goal) === 'items');
   $('#room-items-help').hidden = !itemsOn(state.settings);
+  $('#item-pick').hidden = !itemsOn(state.settings);
+  renderItemPick(state.settings);
   // 搶分賽：起點終點、時間限制、道具、最後衝刺都用不到，換成搶分時間和難度
   const rush = goal === 'rush';
   for (const id of ['#rush-desc', '#row-rush-min', '#row-rush-level']) $(id).hidden = !rush;
@@ -1418,6 +1500,12 @@ function initRoom() {
   };
 
   $('#btn-leave').onclick = backToLobby;
+  // 左上角的標誌也是回首頁：在房間裡的話跟按「大廳」一樣（先確認、房主交出去），不要直接跳走
+  $('.masthead .logo').addEventListener('click', (e) => {
+    if (!net.code || !['room', 'result'].includes(state.view)) return;
+    e.preventDefault();
+    backToLobby();
+  });
 
   $('#btn-transfer').onclick = async () => {
     const list = onlineGuests();
@@ -1725,6 +1813,7 @@ async function hostStart() {
   showError('#room-error');
   try {
     const s = readForm();
+    if (itemsOn(s) && !customPick(s)) s.itemRoll = rollItemSet(itemKindOf(s));  // 房主沒選道具：這一局隨機 10 個，大家同一組
     if (s.goal === 'rush') {
       // 搶分賽：房主先出好前兩題，其他的比賽中在背景繼續出，大家照同一個順序玩
       btn.textContent = '出題中…';
@@ -4573,34 +4662,76 @@ function maskTitle(text, title, lang) {
 
 // ---------- 道具賽 ----------
 // 每 40 秒自動發一個道具（最多帶 2 個）；離終點越遠的人拿到越強的道具
+// 所有道具。cat：分類（房主開局前照分類勾選要用哪些）；modes：哪些玩法能用；lv：強度（落後的人比較容易拿到強的）
+const ALL = ['speed', 'steps', 'rush'];
 const ITEMS = {
-  fog: { icon: '🌫️', name: '迷霧', desc: '對手的條目變得模糊 8 秒', kind: 'attack', ms: 8000 },
-  flip: { icon: '🙃', name: '天旋地轉', desc: '對手的條目上下顛倒 8 秒', kind: 'attack', ms: 8000 },
-  freeze: { icon: '🧊', name: '冰凍', desc: '對手 5 秒內什麼都不能點', kind: 'attack', ms: 5000 },
-  banana: { icon: '🍌', name: '香蕉皮', desc: '對手下一次點連結會滑倒，跑去隨機的條目', kind: 'attack', ms: 30000 },
-  snail: { icon: '🐌', name: '蝸牛', desc: '對手 15 秒內每次換頁都慢 2 秒', kind: 'attack', ms: 15000 },
-  bolt: { icon: '⚡', name: '閃電', desc: '所有對手一起冰凍 3 秒', kind: 'all', ms: 3000 },
-  shield: { icon: '🛡️', name: '護盾', desc: '擋下 30 秒內的下一次攻擊', kind: 'self', ms: 30000 },
-  crystal: { icon: '🔮', name: '水晶球', desc: '標出這一頁「下一步就能到終點」的連結', kind: 'self' },
-  // 比步數專用：直接影響步數
-  heavy: { icon: '🎒', name: '重擔', desc: '對手下一次點連結算 2 步', kind: 'attack', ms: 120000, only: 'steps' },
-  free: { icon: '👟', name: '免費一步', desc: '自己下一次點連結不算步數', kind: 'self', ms: 120000, only: 'steps' },
-  // 搶分賽專用：跟分數、題目有關（大家題目一樣、一題接一題、可以跳過）
-  double: { icon: '💰', name: '雙倍分', desc: '下一題抵達拿 2 分', kind: 'self', only: 'rush' },
-  golden: { icon: '🌟', name: '黃金時刻', desc: '接下來 30 秒，所有人抵達都多 1 分；第一個抵達的人再多 1 分', kind: 'all', ms: 30000, only: 'rush' },
-  steal: { icon: '🧲', name: '搶分', desc: '從第一名身上搶 1 分（落後 2 分以上才拿得到）', kind: 'attack', only: 'rush' },
-  copy: { icon: '📝', name: '抄答案', desc: '看這一題已經抵達的人走過的最短路線', kind: 'self', only: 'rush' },
-  swap: { icon: '🎲', name: '換終點', desc: '對手這一題的終點換成另一個差不多遠的', kind: 'attack', only: 'rush' },
-  lockskip: { icon: '🔒', name: '鎖住跳過', desc: '對手 60 秒內不能跳過', kind: 'attack', ms: 60000, only: 'rush' },
-  bet: { icon: '🪙', name: '押注', desc: '60 秒內抵達這一題就多拿 2 分；沒抵達（或跳過）扣 1 分', kind: 'self', ms: 60000, only: 'rush' },
-  bomb: { icon: '💣', name: '定時炸彈', desc: '對手 60 秒內沒抵達這一題（或跳過）就扣 1 分', kind: 'attack', ms: 60000, only: 'rush' },
-  mirror: { icon: '🪞', name: '反彈', desc: '60 秒內，下一個丟給你的道具會反彈回去', kind: 'self', ms: 60000, only: 'rush' },
+  // 👀 畫面干擾
+  fog: { icon: '🌫️', name: '迷霧', desc: '對手的條目變得模糊 8 秒', kind: 'attack', ms: 8000, cat: 'look', modes: ALL, lv: 1 },
+  flip: { icon: '🙃', name: '天旋地轉', desc: '對手的條目上下顛倒 8 秒', kind: 'attack', ms: 8000, cat: 'look', modes: ALL, lv: 1 },
+  blackout: { icon: '🔦', name: '停電', desc: '對手畫面全黑 10 秒，只剩手指附近一圈看得到', kind: 'attack', ms: 10000, cat: 'look', modes: ALL, lv: 3 },
+  ink: { icon: '🫥', name: '隱形墨水', desc: '對手條目裡的連結 10 秒內看起來跟一般文字一樣', kind: 'attack', ms: 10000, cat: 'look', modes: ALL, lv: 2 },
+  paint: { icon: '🎨', name: '潑漆', desc: '對手畫面被潑上顏料，點一下才能擦掉（20 秒後自己會乾掉）', kind: 'attack', ms: 20000, cat: 'look', modes: ALL, lv: 1 },
+  bubbles: { icon: '🫧', name: '泡泡', desc: '對手畫面飄滿泡泡 12 秒，點泡泡會破', kind: 'attack', ms: 12000, cat: 'look', modes: ALL, lv: 1 },
+  tiny: { icon: '🐜', name: '縮小燈', desc: '對手條目的字變得超小 8 秒', kind: 'attack', ms: 8000, cat: 'look', modes: ALL, lv: 1 },
+  quake: { icon: '🫨', name: '地震', desc: '對手的條目一直搖晃 8 秒，連結比較難點準', kind: 'attack', ms: 8000, cat: 'look', modes: ALL, lv: 2 },
+  // ⏱️ 拖時間（比步數沒用）
+  freeze: { icon: '🧊', name: '冰凍', desc: '對手 5 秒內什麼都不能點', kind: 'attack', ms: 5000, cat: 'time', modes: ['speed', 'rush'], lv: 3 },
+  bolt: { icon: '⚡', name: '閃電', desc: '所有對手一起冰凍 3 秒', kind: 'all', ms: 3000, cat: 'time', modes: ['speed', 'rush'], lv: 3 },
+  snail: { icon: '🐌', name: '蝸牛', desc: '對手 15 秒內每次換頁都慢 2 秒', kind: 'attack', ms: 15000, cat: 'time', modes: ['speed', 'rush'], lv: 2 },
+  banana: { icon: '🍌', name: '香蕉皮', desc: '對手下一次點連結會滑倒，跑去隨機的條目', kind: 'attack', ms: 30000, cat: 'time', modes: ALL, lv: 3 },
+  // 👣 步數（比步數專用）
+  heavy: { icon: '🎒', name: '重擔', desc: '對手下一次點連結算 2 步', kind: 'attack', ms: 120000, cat: 'steps', modes: ['steps'], lv: 3 },
+  free: { icon: '👟', name: '免費一步', desc: '自己下一次點連結不算步數', kind: 'self', ms: 120000, cat: 'steps', modes: ['steps'], lv: 2 },
+  // 🏆 分數（搶分賽）
+  double: { icon: '💰', name: '雙倍分', desc: '下一題抵達拿 2 分', kind: 'self', cat: 'score', modes: ['rush'], lv: 2 },
+  bet: { icon: '🪙', name: '押注', desc: '60 秒內抵達這一題就多拿 2 分；沒抵達（或跳過）扣 1 分', kind: 'self', ms: 60000, cat: 'score', modes: ['rush'], lv: 1 },
+  golden: { icon: '🌟', name: '黃金時刻', desc: '接下來 30 秒，所有人抵達都多 1 分；第一個抵達的人再多 1 分', kind: 'all', ms: 30000, cat: 'score', modes: ['rush'], lv: 3 },
+  steal: { icon: '🧲', name: '搶分', desc: '從第一名身上搶 1 分（落後 2 分以上才拿得到）', kind: 'attack', cat: 'score', modes: ['rush'], lv: 3 },
+  bomb: { icon: '💣', name: '定時炸彈', desc: '對手 60 秒內沒抵達這一題（或跳過）就扣 1 分', kind: 'attack', ms: 60000, cat: 'score', modes: ['rush'], lv: 2 },
+  // 🧩 題目（搶分賽）
+  copy: { icon: '📝', name: '抄答案', desc: '看這一題已經抵達的人走過的最短路線', kind: 'self', cat: 'puzzle', modes: ['rush'], lv: 3 },
+  swap: { icon: '🎲', name: '換終點', desc: '對手這一題的終點換成另一個差不多遠的', kind: 'attack', cat: 'puzzle', modes: ['rush'], lv: 2 },
+  lockskip: { icon: '🔒', name: '鎖住跳過', desc: '對手 60 秒內不能跳過', kind: 'attack', ms: 60000, cat: 'puzzle', modes: ['rush'], lv: 1 },
+  // 🛡️ 防守、輔助
+  shield: { icon: '🛡️', name: '護盾', desc: '擋下 30 秒內的下一次攻擊', kind: 'self', ms: 30000, cat: 'guard', modes: ALL, lv: 2 },
+  mirror: { icon: '🪞', name: '反彈', desc: '60 秒內，下一個丟給你的道具會反彈回去', kind: 'self', ms: 60000, cat: 'guard', modes: ALL, lv: 1 },
+  crystal: { icon: '🔮', name: '水晶球', desc: '標出這一頁「下一步就能到終點」的連結', kind: 'self', cat: 'guard', modes: ALL, lv: 3 },
 };
-// 拖時間的道具在比步數沒有用，只在比速度出現
-for (const k of ['freeze', 'bolt', 'snail']) ITEMS[k].only = 'speed';
-// 這一局（或這個玩法）用得到的道具：kind＝speed／steps／rush（搶分賽只用自己那一套）
-const itemsFor = (kind) => Object.entries(ITEMS).filter(([, it]) => (kind === 'rush' ? it.only === 'rush' : it.only !== 'rush' && (!it.only || it.only === kind)));
-const itemKind = (g) => (isRush(g) ? 'rush' : isSteps(g) ? 'steps' : 'speed');
+const ITEM_CATS = { look: '👀 畫面干擾', time: '⏱️ 拖時間', steps: '👣 步數', score: '🏆 分數', puzzle: '🧩 題目', guard: '🛡️ 防守、輔助' };
+// 沒有自己選的話用這些（泡泡、縮小燈、地震、鎖住跳過、反彈要自己勾）
+const DEFAULT_PICK = {
+  speed: ['fog', 'flip', 'freeze', 'banana', 'snail', 'bolt', 'shield', 'crystal', 'blackout', 'ink', 'paint'],
+  steps: ['fog', 'flip', 'banana', 'heavy', 'shield', 'crystal', 'free', 'blackout', 'ink', 'paint'],
+  rush: ['double', 'bet', 'golden', 'steal', 'bomb', 'copy', 'swap', 'flip', 'blackout', 'ink', 'paint', 'mirror'],
+};
+// 這個玩法（kind＝speed／steps／rush）能選的道具
+const itemsFor = (kind) => Object.entries(ITEMS).filter(([, it]) => it.modes.includes(kind));
+const itemKindOf = (s) => (s?.goal === 'rush' ? 'rush' : goalSteps(s?.goal) ? 'steps' : 'speed');
+const itemKind = (g) => itemKindOf(g?.settings);
+// 房主沒有自己選：每一局隨機挑這麼多個
+const RANDOM_ITEMS = 10;
+// 房主是不是自己選了道具（沒有選＝每局隨機）
+const customPick = (s, kind = itemKindOf(s)) => Array.isArray(s?.itemPick?.[kind]);
+// 這一局有開的道具：開局時抽好的（隨機）＞房主勾的＞還沒開局的隨機模式（全部都有可能）
+function pickedItems(s, kind = itemKindOf(s)) {
+  const valid = (l) => (Array.isArray(l) ? l.filter((k) => ITEMS[k]?.modes.includes(kind)) : []);
+  const rolled = valid(s?.itemRoll);
+  if (rolled.length) return rolled;
+  if (customPick(s, kind)) { const mine = valid(s.itemPick[kind]); return mine.length ? mine : DEFAULT_PICK[kind]; }
+  return itemsFor(kind).map(([k]) => k);
+}
+// 隨機挑這一局的道具：至少留 2 個不是攻擊的（護盾、加分…），不然整局都在互丟
+function rollItemSet(kind) {
+  const all = itemsFor(kind).map(([k]) => k).sort(() => Math.random() - 0.5);
+  const pick = all.slice(0, RANDOM_ITEMS);
+  const rest = all.slice(RANDOM_ITEMS);
+  const friendly = (k) => ITEMS[k].kind === 'self' || k === 'golden';
+  while (pick.filter(friendly).length < 2 && rest.some(friendly)) {
+    const i = pick.findIndex((k) => !friendly(k));
+    pick[i] = rest.splice(rest.findIndex(friendly), 1)[0];
+  }
+  return pick;
+}
 // 比步數的人會想比較久：香蕉皮、重擔留到他下一次點為止（最多 2 分鐘），不會因為想太久就失效
 const fxMs = (g, item) => (isSteps(g) && (item === 'banana' || item === 'heavy') ? 120000 : ITEMS[item].ms);
 // 持續型效果在畫面上的樣子：壞的紅色、好的綠色
@@ -4610,6 +4741,8 @@ const FX = {
   heavy: { icon: '🎒', bad: true, text: '下一步算 2 步' }, free: { icon: '👟', bad: false, text: '下一步免費' },
   double: { icon: '💰', bad: false, text: '下一題 2 分' }, golden: { icon: '🌟', bad: false, label: '黃金時刻' }, lockskip: { icon: '🔒', bad: true, label: '不能跳過' },
   mirror: { icon: '🪞', bad: false, label: '反彈' }, bet: { icon: '🪙', bad: false, label: '押注' }, bomb: { icon: '💣', bad: true, label: '快抵達' },
+  blackout: { icon: '🔦', bad: true, label: '停電' }, ink: { icon: '🫥', bad: true, label: '隱形墨水' }, paint: { icon: '🎨', bad: true, label: '潑漆' },
+  bubbles: { icon: '🫧', bad: true, label: '泡泡' }, tiny: { icon: '🐜', bad: true, label: '縮小燈' }, quake: { icon: '🫨', bad: true, label: '地震' },
 };
 const MAX_ITEMS = 2;
 const ITEM_EVERY = 40000;
@@ -4633,6 +4766,8 @@ const ITEM_TIERS_RUSH = {
   lead: { bet: 3, bomb: 2, lockskip: 2, swap: 2, mirror: 2 },
 };
 const TIER_NOTE = { behind: '落後補給', even: '', lead: '領先者' };
+const TIER_TABLES = { speed: ITEM_TIERS, steps: ITEM_TIERS_STEPS, rush: ITEM_TIERS_RUSH };
+const LV_WEIGHT = { behind: { 3: 3, 2: 2, 1: 0 }, even: { 3: 1, 2: 3, 1: 2 }, lead: { 3: 0, 2: 1, 1: 3 } };
 
 function resetItems() {
   const g = state.game;
@@ -4707,11 +4842,16 @@ function itemTier(g) {
 }
 
 function rollItem(tier, kind = 'speed', g = null) {
-  const w = { ...(kind === 'rush' ? ITEM_TIERS_RUSH : kind === 'steps' ? ITEM_TIERS_STEPS : ITEM_TIERS)[tier] };
-  if (g?.stealGiven) delete w.steal;  // 搶分一局最多拿到一次
-  let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0);
+  const table = TIER_TABLES[kind];
+  const listed = new Set(Object.values(table).flatMap((t) => Object.keys(t)));
+  const picked = pickedItems(g?.settings, kind).filter((k) => !(k === 'steal' && (tier !== 'behind' || g?.stealGiven)));  // 搶分：只給落後的人，一局最多一次
+  const w = {};
+  for (const k of picked) w[k] = listed.has(k) ? (table[tier][k] || 0) : LV_WEIGHT[tier][ITEMS[k].lv];
+  let total = Object.values(w).reduce((a, b) => a + b, 0);
+  if (!total) { for (const k of picked) w[k] = 1; total = picked.length; }  // 這一級剛好都沒開：從有開的裡面隨便挑
+  let r = Math.random() * total;
   for (const [k, v] of Object.entries(w)) { r -= v; if (r < 0) return k; }
-  return Object.keys(w)[0] || 'fog';
+  return picked[0] || 'fog';
 }
 
 // 發一個道具（欄位滿了就不發）
@@ -4763,6 +4903,13 @@ function applyFx() {
   const on = (k) => !!g && !g.finished && fxOn(g, k);
   $('#article').classList.toggle('fx-fog', on('fog'));
   $('#article').classList.toggle('fx-flip', on('flip'));
+  $('#article').classList.toggle('fx-ink', on('ink'));
+  $('#article').classList.toggle('fx-tiny', on('tiny'));
+  $('#view-game .paper').classList.toggle('fx-quake', on('quake'));
+  $('#fx-dark').hidden = !(on('blackout') && state.view === 'game');
+  // 潑漆、泡泡：時間到（或比完、換題）就清掉還沒擦掉的
+  if (!on('paint')) $$('#fx-layer .fx-splat').forEach((el) => el.remove());
+  if (!on('bubbles')) $$('#fx-layer .fx-bubble').forEach((el) => el.remove());
   $('#view-game .paper').classList.toggle('fx-freeze', on('freeze'));
   const chips = g && !g.finished ? Object.entries(FX).filter(([k]) => on(k)).map(([k, f]) => {
     const el = document.createElement('span');
@@ -4928,6 +5075,8 @@ function onItem(from, item, to, rf = false) {
   }
   const key = item === 'bolt' ? 'freeze' : item;
   g.fx[key] = performance.now() + fxMs(g, item);
+  if (item === 'paint') spawnPaint();
+  if (item === 'bubbles') spawnBubbles();
   applyFx();
   showHit(def.icon, `${fromName} 對你用了「${def.name}」！`);
   sfx.alarm();
@@ -4998,6 +5147,45 @@ function onItemBlocked(by, item, from) {
   else feed([{ b: nameOf(by) }, ` 用 🛡️ 擋下了 ${def.icon} ${def.name}`], '道具');
 }
 
+// 潑漆：幾大塊顏料蓋住畫面，點一下擦掉
+function spawnPaint() {
+  const colors = ['#ff5ca8', '#ffb020', '#2f7bff', '#22c55e', '#a855f7', '#ff7a45'];
+  const layer = $('#fx-layer');
+  for (let i = 0; i < 5; i++) {
+    const el = document.createElement('div');
+    el.className = 'fx-splat';
+    const size = 150 + Math.random() * 110;
+    const r = () => `${35 + Math.floor(Math.random() * 30)}%`;
+    Object.assign(el.style, {
+      width: `${size}px`, height: `${size * (0.8 + Math.random() * 0.4)}px`,
+      left: `${Math.random() * 80 - 5}vw`, top: `${18 + Math.random() * 62}vh`,
+      background: colors[(i + Math.floor(Math.random() * colors.length)) % colors.length],
+      borderRadius: `${r()} ${r()} ${r()} ${r()} / ${r()} ${r()} ${r()} ${r()}`,
+      rotate: `${Math.floor(Math.random() * 360)}deg`,
+    });
+    el.onclick = () => { el.classList.add('gone'); sfx.click(); setTimeout(() => el.remove(), 260); };
+    layer.append(el);
+  }
+}
+// 泡泡：從下面一直飄上來，點一下就破
+function spawnBubbles() {
+  const layer = $('#fx-layer');
+  const ms = ITEMS.bubbles.ms;
+  for (let i = 0; i < 16; i++) {
+    const el = document.createElement('div');
+    el.className = 'fx-bubble';
+    const size = 55 + Math.random() * 55;
+    Object.assign(el.style, { width: `${size}px`, height: `${size}px`, left: `${Math.random() * 92 - 4}vw`, animationDuration: `${5 + Math.random() * 4}s`, animationDelay: `${Math.random() * (ms / 1000 - 6)}s` });
+    el.onclick = () => { el.classList.add('gone'); sfx.tap(); setTimeout(() => el.remove(), 220); };
+    layer.append(el);
+  }
+}
+// 停電：手指（滑鼠）在哪裡就照亮哪裡
+for (const ev of ['pointermove', 'pointerdown']) {
+  addEventListener(ev, (e) => { const d = $('#fx-dark'); if (d && !d.hidden) { d.style.setProperty('--x', `${e.clientX}px`); d.style.setProperty('--y', `${e.clientY}px`); } }, { passive: true });
+}
+addEventListener('touchmove', (e) => { const d = $('#fx-dark'); const t = e.touches[0]; if (d && !d.hidden && t) { d.style.setProperty('--x', `${t.clientX}px`); d.style.setProperty('--y', `${t.clientY}px`); } }, { passive: true });
+
 let hitTimer;
 function showHit(icon, text, good = false) {
   note('hit', `${icon} ${text}`);
@@ -5061,7 +5249,8 @@ async function runCrystal() {
 // 道具說明：照目前的玩法（比賽中看這一局，房間裡看房間設定）列出用得到的道具
 let guideKind = 'speed';
 function openItemsGuide() {
-  const cur = state.game && !state.game.finished ? state.game.settings : state.settings;
+  const inGame = state.game && !state.game.finished;
+  const cur = inGame ? state.game.settings : { ...state.settings, itemRoll: null };  // 房間裡：上一局抽到的不算
   const steps = goalSteps(cur.goal);
   guideKind = cur.goal === 'rush' ? 'rush' : steps ? 'steps' : 'speed';
   const row = (it) => {
@@ -5073,18 +5262,19 @@ function openItemsGuide() {
     li.append(d);
     return li;
   };
-  const list = itemsFor(guideKind).map(([, it]) => it);
-  $('#items-list-atk').replaceChildren(...list.filter((it) => it.kind !== 'self').map(row));
-  $('#items-list-self').replaceChildren(...list.filter((it) => it.kind === 'self').map(row));
-  $('#items-title').textContent = guideKind === 'rush' ? '🎁 搶分賽道具' : steps ? '🎁 道具賽教學（比步數）' : '🎁 道具賽教學（比速度）';
+  // 只列這一局（這個房間）有開的道具
+  const list = pickedItems(cur, guideKind).map((k) => ITEMS[k]);
+  const randomNote = !inGame && !customPick(cur, guideKind) ? `（每局從這些隨機挑 ${RANDOM_ITEMS} 個）` : '';
+  const atk = (it) => it.kind === 'attack' || (it.kind === 'all' && it !== ITEMS.golden);  // 閃電是攻擊；黃金時刻是大家一起的好事
+  $('#items-list-atk').replaceChildren(...list.filter(atk).map(row));
+  $('#items-list-self').replaceChildren(...list.filter((it) => !atk(it)).map(row));
+  $('#items-title').textContent = (guideKind === 'rush' ? '🎁 搶分賽道具' : steps ? '🎁 道具賽教學（比步數）' : '🎁 道具賽教學（比速度）') + randomNote;
   if (guideKind === 'rush') {
     $('#items-step1').innerHTML = '<b>道具會自動發</b>：比賽開始後每 40 秒發一個，最多帶 2 個，右下角會顯示下一個還要幾秒。';
     $('#items-step2').innerHTML = '<b>落後的人拿比較強的</b>：比第一名少 2 分以上，才拿得到搶分、抄答案、黃金時刻；第一名只拿得到押注、鎖住跳過這種。';
     $('#items-step3').innerHTML = '<b>點右下角的道具就能用</b>：換終點、鎖住跳過在派對模式可以選要丟給誰；搶分會自動搶分數最高的人；其他的馬上生效。';
     $('#items-group-atk').textContent = '⚔️ 對付別人';
     $('#items-group-self').textContent = '💚 自己用、全場一起';
-    $('#items-list-atk').replaceChildren(...list.filter((it) => it.kind === 'attack').map(row));
-    $('#items-list-self').replaceChildren(...list.filter((it) => it.kind !== 'attack').map(row));
     $('#items-modal').hidden = false;
     return;
   }
@@ -5101,6 +5291,7 @@ function openItemsGuide() {
 }
 
 function initItems() {
+  initItemPick();
   $$('.item-slot').forEach((b) => { b.onclick = () => useItem(Number(b.dataset.slot)); });
   const close = () => { $('#items-modal').hidden = true; store.set(guideKind === 'rush' ? 'wikirace-rush-items-guide' : 'wikirace-items-guide', '1'); };
   $('#item-timer').onclick = openItemsGuide;
@@ -5795,7 +5986,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=116').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=117').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }
