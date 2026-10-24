@@ -124,7 +124,8 @@ function setBusy(b) {
 
 function checkBusy() {
   clearTimeout(busyTimer);
-  if (connected || offline || !conn) { setBusy(false); return; }
+  if (connected) { setBusy(false); return; }
+  if (offline || !conn) return;  // 自己斷開的：維持原狀，下次連上成功才算恢復
   busyTimer = setTimeout(() => { if (!connected && !offline && navigator.onLine !== false) setBusy(true); }, BUSY_MS);
 }
 

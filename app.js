@@ -1,18 +1,18 @@
 // 維基競速 © 2026 kylechen0419 保留所有權利。未經同意不得複製、修改或另外架設（見 LICENSE）。
-import { Net } from './net.js?v=111';
-import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=111';
-import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=111';
-import { initNotify, notify } from './notify.js?v=111';
-import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=111';
-import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=111';
-import { reportError, catchErrors } from './errors.js?v=111';
-import { badName, cleanName, maskText, watchBadWords } from './names.js?v=111';
-import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=111';
-import * as wiki from './wiki.js?v=111';
-import { tw, twTree, zhReady } from './zh.js?v=111';
-import { makeShareImage } from './share.js?v=111';
-import { solve } from './solver.js?v=111';
-import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=111';
+import { Net } from './net.js?v=112';
+import { initPresence, setActivity, onSpy, onBan, onAdminMsg, leaveOnline, sendLiveToAdmin } from './presence.js?v=112';
+import { publishRoom, clearRoom, forgetRoom, recordGame, watchControl, watchBroadcast } from './rooms.js?v=112';
+import { initNotify, notify } from './notify.js?v=112';
+import { getDb, getUid, authOff, onAuth, need, onBusy } from './fb.js?v=112';
+import { initAccount, onAccount, account, login, logout, syncProfile, saveProfile } from './account.js?v=112';
+import { reportError, catchErrors } from './errors.js?v=112';
+import { badName, cleanName, maskText, watchBadWords } from './names.js?v=112';
+import { todayKey, dailyNo, puzzle, myDay, saveDay, streak, board, submit, roundKnown, roundOf, loadLog } from './daily.js?v=112';
+import * as wiki from './wiki.js?v=112';
+import { tw, twTree, zhReady } from './zh.js?v=112';
+import { makeShareImage } from './share.js?v=112';
+import { solve } from './solver.js?v=112';
+import { sfx, music, unlockAudio, canClickNow, isSfxOn, setSfxOn, isMusicOn, setMusicOn, haptic, flash, shake, confetti, MUSIC_CHOICES, DEFAULT_CHOICE, getMusicChoice, setMusicChoice, saveCustomMusic, getCustomMusic, CLICK_SOUNDS, getClickSound, setClickSound } from './fx.js?v=112';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -664,7 +664,7 @@ function initHome() {
   $('#dyk-text').textContent = DYK[Math.floor(Math.random() * DYK.length)];
   // 閒置時預先載入題庫並顯示數量
   setTimeout(() => {
-    import('./topics.js?v=111').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
+    import('./topics.js?v=112').then((m) => { $('#topic-count').textContent = m.TOPICS.length.toLocaleString('en-US'); }).catch(() => {});
   }, 1200);
   $('#nickname').value = store.get('wikirace-name') || '';
   // 第一次來隨機給一個頭像，之後記住玩家的選擇
@@ -5452,7 +5452,7 @@ const junkTitle = (t) => /^\d|年$|年代|世紀$|月\d+日|^\d+月|列表|:/.te
 let popularKeys = null;
 const popularSets = new Map();  // 語言 → 轉換好的集合（一萬多個條目，只轉一次）
 async function popularOf(lang) {
-  popularKeys ||= import('./topics.js?v=111').then((m) => m.TOPICS).catch(() => []);
+  popularKeys ||= import('./topics.js?v=112').then((m) => m.TOPICS).catch(() => []);
   if (!popularSets.has(lang)) popularSets.set(lang, new Set((await popularKeys).map(nameKey(lang))));
   return popularSets.get(lang);
 }
