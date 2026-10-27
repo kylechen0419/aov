@@ -56,8 +56,8 @@ public final class BatchTranslator {
     private static final Pattern SLOT = Pattern.compile("\\{\\d+}");
     /** Interface strings per request; smaller batches come back sooner. */
     private static final int MAX_BATCH = 20;
-    /** Chat lines per request: someone is waiting to read these. */
-    private static final int MAX_URGENT_BATCH = 8;
+    /** Chat lines per request. */
+    private static final int MAX_CHAT_BATCH = 8;
     /** Requests in flight at once, so one slow reply doesn't hold up the rest. */
     private static final int PARALLEL = 4;
     private static final long RETRY_MS = 30_000;
@@ -76,8 +76,8 @@ public final class BatchTranslator {
     private final Map<String, Long> cooldown = new ConcurrentHashMap<>();
     private final Map<String, List<CompletableFuture<String>>> waiting = new HashMap<>();
     private final LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<>();
-    /** Strings someone is waiting on (chat lines): sent before interface text, without the gather delay. */
-    private final LinkedBlockingQueue<String> urgent = new LinkedBlockingQueue<>();
+    /** Chat lines: only sent once no interface text is waiting, since menus and quests matter more. */
+    private final LinkedBlockingQueue<String> chat = new LinkedBlockingQueue<>();
     private final Semaphore slots = new Semaphore(PARALLEL);
     private final ExecutorService calls = Executors.newFixedThreadPool(PARALLEL, r -> {
         Thread t = new Thread(r, "chattranslate-call");
@@ -143,7 +143,7 @@ public final class BatchTranslator {
                 if (future == null && until != null && until > System.currentTimeMillis()) return;
                 list = new ArrayList<>();
                 waiting.put(template, list);
-                (future != null ? urgent : queue).add(template);
+                (future != null ? chat : queue).add(template);
             }
             if (future != null) list.add(future);
         }
@@ -178,20 +178,20 @@ public final class BatchTranslator {
         }
     }
 
-    /** The next batch to send, chat first; null after a second with nothing to do. */
+    /** The next batch to send, interface text first; null after a second with nothing to do. */
     private List<String> nextBatch() throws InterruptedException {
         for (int waited = 0; waited < 1000; waited += 50) {
-            String first = urgent.poll();
-            if (first != null) {
-                List<String> batch = new ArrayList<>(List.of(first));
-                urgent.drainTo(batch, MAX_URGENT_BATCH - 1);
-                return batch;
-            }
-            first = queue.poll(50, TimeUnit.MILLISECONDS);
+            String first = queue.poll(50, TimeUnit.MILLISECONDS);
             if (first != null) {
                 Thread.sleep(150); // let the rest of this screen's strings arrive
                 List<String> batch = new ArrayList<>(List.of(first));
                 queue.drainTo(batch, MAX_BATCH - 1);
+                return batch;
+            }
+            first = chat.poll();
+            if (first != null) {
+                List<String> batch = new ArrayList<>(List.of(first));
+                chat.drainTo(batch, MAX_CHAT_BATCH - 1);
                 return batch;
             }
         }

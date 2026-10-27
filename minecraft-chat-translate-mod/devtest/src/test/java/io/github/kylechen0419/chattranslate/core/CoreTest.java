@@ -119,7 +119,7 @@ class CoreTest {
             UiText ui = new UiText();
             ui.use(tr);
             // a screen's worth of strings, asked for on the render thread: nothing blocks, one batch;
-            // lines someone waits on (chat) go in their own batch, ahead of interface text
+            // chat lines go in their own batch, after interface text
             assertNull(ui.lookup("Backpack"));
             assertNull(ui.lookup("Quests"));
             assertNull(ui.lookup("Go to Hanaka | 350m"));
