@@ -21,6 +21,8 @@ public final class Config {
     public String outgoingPrefix = ">>";
     /** "replace": show only the translation (hover for the original). "below": original, then translation. */
     public String mode = "replace";
+    /** Translate anything in the chat box (player chat and server messages). */
+    public boolean translateChat = true;
     /** Also translate server/plugin messages, not just player chat. */
     public boolean translateSystemMessages = true;
     /** Translate interface text too: menus, item names and lore, quest tracker, titles, boss bars. */

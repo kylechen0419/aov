@@ -23,6 +23,7 @@ import net.minecraft.util.Formatting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -73,6 +74,9 @@ public class ChatTranslateClient implements ClientModInitializer {
                         .then(literal("ui")
                                 .then(literal("on").executes(c -> setUi(c, true)))
                                 .then(literal("off").executes(c -> setUi(c, false))))
+                        .then(literal("chat")
+                                .then(literal("on").executes(c -> setChat(c, true)))
+                                .then(literal("off").executes(c -> setChat(c, false))))
                         .then(literal("system")
                                 .then(literal("on").executes(c -> setSystem(c, true)))
                                 .then(literal("off").executes(c -> setSystem(c, false))))));
@@ -101,6 +105,14 @@ public class ChatTranslateClient implements ClientModInitializer {
     /** Returns true to let Minecraft show the message as is, false when we show it ourselves. */
     private boolean onIncoming(Text message, boolean translatable) {
         if (!config.enabled || translator == null) return true;
+        if (!config.translateChat) {
+            // keep the interface hook off chat lines too, or they would still be translated (and paid for)
+            message.visit(part -> {
+                UI.exempt(part);
+                return Optional.empty();
+            });
+            return true;
+        }
         String plain = message.getString();
         boolean need = translatable && !plain.isBlank() && Lang.needsTranslation(plain, config.targetLang);
 
@@ -175,6 +187,7 @@ public class ChatTranslateClient implements ClientModInitializer {
                 "§7別人的訊息翻成：§f" + config.targetLang + "  §7/ct lang <代碼>",
                 "§7打 " + config.outgoingPrefix + " 開頭翻成：§f" + config.outgoingLang + "  §7/ct out <代碼>",
                 "§7顯示方式：§f" + (config.mode.equals("below") ? "原文下面加翻譯" : "直接換成翻譯") + "  §7/ct mode replace|below",
+                "§7聊天室也翻：§f" + (config.translateChat ? "是" : "否") + "  §7/ct chat on|off",
                 "§7伺服器訊息也翻：§f" + (config.translateSystemMessages ? "是" : "否") + "  §7/ct system on|off",
                 "§7介面（任務、選單、物品）也翻：§f" + (config.translateUi ? "是" : "否") + "  §7/ct ui on|off",
                 "§7已存的翻譯：§f" + (translator == null ? 0 : translator.cacheSize()) + " 句",
@@ -216,6 +229,13 @@ public class ChatTranslateClient implements ClientModInitializer {
         config.mode = mode;
         config.save();
         c.getSource().sendFeedback(Text.literal("§a[譯] " + (mode.equals("below") ? "原文下面加一行翻譯" : "直接換成翻譯（滑鼠移上去看原文）")));
+        return 1;
+    }
+
+    private int setChat(CommandContext<FabricClientCommandSource> c, boolean on) {
+        config.translateChat = on;
+        config.save();
+        c.getSource().sendFeedback(Text.literal("§a[譯] 聊天室" + (on ? "會翻譯" : "不翻譯了（任務、選單、物品還是會翻）")));
         return 1;
     }
 
