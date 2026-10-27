@@ -1,0 +1,40 @@
+// Builds and tests the Minecraft-independent core (translation, ordering, config) and smoke-tests
+// the relocated SDK bundle, without needing the Minecraft/Fabric toolchain.
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '8.3.9'
+}
+
+repositories { mavenCentral() }
+
+def props = new Properties()
+file('../gradle.properties').withInputStream { props.load(it) }
+
+sourceSets.main.java {
+    srcDir '../src/main/java'
+    include 'io/github/kylechen0419/chattranslate/core/**'
+}
+
+dependencies {
+    implementation("com.anthropic:anthropic-java:${props.anthropic_version}") { exclude group: 'org.slf4j' }
+    implementation 'com.google.code.gson:gson:2.11.0' // provided by Minecraft at runtime
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach { options.release = 21; options.encoding = 'UTF-8' }
+test { useJUnitPlatform(); testLogging { events 'passed', 'failed'; exceptionFormat 'full' } }
+
+apply from: '../shading.gradle'
+shadowJar {
+    dependencies { exclude(dependency('com.google.code.gson:gson')) }
+    applyShading(it)
+}
+
+// Runs a real request through the shaded, relocated jar against a local fake API server.
+tasks.register('smoke', JavaExec) {
+    dependsOn shadowJar, testClasses
+    classpath = files(shadowJar.archiveFile) + sourceSets.test.output +
+            configurations.runtimeClasspath.filter { it.name.startsWith('gson') }
+    mainClass = 'io.github.kylechen0419.chattranslate.core.ShadedSmoke'
+}

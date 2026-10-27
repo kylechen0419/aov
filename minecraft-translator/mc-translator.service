@@ -1,0 +1,17 @@
+# 範例：放到 /etc/systemd/system/mc-translator.service，改好路徑與密碼後
+#   sudo systemctl enable --now mc-translator
+[Unit]
+Description=Minecraft chat real-time translator
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/mc-translator
+Environment=ANTHROPIC_API_KEY=sk-ant-請改成你的金鑰
+Environment=MCT_RCON_PASSWORD=請改成server.properties裡的rcon.password
+Environment=MCT_LOG=/opt/minecraft/logs/latest.log
+ExecStart=/opt/mc-translator/venv/bin/python mc_translator.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

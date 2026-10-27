@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "chattranslate",
+  "version": "${version}",
+  "name": "Chat Translate（聊天即時翻譯）",
+  "description": "用 Claude 把伺服器的聊天、任務、選單、物品說明即時翻成你的語言；打 >> 開頭把你的話翻成英文送出。",
+  "authors": ["kylechen0419"],
+  "license": "MIT",
+  "environment": "client",
+  "mixins": ["chattranslate.mixins.json"],
+  "entrypoints": {
+    "client": ["io.github.kylechen0419.chattranslate.ChatTranslateClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}",
+    "java": ">=21"
+  }
+}

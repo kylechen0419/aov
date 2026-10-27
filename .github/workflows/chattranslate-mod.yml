@@ -1,0 +1,79 @@
+name: Build Chat Translate mod
+
+on:
+  push:
+    paths:
+      - 'minecraft-chat-translate-mod/**'
+      - '.github/workflows/chattranslate-mod.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write # to publish the jar as a release
+
+concurrency:
+  group: chattranslate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: minecraft-chat-translate-mod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Core tests and shaded-jar smoke test
+        working-directory: minecraft-chat-translate-mod/devtest
+        run: gradle test smoke --console=plain
+
+      - name: Pick the newest Fabric builds for this Minecraft version
+        id: versions
+        run: |
+          MC=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)
+          YARN=$(curl -fsS "https://meta.fabricmc.net/v2/versions/yarn/$MC" | jq -r '.[0].version')
+          LOADER=$(curl -fsS https://meta.fabricmc.net/v2/versions/loader | jq -r '[.[] | select(.stable)][0].version')
+          API=$(curl -fsS https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/maven-metadata.xml \
+                | grep -o "<version>[^<]*+$MC</version>" | sed 's/<[^>]*>//g' | tail -1)
+          echo "minecraft=$MC yarn=$YARN loader=$LOADER fabric-api=$API"
+          test -n "$YARN" && test -n "$LOADER" && test -n "$API"
+          echo "args=-Pyarn_mappings=$YARN -Ploader_version=$LOADER -Pfabric_version=$API" >> "$GITHUB_OUTPUT"
+          echo "mc=$MC" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: gradle build ${{ steps.versions.outputs.args }} --console=plain
+
+      - name: Collect jar
+        id: jar
+        run: |
+          JAR=$(ls build/libs/*.jar | grep -v -e '-sources' -e '-dev' | head -1)
+          ls -la build/libs
+          unzip -l "$JAR" | grep -q 'shaded/okhttp3/OkHttpClient.class'
+          unzip -l "$JAR" | grep -q 'chattranslate.mixins.json'
+          unzip -l "$JAR" | grep -q 'chattranslate.refmap.json'
+          echo "path=minecraft-chat-translate-mod/$JAR" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chattranslate-mc${{ steps.versions.outputs.mc }}
+          path: ${{ steps.jar.outputs.path }}
+
+      - name: Publish as the "chattranslate-latest" release
+        if: github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'claude/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: .
+        run: |
+          TAG=chattranslate-latest
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" "${{ steps.jar.outputs.path }}" \
+            --target "${{ github.sha }}" --prerelease \
+            --title "聊天即時翻譯模組（Minecraft ${{ steps.versions.outputs.mc }}，Fabric）" \
+            --notes "下載下面的 .jar，放進 .minecraft/mods。安裝說明：minecraft-chat-translate-mod/README.md（commit ${{ github.sha }}）"

@@ -1,0 +1,11 @@
+// Relocations for the bundled Anthropic SDK and its dependencies, so they can't clash with other
+// mods. Shared by the mod build and devtest/. kotlin stays where it is: kotlin-reflect finds its
+// built-in classes by their real names, and newer stdlibs from other mods are backward compatible.
+ext.applyShading = { task ->
+    def base = 'io.github.kylechen0419.chattranslate.shaded'
+    ['okhttp3', 'okio', 'com.fasterxml', 'com.github.victools', 'io.swagger',
+     'io.opentelemetry', 'com.standardwebhooks', 'org.intellij', 'org.jetbrains',
+     'com.google.errorprone'].each { task.relocate(it, "${base}.${it}") }
+    task.mergeServiceFiles()
+    task.exclude 'module-info.class', 'META-INF/versions/*/module-info.class', 'META-INF/maven/**'
+}

@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.github.kylechen0419.chattranslate.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["LiteralTextMixin"],
+  "injectors": { "defaultRequire": 1 }
+}
