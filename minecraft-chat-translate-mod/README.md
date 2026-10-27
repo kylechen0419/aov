@@ -51,6 +51,8 @@
 | `/ct` | 看目前設定、已經存了幾句翻譯 |
 | `/ct on`、`/ct off` | 開關翻譯 |
 | `/ct ui on`、`/ct ui off` | 介面文字要不要翻（關掉就只翻聊天） |
+| `/ct model fast` | 改用快又便宜的模型（Claude Haiku 5.5），翻譯稍微沒那麼好 |
+| `/ct model best` | 改回翻得最好的模型（Claude Opus 5.5，預設） |
 | `/ct chat on`、`/ct chat off` | 聊天室要不要翻（關掉後任務、選單、物品還是會翻） |
 | `/ct system on`、`/ct system off` | 伺服器訊息（公告、任務提示）要不要翻 |
 | `/ct mode replace` | 直接換成中文（預設，滑鼠移上去看原文） |

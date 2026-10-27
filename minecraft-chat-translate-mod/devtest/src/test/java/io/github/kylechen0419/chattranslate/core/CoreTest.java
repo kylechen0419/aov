@@ -118,7 +118,8 @@ class CoreTest {
             BatchTranslator tr = new BatchTranslator(api.client(), "claude-opus-5-5", "low", "zh-tw", cache, errors::add);
             UiText ui = new UiText();
             ui.use(tr);
-            // a screen's worth of strings, asked for on the render thread: nothing blocks, all go in one batch
+            // a screen's worth of strings, asked for on the render thread: nothing blocks, one batch;
+            // lines someone waits on (chat) go in their own batch, ahead of interface text
             assertNull(ui.lookup("Backpack"));
             assertNull(ui.lookup("Quests"));
             assertNull(ui.lookup("Go to Hanaka | 350m"));
@@ -127,11 +128,12 @@ class CoreTest {
             var bad = tr.translate("drop slot 5");
             assertNull(chat.get(10, TimeUnit.SECONDS), "unchanged lines come back as null");
             assertNull(bad.get(10, TimeUnit.SECONDS), "a translation that lost its number is discarded");
-            assertEquals(List.of(5), sizes);
+            for (int i = 0; i < 100 && ui.lookup("Backpack") == null; i++) Thread.sleep(50);
+            assertEquals(List.of(2, 3), sizes.stream().sorted().toList());
             assertEquals("譯:Backpack", ui.lookup("Backpack"));
             assertEquals("譯:Go to Hanaka | 349m", ui.lookup("Go to Hanaka | 349m"), "new number, same template: no new call");
             assertEquals("譯:Quests", tr.translate("Quests").get(1, TimeUnit.SECONDS));
-            assertEquals(1, api.bodies.size());
+            assertEquals(2, api.bodies.size());
             String body = api.bodies.get(0);
             assertTrue(body.contains("\"fallbacks\":\"default\""), body);
             assertTrue(body.contains("\"json_schema\""), body);

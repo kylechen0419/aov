@@ -74,6 +74,9 @@ public class ChatTranslateClient implements ClientModInitializer {
                         .then(literal("ui")
                                 .then(literal("on").executes(c -> setUi(c, true)))
                                 .then(literal("off").executes(c -> setUi(c, false))))
+                        .then(literal("model")
+                                .then(literal("fast").executes(c -> setModel(c, "claude-haiku-5-5")))
+                                .then(literal("best").executes(c -> setModel(c, "claude-opus-5-5"))))
                         .then(literal("chat")
                                 .then(literal("on").executes(c -> setChat(c, true)))
                                 .then(literal("off").executes(c -> setChat(c, false))))
@@ -187,6 +190,7 @@ public class ChatTranslateClient implements ClientModInitializer {
                 "§7別人的訊息翻成：§f" + config.targetLang + "  §7/ct lang <代碼>",
                 "§7打 " + config.outgoingPrefix + " 開頭翻成：§f" + config.outgoingLang + "  §7/ct out <代碼>",
                 "§7顯示方式：§f" + (config.mode.equals("below") ? "原文下面加翻譯" : "直接換成翻譯") + "  §7/ct mode replace|below",
+                "§7翻譯模型：§f" + config.model + "  §7/ct model fast（快又便宜）| best（翻得最好）",
                 "§7聊天室也翻：§f" + (config.translateChat ? "是" : "否") + "  §7/ct chat on|off",
                 "§7伺服器訊息也翻：§f" + (config.translateSystemMessages ? "是" : "否") + "  §7/ct system on|off",
                 "§7介面（任務、選單、物品）也翻：§f" + (config.translateUi ? "是" : "否") + "  §7/ct ui on|off",
@@ -229,6 +233,15 @@ public class ChatTranslateClient implements ClientModInitializer {
         config.mode = mode;
         config.save();
         c.getSource().sendFeedback(Text.literal("§a[譯] " + (mode.equals("below") ? "原文下面加一行翻譯" : "直接換成翻譯（滑鼠移上去看原文）")));
+        return 1;
+    }
+
+    private int setModel(CommandContext<FabricClientCommandSource> c, String model) {
+        config.model = model;
+        config.save();
+        rebuildTranslator();
+        c.getSource().sendFeedback(Text.literal("§a[譯] 改用 " + model
+                + (model.contains("haiku") ? "：比較快、便宜很多，翻譯品質稍差" : "：翻得最好，但比較慢、比較貴")));
         return 1;
     }
 
