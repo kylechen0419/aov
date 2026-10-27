@@ -31,10 +31,11 @@ shadowJar {
     applyShading(it)
 }
 
-// Runs a real request through the shaded, relocated jar against a local fake API server.
+// Runs a real request through the shaded, relocated jar against a local fake API server, with Kotlin
+// supplied separately the way Fabric Language Kotlin supplies it in game.
 tasks.register('smoke', JavaExec) {
     dependsOn shadowJar, testClasses
     classpath = files(shadowJar.archiveFile) + sourceSets.test.output +
-            configurations.runtimeClasspath.filter { it.name.startsWith('gson') }
+            configurations.runtimeClasspath.filter { it.name.startsWith('gson') || it.name.startsWith('kotlin-') }
     mainClass = 'io.github.kylechen0419.chattranslate.core.ShadedSmoke'
 }

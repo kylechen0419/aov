@@ -58,6 +58,7 @@ jobs:
           unzip -l "$JAR" | grep -q 'shaded/okhttp3/OkHttpClient.class'
           unzip -l "$JAR" | grep -q 'chattranslate.mixins.json'
           unzip -l "$JAR" | grep -q 'chattranslate.refmap.json'
+          if unzip -l "$JAR" | grep -q ' kotlin/'; then echo "Kotlin must come from Fabric Language Kotlin, not the jar"; exit 1; fi
           echo "path=minecraft-chat-translate-mod/$JAR" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4

@@ -17,7 +17,7 @@
 1. **先關掉遊戲和啟動器。**
 2. 到這個 GitHub 專案的 Releases，下載「聊天即時翻譯模組」裡的 `chattranslate-….jar`。
 3. 放進 `%appdata%\.Triggers Client\instances\Sword Art Online\mods`（按 `Win + R` 貼上這個路徑就會打開）。
-4. 確認同一個資料夾裡有 `fabric-api-….jar`；沒有的話也從 <https://modrinth.com/mod/fabric-api/versions?g=1.21.4> 下載一個放進去。
+4. 確認同一個資料夾裡有 `fabric-api-….jar` 和 `fabric-language-kotlin-….jar`（Triggers Client 的 SAO 版本兩個都有）。
 5. 用 Triggers Client 開遊戲，進伺服器後輸入 `/ct`，有看到「聊天翻譯」的設定就代表裝好了。
 
 > 如果啟動器更新時把多出來的 `.jar` 刪掉，再放一次就好。
@@ -26,9 +26,10 @@
 
 1. **安裝 Fabric**：到 <https://fabricmc.net/use/installer/> 下載安裝程式，選 Minecraft **1.21.4** 安裝。啟動器裡會多一個「fabric-loader-1.21.4」的版本。
    （如果你已經在用 Fabric＋光影、小地圖這些模組，就直接用原本的。）
-2. **下載 Fabric API**（1.21.4 版）：<https://modrinth.com/mod/fabric-api/versions?g=1.21.4>
+2. **下載 Fabric API** 和 **Fabric Language Kotlin**（1.21.4 版）：
+   <https://modrinth.com/mod/fabric-api/versions?g=1.21.4>、<https://modrinth.com/mod/fabric-language-kotlin>
 3. **下載這個模組**：到這個 GitHub 專案的 Releases，找「聊天即時翻譯模組」那一個，下載 `chattranslate-….jar`。
-4. 把兩個 `.jar` 放進 `.minecraft/mods` 資料夾
+4. 把三個 `.jar` 放進 `.minecraft/mods` 資料夾
    （Windows：按 `Win + R`，輸入 `%appdata%\.minecraft\mods`）。
 5. 用啟動器的 Fabric 1.21.4 版本開遊戲。
 

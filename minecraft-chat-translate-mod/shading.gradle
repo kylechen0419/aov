@@ -1,11 +1,13 @@
 // Relocations for the bundled Anthropic SDK and its dependencies, so they can't clash with other
-// mods. Shared by the mod build and devtest/. kotlin stays where it is: kotlin-reflect finds its
-// built-in classes by their real names, and newer stdlibs from other mods are backward compatible.
+// mods. Shared by the mod build and devtest/. Kotlin is not bundled at all: kotlin-reflect breaks
+// when relocated, and two copies of kotlin.* on the classpath break other mods, so the mod depends on
+// Fabric Language Kotlin instead (its newer stdlib/reflect run SDK code built for Kotlin 1.9).
 ext.applyShading = { task ->
     def base = 'io.github.kylechen0419.chattranslate.shaded'
     ['okhttp3', 'okio', 'com.fasterxml', 'com.github.victools', 'io.swagger',
      'io.opentelemetry', 'com.standardwebhooks', 'org.intellij', 'org.jetbrains',
      'com.google.errorprone'].each { task.relocate(it, "${base}.${it}") }
+    task.dependencies { exclude(dependency('org.jetbrains.kotlin:.*')) }
     task.mergeServiceFiles()
     task.exclude 'module-info.class', 'META-INF/versions/*/module-info.class', 'META-INF/maven/**'
 }
