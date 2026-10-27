@@ -147,8 +147,8 @@ public class ChatTranslateClient implements ClientModInitializer {
                 feedback(Text.literal("[譯] 翻譯失敗，訊息沒有送出：" + body).formatted(Formatting.RED));
                 return;
             }
-            if (t == null) t = body; // already in the outgoing language
-            handler.sendChatMessage(t.length() > CHAT_LIMIT ? t.substring(0, CHAT_LIMIT) : t);
+            String out = t == null ? body : t; // null also means it was already in the outgoing language
+            handler.sendChatMessage(out.length() > CHAT_LIMIT ? out.substring(0, CHAT_LIMIT) : out);
         }));
         return false;
     }
