@@ -5,6 +5,7 @@
 - **聊天**：別人說的話直接換成中文顯示，滑鼠移上去看原文。
 - **介面**：任務追蹤（例如 *Go to the marshes north of Hanaka*）、選單（Backpack、Class、Quests…）、物品名稱和說明、角色資訊、標題、Boss 血條等。第一次看到的文字會先顯示英文，大約 1 秒後變成中文；翻過的會存起來，下次一打開就是中文。
 - **內建 SAO 漢化**：SAO 伺服器專用模組（主選單、任務日誌、公會、工坊與商店、拍賣所、季票、扭蛋、記憶迷宮、塔防、技能、祝福、夥伴…）約 4000 句固定介面已經直接翻好放在模組裡，**一打開就是中文、完全不花錢**。遊戲語言要設成「繁體中文（台灣）」才會套用。
+- **內建字典（任務、物品、NPC）**：伺服器送來的任務、物品說明這類文字，玩家玩過翻好的約 3000 句已經整理好內建在模組裡，沒有 API key 也能直接顯示中文。
 - **你說話**：在聊天打 `>>` 開頭（例如 `>>你好，要一起解任務嗎？`），會先翻成英文再送出。沒有 `>>` 就照原樣送出。
 
 翻譯用的是 Claude（Anthropic 的 AI），需要你自己的 API key（見下面）。
@@ -52,6 +53,8 @@
 | `/ct` | 看目前設定、已經存了幾句翻譯 |
 | `/ct on`、`/ct off` | 開關翻譯 |
 | `/ct ui on`、`/ct ui off` | 介面文字要不要翻（關掉就只翻聊天） |
+| `/ct offline on` | 離線模式：只用內建字典和你電腦裡存的翻譯，**完全不花錢**；沒翻到的句子會記在 `config/chattranslate/missing-zh-tw.json` |
+| `/ct offline off` | 關閉離線模式：字典沒有的句子線上翻譯 |
 | `/ct model fast` | 改用快又便宜的模型（Claude Haiku 5.5），翻譯稍微沒那麼好 |
 | `/ct model best` | 改回翻得最好的模型（Claude Opus 5.5，預設） |
 | `/ct chat on`、`/ct chat off` | 聊天室要不要翻（關掉後任務、選單、物品還是會翻） |
@@ -66,6 +69,10 @@
 - 會花 Anthropic API 的錢（照用量計費）。同一句話只翻一次：**數字會先遮起來**，所以 `350m`、`349m` 這種一直在變的距離、金錢、血量不會重翻；介面文字翻過就存在 `.minecraft/config/chattranslate/` 裡，之後完全不再花錢。
 - 一次會把同一個畫面上的很多句一起送出翻譯，而不是一句一次。
 - 想更省可以打開 `.minecraft/config/chattranslate.json`，把 `"model"` 改成 `"claude-haiku-5-5"`（便宜很多，翻得稍微沒那麼好），存檔後重開遊戲。
+
+## 一起把字典補完整
+
+玩過的句子都存在 `.minecraft/config/chattranslate/cache-zh-tw.json`（Triggers Client 在 `%appdata%\.Triggers Client\instances\Sword Art Online\config\chattranslate\`）；離線模式下沒翻到的句子在同一個資料夾的 `missing-zh-tw.json`。把這兩個檔案交給維護者整理（刪掉聊天內容、修正翻譯、統一用語）後，會放進 `src/main/resources/assets/chattranslate/dict/zh-tw.json`，下一版大家都能直接用。內建字典的翻譯會優先於自己電腦裡較舊的機器翻譯。
 
 ## 常見問題
 

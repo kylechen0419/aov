@@ -74,6 +74,9 @@ public class ChatTranslateClient implements ClientModInitializer {
                         .then(literal("ui")
                                 .then(literal("on").executes(c -> setUi(c, true)))
                                 .then(literal("off").executes(c -> setUi(c, false))))
+                        .then(literal("offline")
+                                .then(literal("on").executes(c -> setOffline(c, true)))
+                                .then(literal("off").executes(c -> setOffline(c, false))))
                         .then(literal("model")
                                 .then(literal("fast").executes(c -> setModel(c, "claude-haiku-5-5")))
                                 .then(literal("best").executes(c -> setModel(c, "claude-opus-5-5"))))
@@ -91,8 +94,8 @@ public class ChatTranslateClient implements ClientModInitializer {
         translator = outgoing = null;
         UI.use(null);
         String key = config.resolvedApiKey();
-        if (key.isEmpty()) return;
-        var client = AnthropicOkHttpClient.builder().apiKey(key).build();
+        // Without a key, or in offline mode, the bundled and saved dictionaries still work; nothing is sent.
+        var client = key.isEmpty() || config.offline ? null : AnthropicOkHttpClient.builder().apiKey(key).build();
         var dir = FabricLoader.getInstance().getConfigDir().resolve("chattranslate");
         translator = new BatchTranslator(client, config.model, config.effort, config.targetLang,
                 dir.resolve("cache-" + config.targetLang + ".json"), this::reportError);
@@ -151,7 +154,7 @@ public class ChatTranslateClient implements ClientModInitializer {
     }
 
     private boolean onOutgoing(String message) {
-        if (!config.enabled || outgoing == null || !message.startsWith(config.outgoingPrefix)) return true;
+        if (!config.enabled || outgoing == null || outgoing.offline() || !message.startsWith(config.outgoingPrefix)) return true;
         String body = message.substring(config.outgoingPrefix.length()).strip();
         if (body.isEmpty()) return false;
         feedback(marker("[譯] 翻譯中…").formatted(Formatting.ITALIC));
@@ -194,7 +197,9 @@ public class ChatTranslateClient implements ClientModInitializer {
                 "§7聊天室也翻：§f" + (config.translateChat ? "是" : "否") + "  §7/ct chat on|off",
                 "§7伺服器訊息也翻：§f" + (config.translateSystemMessages ? "是" : "否") + "  §7/ct system on|off",
                 "§7介面（任務、選單、物品）也翻：§f" + (config.translateUi ? "是" : "否") + "  §7/ct ui on|off",
-                "§7已存的翻譯：§f" + (translator == null ? 0 : translator.cacheSize()) + " 句",
+                "§7離線模式（只用字典、不花錢）：§f" + (config.offline ? "開啟" : "關閉") + "  §7/ct offline on|off",
+                "§7字典裡的翻譯：§f" + (translator == null ? 0 : translator.cacheSize()) + " 句"
+                        + (translator != null && translator.offline() ? "  §7還沒翻到：§f" + translator.missingCount() + " 句" : ""),
                 "§7可用語言：§f" + String.join(" ", Lang.NAMES.keySet()))));
         return 1;
     }
@@ -242,6 +247,16 @@ public class ChatTranslateClient implements ClientModInitializer {
         rebuildTranslator();
         c.getSource().sendFeedback(Text.literal("§a[譯] 改用 " + model
                 + (model.contains("haiku") ? "：比較快、便宜很多，翻譯品質稍差" : "：翻得最好，但比較慢、比較貴")));
+        return 1;
+    }
+
+    private int setOffline(CommandContext<FabricClientCommandSource> c, boolean on) {
+        config.offline = on;
+        config.save();
+        rebuildTranslator();
+        c.getSource().sendFeedback(Text.literal(on
+                ? "§a[譯] 離線模式開啟：只用字典翻譯，不會再花錢。沒翻到的句子會記在 config/chattranslate/missing-zh-tw.json"
+                : "§a[譯] 離線模式關閉：字典沒有的句子會線上翻譯"));
         return 1;
     }
 

@@ -28,6 +28,8 @@ public final class Config {
     /** Translate interface text too: menus, item names and lore, quest tracker, titles, boss bars. */
     public boolean translateUi = true;
     public boolean showMarker = true;
+    /** Only use the bundled and saved dictionaries; never call the API. */
+    public boolean offline = false;
     public String model = "claude-opus-5-5";
     public String effort = "low";
     public int timeoutSeconds = 8;

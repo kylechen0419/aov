@@ -8,6 +8,7 @@ import com.anthropic.models.beta.messages.BetaOutputConfig;
 import com.anthropic.models.beta.messages.BetaStopReason;
 import com.anthropic.models.beta.messages.MessageCreateParams;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -51,6 +53,9 @@ public final class BatchTranslator {
               Enderman = 終界使者) and the usual MMO/RPG wording for stats and menus.
             - Menu labels and item names stay short; chat stays casual like game chat.
             - Some strings may be in French or another language; translate those too.
+            - Neighbouring strings are often consecutive lines of one item description or quest text that
+              was wrapped mid-sentence. Translate them so the lines read as one natural passage when shown
+              one under another, but keep each string's share of the meaning in that same string.
             - If a string is already in the target language or has nothing to translate, return it unchanged.""";
 
     private static final Pattern SLOT = Pattern.compile("\\{\\d+}");
@@ -61,12 +66,21 @@ public final class BatchTranslator {
     /** Requests in flight at once, so one slow reply doesn't hold up the rest. */
     private static final int PARALLEL = 4;
     private static final long RETRY_MS = 30_000;
+    /**
+     * Interface text must stay on screen this long before it is sent, so text that types itself out
+     * letter by letter ("Go and l", "Go and lo"…) only gets translated once it is complete.
+     */
+    private static final long STABLE_MS = 400;
+    /** Namespaced ids such as "sao:latency" are never prose. */
+    private static final Pattern ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
 
+    /** null = offline: only the bundled and saved dictionaries are used, nothing is sent. */
     private final AnthropicClient client;
     private final String model;
     private final BetaOutputConfig.Effort effort;
     private final String targetLang;
     private final Path cacheFile;
+    private final Path missingFile;
     private final Consumer<String> errorLog;
 
     /** masked template -> translated template ("" = keep the original). */
@@ -74,6 +88,11 @@ public final class BatchTranslator {
     /** raw string -> final string, so the render hot path skips masking. */
     private final Map<String, String> rawCache = new ConcurrentHashMap<>();
     private final Map<String, Long> cooldown = new ConcurrentHashMap<>();
+    private final Map<String, Long> firstSeen = new ConcurrentHashMap<>();
+    /** Offline: strings we had no translation for, saved so they can be added to the dictionary. */
+    private final Set<String> missing = ConcurrentHashMap.newKeySet();
+    /** What the jar ships with; only entries that differ from it are written to the local cache. */
+    private final Map<String, String> bundled = new HashMap<>();
     private final Map<String, List<CompletableFuture<String>>> waiting = new HashMap<>();
     private final LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<>();
     /** Chat lines: only sent once no interface text is waiting, since menus and quests matter more. */
@@ -95,7 +114,9 @@ public final class BatchTranslator {
         this.effort = BetaOutputConfig.Effort.of(effort);
         this.targetLang = targetLang;
         this.cacheFile = cacheFile;
+        this.missingFile = cacheFile == null ? null : cacheFile.resolveSibling("missing-" + targetLang + ".json");
         this.errorLog = errorLog;
+        loadBundled();
         load();
         worker = new Thread(this::run, "chattranslate-" + targetLang);
         worker.setDaemon(true);
@@ -104,6 +125,10 @@ public final class BatchTranslator {
 
     public String targetLang() {
         return targetLang;
+    }
+
+    public boolean offline() {
+        return client == null;
     }
 
     /**
@@ -121,7 +146,16 @@ public final class BatchTranslator {
             rawCache.put(raw, out == null ? "" : out);
             return out;
         }
-        request(m.template(), null);
+        String template = m.template();
+        if (ID.matcher(template.strip()).matches()) {
+            done.put(template, "");
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        Long seen = firstSeen.putIfAbsent(template, now);
+        if (seen == null || now - seen < STABLE_MS) return null;
+        if (firstSeen.size() > 20_000) firstSeen.clear();
+        request(template, null);
         return null;
     }
 
@@ -136,6 +170,11 @@ public final class BatchTranslator {
     }
 
     private void request(String template, CompletableFuture<String> future) {
+        if (client == null) {
+            if (future != null) future.complete(null);
+            else if (missing.add(template)) dirty = true;
+            return;
+        }
         synchronized (waiting) {
             List<CompletableFuture<String>> list = waiting.get(template);
             if (list == null) {
@@ -265,12 +304,28 @@ public final class BatchTranslator {
         return out;
     }
 
+    /** The dictionary shipped inside the mod jar (assets/chattranslate/dict/<lang>.json). */
+    private void loadBundled() {
+        try (var in = BatchTranslator.class.getResourceAsStream("/assets/chattranslate/dict/" + targetLang + ".json")) {
+            if (in == null) return;
+            Map<String, String> m = new Gson().fromJson(new String(in.readAllBytes(), StandardCharsets.UTF_8),
+                    new TypeToken<Map<String, String>>() {}.getType());
+            if (m != null) {
+                bundled.putAll(m);
+                done.putAll(m);
+            }
+        } catch (IOException | RuntimeException e) {
+            errorLog.accept("bundled dictionary unreadable: " + e.getMessage());
+        }
+    }
+
     private void load() {
         if (cacheFile == null || !Files.exists(cacheFile)) return;
         try {
             Map<String, String> m = new Gson().fromJson(Files.readString(cacheFile, StandardCharsets.UTF_8),
                     new TypeToken<Map<String, String>>() {}.getType());
-            if (m != null) done.putAll(m);
+            // the bundled dictionary is reviewed, so it wins over an older machine translation of the same line
+            if (m != null) m.forEach(done::putIfAbsent);
         } catch (IOException | RuntimeException e) {
             errorLog.accept("cache unreadable, starting fresh: " + e.getMessage());
         }
@@ -282,11 +337,25 @@ public final class BatchTranslator {
         try {
             Files.createDirectories(cacheFile.getParent());
             Path tmp = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
-            Files.writeString(tmp, new Gson().toJson(new HashMap<>(done)), StandardCharsets.UTF_8);
+            Map<String, String> own = new HashMap<>();
+            done.forEach((k, v) -> {
+                if (!v.equals(bundled.get(k))) own.put(k, v);
+            });
+            Files.writeString(tmp, new Gson().toJson(own), StandardCharsets.UTF_8);
             Files.move(tmp, cacheFile, StandardCopyOption.REPLACE_EXISTING);
+            if (!missing.isEmpty()) {
+                List<String> sorted = new ArrayList<>(missing);
+                sorted.sort(null);
+                Files.writeString(missingFile, new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
+                        .toJson(sorted), StandardCharsets.UTF_8);
+            }
         } catch (IOException e) {
             errorLog.accept("could not save cache: " + e.getMessage());
         }
+    }
+
+    public int missingCount() {
+        return missing.size();
     }
 
     public int cacheSize() {

@@ -120,19 +120,24 @@ class CoreTest {
             ui.use(tr);
             // a screen's worth of strings, asked for on the render thread: nothing blocks, one batch;
             // chat lines go in their own batch, after interface text
-            assertNull(ui.lookup("Backpack"));
-            assertNull(ui.lookup("Quests"));
-            assertNull(ui.lookup("Go to Hanaka | 350m"));
+            // first sight only starts the clock: text that is still typing itself out is never sent
+            for (String t : List.of("Grue pouch", "Zorp log", "Go to Zanaka | 350m", "Immortal_0419", "Go and l", "sao:latency"))
+                assertNull(ui.lookup(t));
+            Thread.sleep(450);
+            assertNull(ui.lookup("Grue pouch"));
+            assertNull(ui.lookup("Zorp log"));
+            assertNull(ui.lookup("Go to Zanaka | 350m"));
             assertNull(ui.lookup("Immortal_0419"));
+            assertNull(ui.lookup("sao:latency"));
             var chat = tr.translate("already fine");
             var bad = tr.translate("drop slot 5");
             assertNull(chat.get(10, TimeUnit.SECONDS), "unchanged lines come back as null");
             assertNull(bad.get(10, TimeUnit.SECONDS), "a translation that lost its number is discarded");
-            for (int i = 0; i < 100 && ui.lookup("Backpack") == null; i++) Thread.sleep(50);
+            for (int i = 0; i < 100 && ui.lookup("Grue pouch") == null; i++) Thread.sleep(50);
             assertEquals(List.of(2, 3), sizes.stream().sorted().toList());
-            assertEquals("譯:Backpack", ui.lookup("Backpack"));
-            assertEquals("譯:Go to Hanaka | 349m", ui.lookup("Go to Hanaka | 349m"), "new number, same template: no new call");
-            assertEquals("譯:Quests", tr.translate("Quests").get(1, TimeUnit.SECONDS));
+            assertEquals("譯:Grue pouch", ui.lookup("Grue pouch"));
+            assertEquals("譯:Go to Zanaka | 349m", ui.lookup("Go to Zanaka | 349m"), "new number, same template: no new call");
+            assertEquals("譯:Zorp log", tr.translate("Zorp log").get(1, TimeUnit.SECONDS));
             assertEquals(2, api.bodies.size());
             String body = api.bodies.get(0);
             assertTrue(body.contains("\"fallbacks\":\"default\""), body);
@@ -146,8 +151,8 @@ class CoreTest {
         // a new session reads the disk cache: no API needed at all
         try (FakeApi down = new FakeApi(body -> { throw new AssertionError("should not call"); }, "end_turn")) {
             BatchTranslator tr = new BatchTranslator(down.client(), "claude-opus-5-5", "low", "zh-tw", cache, e -> {});
-            assertEquals("譯:Backpack", tr.cached("Backpack"));
-            assertEquals("譯:Go to Hanaka | 1m", tr.cached("Go to Hanaka | 1m"));
+            assertEquals("譯:Grue pouch", tr.cached("Grue pouch"));
+            assertEquals("譯:Go to Zanaka | 1m", tr.cached("Go to Zanaka | 1m"));
             assertNull(tr.cached("already fine"));
             tr.shutdown();
         }
@@ -168,6 +173,35 @@ class CoreTest {
         assertNull(tr.translate("hello").get(30, TimeUnit.SECONDS));
         assertEquals(1, errors.size());
         assertNull(tr.cached("hello"), "failed strings wait for the cooldown instead of hammering the API");
+        tr.shutdown();
+    }
+
+    @Test
+    void offlineUsesOnlyDictionariesAndRecordsMisses() throws Exception {
+        Path cache = Files.createTempDirectory("ct").resolve("cache-zh-tw.json");
+        Files.writeString(cache, "{\"Backpack\":\"背包\"}");
+        BatchTranslator tr = new BatchTranslator(null, "claude-opus-5-5", "low", "zh-tw", cache, e -> {});
+        assertTrue(tr.offline());
+        assertEquals("背包", tr.cached("Backpack"));
+        assertNull(tr.translate("Never seen").get(1, TimeUnit.SECONDS));
+        assertNull(tr.cached("Quest log"));
+        Thread.sleep(450);
+        assertNull(tr.cached("Quest log"));
+        assertEquals(1, tr.missingCount());
+        tr.shutdown();
+        String missing = Files.readString(cache.resolveSibling("missing-zh-tw.json"));
+        assertTrue(missing.contains("Quest log"), missing);
+        assertFalse(missing.contains("Never seen"), "chat lines are not dictionary material");
+    }
+
+    @Test
+    void bundledDictionaryWorksWithoutKeyOrCache() throws Exception {
+        BatchTranslator tr = new BatchTranslator(null, "claude-opus-5-5", "low", "zh-tw", null, e -> {
+            throw new AssertionError(e);
+        });
+        assertEquals("購買", tr.cached("Buy"));
+        assertEquals("15 珂爾", tr.cached("15 Cols"));
+        assertTrue(tr.cacheSize() > 3000);
         tr.shutdown();
     }
 }
