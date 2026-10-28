@@ -4,6 +4,7 @@
 
 - **聊天**：別人說的話直接換成中文顯示，滑鼠移上去看原文。
 - **介面**：任務追蹤（例如 *Go to the marshes north of Hanaka*）、選單（Backpack、Class、Quests…）、物品名稱和說明、角色資訊、標題、Boss 血條等。第一次看到的文字會先顯示英文，大約 1 秒後變成中文；翻過的會存起來，下次一打開就是中文。
+- **內建 SAO 漢化**：SAO 伺服器專用模組（主選單、任務日誌、公會、工坊與商店、拍賣所、季票、扭蛋、記憶迷宮、塔防、技能、祝福、夥伴…）約 4000 句固定介面已經直接翻好放在模組裡，**一打開就是中文、完全不花錢**。遊戲語言要設成「繁體中文（台灣）」才會套用。
 - **你說話**：在聊天打 `>>` 開頭（例如 `>>你好，要一起解任務嗎？`），會先翻成英文再送出。沒有 `>>` 就照原樣送出。
 
 翻譯用的是 Claude（Anthropic 的 AI），需要你自己的 API key（見下面）。
@@ -79,6 +80,7 @@
   - `mixin/LiteralTextMixin.java`：所有「伺服器送來的文字」在畫到畫面上時換成翻譯（`getString()` 不變，其他模組讀到的還是原文）。
   - `core/BatchTranslator.java`：遮數字、批次呼叫 Claude、存檔快取（不依賴 Minecraft）。
   - `ChatTranslateClient.java`：聊天事件、`>>` 送出翻譯、`/ct` 指令。
+- `src/main/resources/assets/<模組>/lang/zh_tw.json`：SAO 伺服器各模組缺少的繁中翻譯（只補原本沒有中文的字串，不覆蓋模組自帶的翻譯）。
 - Anthropic Java SDK 打包在模組 jar 裡（OkHttp、Jackson 等搬到 `…chattranslate.shaded`，避免跟其他模組衝突）。
 - 測試（不需要 Minecraft）：`cd devtest && gradle test smoke`，會用假的 API 伺服器測翻譯、批次、遮數字、快取，並實際跑一次打包後的 jar。
 - 模組本體用 GitHub Actions 編譯（`.github/workflows/chattranslate-mod.yml`），會自動抓 1.21.4 最新的 Fabric 版本；要換 Minecraft 版本改 `gradle.properties` 的 `minecraft_version`（1.21.5 以後文字 API 有變，需要改程式）。

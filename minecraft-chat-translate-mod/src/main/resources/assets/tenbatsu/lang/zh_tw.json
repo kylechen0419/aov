@@ -1,0 +1,20 @@
+{
+  "hud.tenbatsu.skip": "%s：跳過",
+  "subtitles.tenbatsu.cast.clap": "拍子木敲響",
+  "subtitles.tenbatsu.cast.ignite": "符咒燃起",
+  "subtitles.tenbatsu.storm.gather": "暴風雨聚集",
+  "subtitles.tenbatsu.storm.rain": "大雨傾盆",
+  "subtitles.tenbatsu.storm.wind": "狂風呼嘯",
+  "subtitles.tenbatsu.storm.cloud_thunder": "雲中雷聲隆隆",
+  "subtitles.tenbatsu.eye.open": "眼睛睜開",
+  "subtitles.tenbatsu.eye.drone": "低沉的嗡鳴升起",
+  "subtitles.tenbatsu.static.crackle": "靜電劈啪作響",
+  "subtitles.tenbatsu.leader.step": "雷電降下",
+  "subtitles.tenbatsu.strike.main": "天罰降臨",
+  "subtitles.tenbatsu.strike.ring": "耳鳴",
+  "subtitles.tenbatsu.strike.bolt": "雷電劈下",
+  "subtitles.tenbatsu.finale.sustain": "雷電嗡嗡作響",
+  "subtitles.tenbatsu.finale.downburst": "下擊暴流",
+  "subtitles.tenbatsu.after.sizzle": "焦土滋滋作響",
+  "subtitles.tenbatsu.hud.tick": "倒數滴答作響"
+}

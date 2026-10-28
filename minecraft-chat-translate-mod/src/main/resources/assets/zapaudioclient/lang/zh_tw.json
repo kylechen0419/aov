@@ -1,0 +1,20 @@
+{
+  "key.zapaudioclient.toggle": "切換音訊面板",
+  "key.zapaudioclient.mic": "啟用麥克風",
+  "key.zapaudioclient.toggle_mic": "切換麥克風靜音",
+  "key.zapaudioclient.toggle_voice": "切換其他玩家語音靜音",
+  "key.zapaudioclient.toggle_music": "切換音樂靜音",
+  "key.zapaudioclient.push_to_talk": "按鍵說話（按住）",
+  "category.zapaudioclient": "艾恩葛朗特之聲",
+  "zapaudioclient.brand": "艾恩葛朗特之聲",
+  "zapaudioclient.chat_audio_started": "§a[艾恩葛朗特之聲] §f音訊已開始播放。§e按 %s §f打開面板。",
+  "zapaudioclient.consent_mic": "§7艾恩葛朗特之聲想要使用你的麥克風",
+  "zapaudioclient.consent_title": "麥克風權限",
+  "zapaudioclient.consent_desc": "§7讓你可以跟其他玩家說話。",
+  "zapaudioclient.consent_allow": "允許",
+  "zapaudioclient.consent_deny": "拒絕",
+  "zapaudioclient.not_connected": "§c無法使用音訊 - 請連到支援的伺服器",
+  "zapaudioclient.loading": "§e正在載入 MCEF...",
+  "zapaudioclient.mcef_not_available": "§c沒有安裝 MCEF - 請從 Modrinth 安裝",
+  "zapaudioclient.sound.reset_defaults": "重設聲音"
+}

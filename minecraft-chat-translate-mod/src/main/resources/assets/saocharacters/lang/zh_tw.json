@@ -1,0 +1,18 @@
+{
+  "screen.saocharacters.selection": "選擇角色",
+  "screen.saocharacters.creation": "新角色",
+  "screen.saocharacters.delete": "刪除角色",
+  "screen.saocharacters.background": "選擇背景",
+  "screen.saocharacters.housing": "房屋",
+  "screen.saocharacters.admin": "房屋管理",
+  "key.saocharacters.housing": "我的房屋",
+  "key.saocharacters.selection": "回到角色選擇",
+  "message.saocharacters.edit_pause": "編輯模式：已解除鎖定。按 %s 回到角色選擇。",
+  "screen.saocharacters.emotes": "動作",
+  "key.saocharacters.emotes": "動作輪盤",
+  "screen.saocharacters.societe": "酒館",
+  "screen.saocharacters.mariage": "關係",
+  "key.saocharacters.relation": "關係（按住 + 對玩家按右鍵）",
+  "message.saocharacters.no_target": "沒有對準任何玩家。",
+  "key.saocharacters.switch": "和配偶交換位置"
+}

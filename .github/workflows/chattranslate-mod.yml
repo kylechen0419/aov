@@ -30,6 +30,9 @@ jobs:
         with:
           gradle-version: '8.14.3'
 
+      - name: Check the bundled translations are valid JSON
+        run: for f in src/main/resources/assets/*/lang/*.json; do python3 -m json.tool "$f" > /dev/null || exit 1; done
+
       - name: Core tests and shaded-jar smoke test
         working-directory: minecraft-chat-translate-mod/devtest
         run: gradle test smoke --console=plain
@@ -58,6 +61,7 @@ jobs:
           unzip -l "$JAR" | grep -q 'shaded/okhttp3/OkHttpClient.class'
           unzip -l "$JAR" | grep -q 'chattranslate.mixins.json'
           unzip -l "$JAR" | grep -q 'chattranslate.refmap.json'
+          unzip -l "$JAR" | grep -q 'assets/saoui/lang/zh_tw.json'
           if unzip -l "$JAR" | grep -q ' kotlin/'; then echo "Kotlin must come from Fabric Language Kotlin, not the jar"; exit 1; fi
           echo "path=minecraft-chat-translate-mod/$JAR" >> "$GITHUB_OUTPUT"
 

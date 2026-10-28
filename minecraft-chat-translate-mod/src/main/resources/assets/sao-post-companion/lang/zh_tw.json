@@ -1,0 +1,9 @@
+{
+  "sao-post-companion.title": "郵局",
+  "sao-post-companion.deliverables": "待寄送",
+  "sao-post-companion.deliveries": "我的包裹",
+  "sao-post-companion.ready": "領取",
+  "sao-post-companion.traveling": "運送中",
+  "sao-post-companion.empty.deliverables": "沒有可以寄送的完成品。",
+  "sao-post-companion.empty.deliveries": "沒有運送中的包裹。"
+}
