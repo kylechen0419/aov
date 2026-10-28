@@ -1,6 +1,7 @@
 package io.github.kylechen0419.chattranslate.mixin;
 
 import io.github.kylechen0419.chattranslate.ChatTranslateClient;
+import io.github.kylechen0419.chattranslate.FontCheck;
 import net.minecraft.text.CharacterVisitor;
 import net.minecraft.text.Style;
 import net.minecraft.text.TextVisitFactory;
@@ -12,7 +13,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * Every string that is drawn, measured or wrapped ends up here as characters, whichever path it came
  * from (literal text, StringVisitable.plain in custom item panels, TextRenderer.draw(String)...), so
- * this catches the text the other hooks miss. Translated text is Chinese and isn't looked up again.
+ * this catches the text the other hooks miss. Translated text is Chinese and isn't looked up again,
+ * so the nested call below draws it normally.
  */
 @Mixin(TextVisitFactory.class)
 public abstract class TextVisitFactoryMixin {
@@ -22,7 +24,11 @@ public abstract class TextVisitFactoryMixin {
                                                 CharacterVisitor visitor, CallbackInfoReturnable<Boolean> cir) {
         if (startIndex != 0 || text == null || text.isEmpty()) return;
         String translated = ChatTranslateClient.UI.lookup(text);
-        if (translated == null) return;
-        cir.setReturnValue(TextVisitFactory.visitFormatted(translated, 0, startingStyle, resetStyle, visitor));
+        String shown = translated != null ? translated : text;
+        // Chinese from a translation or from the bundled zh_tw files: if this font has no Chinese
+        // glyphs (it would draw □□□), draw it with the default font instead
+        Style style = FontCheck.hasHan(shown) ? FontCheck.styleFor(startingStyle, shown) : startingStyle;
+        if (translated == null && style == startingStyle) return;
+        cir.setReturnValue(TextVisitFactory.visitFormatted(shown, 0, style, resetStyle, visitor));
     }
 }

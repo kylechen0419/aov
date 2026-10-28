@@ -1,6 +1,7 @@
 package io.github.kylechen0419.chattranslate.mixin;
 
 import io.github.kylechen0419.chattranslate.ChatTranslateClient;
+import io.github.kylechen0419.chattranslate.FontCheck;
 import net.minecraft.text.PlainTextContent;
 import net.minecraft.text.StringVisitable;
 import net.minecraft.text.Style;
@@ -25,8 +26,6 @@ public abstract class LiteralTextMixin {
         String raw = ((PlainTextContent.Literal) (Object) this).string();
         String translated = ChatTranslateClient.UI.lookup(raw);
         if (translated == null) return;
-        // keep the original style, font included: the SAO fonts draw CJK fine, and swapping to the
-        // default font turned dark custom-font text into plain white on light panels
-        cir.setReturnValue(visitor.accept(style, translated));
+        cir.setReturnValue(visitor.accept(FontCheck.styleFor(style, translated), translated));
     }
 }

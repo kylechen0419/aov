@@ -1,6 +1,7 @@
 package io.github.kylechen0419.chattranslate.mixin;
 
 import io.github.kylechen0419.chattranslate.ChatTranslateClient;
+import io.github.kylechen0419.chattranslate.FontCheck;
 import net.minecraft.text.StringVisitable;
 import net.minecraft.text.Style;
 import net.minecraft.text.TranslatableTextContent;
@@ -30,6 +31,6 @@ public abstract class TranslatableTextMixin {
         if (resolved.indexOf('%') >= 0) return;
         String translated = ChatTranslateClient.UI.lookup(resolved);
         if (translated == null) return;
-        cir.setReturnValue(visitor.accept(style, translated));
+        cir.setReturnValue(visitor.accept(FontCheck.styleFor(style, translated), translated));
     }
 }
