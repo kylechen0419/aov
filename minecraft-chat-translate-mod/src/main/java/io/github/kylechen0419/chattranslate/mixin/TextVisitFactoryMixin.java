@@ -23,8 +23,6 @@ public abstract class TextVisitFactoryMixin {
         if (startIndex != 0 || text == null || text.isEmpty()) return;
         String translated = ChatTranslateClient.UI.lookup(text);
         if (translated == null) return;
-        Style s = Style.DEFAULT_FONT_ID.equals(startingStyle.getFont()) ? startingStyle
-                : startingStyle.withFont(Style.DEFAULT_FONT_ID);
-        cir.setReturnValue(TextVisitFactory.visitFormatted(translated, 0, s, resetStyle, visitor));
+        cir.setReturnValue(TextVisitFactory.visitFormatted(translated, 0, startingStyle, resetStyle, visitor));
     }
 }

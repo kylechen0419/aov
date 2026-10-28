@@ -25,8 +25,8 @@ public abstract class LiteralTextMixin {
         String raw = ((PlainTextContent.Literal) (Object) this).string();
         String translated = ChatTranslateClient.UI.lookup(raw);
         if (translated == null) return;
-        // a server font made for Latin text may not have CJK glyphs; fall back to the default font
-        Style s = Style.DEFAULT_FONT_ID.equals(style.getFont()) ? style : style.withFont(Style.DEFAULT_FONT_ID);
-        cir.setReturnValue(visitor.accept(s, translated));
+        // keep the original style, font included: the SAO fonts draw CJK fine, and swapping to the
+        // default font turned dark custom-font text into plain white on light panels
+        cir.setReturnValue(visitor.accept(style, translated));
     }
 }

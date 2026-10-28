@@ -30,7 +30,6 @@ public abstract class TranslatableTextMixin {
         if (resolved.indexOf('%') >= 0) return;
         String translated = ChatTranslateClient.UI.lookup(resolved);
         if (translated == null) return;
-        Style s = Style.DEFAULT_FONT_ID.equals(style.getFont()) ? style : style.withFont(Style.DEFAULT_FONT_ID);
-        cir.setReturnValue(visitor.accept(s, translated));
+        cir.setReturnValue(visitor.accept(style, translated));
     }
 }
