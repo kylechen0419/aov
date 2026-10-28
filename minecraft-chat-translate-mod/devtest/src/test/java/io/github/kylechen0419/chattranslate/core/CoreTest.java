@@ -104,6 +104,8 @@ class CoreTest {
         assertTrue(Lang.uiCandidate("Se rendre aux marécages au nord d'Hanaka | 350m", "zh-tw"));
         assertTrue(Lang.uiCandidate("Backpack", "zh-tw"));
         assertFalse(Lang.uiCandidate("Immortal_0419", "zh-tw"));
+        assertFalse(Lang.uiCandidate("TheUnluckyLord", "zh-tw"));
+        assertTrue(Lang.uiCandidate("Character registration", "zh-tw"));
         assertFalse(Lang.uiCandidate("31 / 31", "zh-tw"));
         assertFalse(Lang.uiCandidate("本群第一位黃金輔助 VIP", "zh-tw"));
         assertFalse(Lang.uiCandidate("x", "zh-tw"));

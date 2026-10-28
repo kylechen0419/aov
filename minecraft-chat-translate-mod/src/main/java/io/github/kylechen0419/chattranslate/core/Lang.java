@@ -70,6 +70,8 @@ public final class Lang {
     }
 
     private static final java.util.regex.Pattern USERNAME = java.util.regex.Pattern.compile("[A-Za-z0-9_]{3,16}");
+    /** A capital right after a small letter inside one word: player names like "TheUnluckyLord". */
+    private static final java.util.regex.Pattern CAMEL = java.util.regex.Pattern.compile("[a-z][A-Z]");
 
     /**
      * Stricter check for interface text (menus, tooltips, HUD), which is drawn every frame: skip
@@ -91,7 +93,7 @@ public final class Lang {
         if (letters < 2) return false;
         String trimmed = text.strip();
         boolean nameLike = USERNAME.matcher(trimmed).matches()
-                && trimmed.chars().anyMatch(c -> c == '_' || Character.isDigit(c));
+                && (trimmed.chars().anyMatch(c -> c == '_' || Character.isDigit(c)) || CAMEL.matcher(trimmed).find());
         return !nameLike && needsTranslation(text, target);
     }
 }
