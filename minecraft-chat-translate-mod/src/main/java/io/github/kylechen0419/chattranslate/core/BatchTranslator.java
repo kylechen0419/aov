@@ -151,11 +151,8 @@ public final class BatchTranslator {
             done.put(template, "");
             return null;
         }
-        long now = System.currentTimeMillis();
-        Long seen = firstSeen.putIfAbsent(template, now);
-        if (seen == null || now - seen < STABLE_MS) return null;
-        if (firstSeen.size() > 20_000) firstSeen.clear();
-        request(template, null);
+        // the worker's sweep sends it once it has been around for STABLE_MS (see sweepSeen)
+        if (firstSeen.size() < 20_000) firstSeen.putIfAbsent(template, System.currentTimeMillis());
         return null;
     }
 
@@ -217,9 +214,34 @@ public final class BatchTranslator {
         }
     }
 
+    /**
+     * Sends interface strings that have been on screen for STABLE_MS, except ones that turned out to
+     * be text still typing itself out: a longer string starting with them showed up afterwards.
+     */
+    private void sweepSeen() {
+        long now = System.currentTimeMillis();
+        List<Map.Entry<String, Long>> seen = new ArrayList<>(firstSeen.entrySet());
+        for (var e : seen) {
+            if (now - e.getValue() < STABLE_MS) continue;
+            String t = e.getKey();
+            firstSeen.remove(t);
+            if (done.containsKey(t)) continue;
+            boolean typing = false;
+            for (var o : seen) {
+                String other = o.getKey();
+                if (other.length() > t.length() && other.startsWith(t) && o.getValue() >= e.getValue()) {
+                    typing = true;
+                    break;
+                }
+            }
+            if (!typing) request(t, null);
+        }
+    }
+
     /** The next batch to send, interface text first; null after a second with nothing to do. */
     private List<String> nextBatch() throws InterruptedException {
         for (int waited = 0; waited < 1000; waited += 50) {
+            if (waited % 200 == 0) sweepSeen();
             String first = queue.poll(50, TimeUnit.MILLISECONDS);
             if (first != null) {
                 Thread.sleep(150); // let the rest of this screen's strings arrive

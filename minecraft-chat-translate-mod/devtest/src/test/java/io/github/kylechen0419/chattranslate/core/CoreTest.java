@@ -120,21 +120,19 @@ class CoreTest {
             ui.use(tr);
             // a screen's worth of strings, asked for on the render thread: nothing blocks, one batch;
             // chat lines go in their own batch, after interface text
-            // first sight only starts the clock: text that is still typing itself out is never sent
-            for (String t : List.of("Grue pouch", "Zorp log", "Go to Zanaka | 350m", "Immortal_0419", "Go and l", "sao:latency"))
+            // a screen's worth of strings, looked up once on the render thread: nothing blocks, and after
+            // a moment they go out in one batch, minus the steps of text that was still typing itself out
+            for (String t : List.of("Grue pouch", "Zorp log", "Go to Zanaka | 350m", "Immortal_0419", "sao:latency",
+                    "Zo and l", "Zo and lo", "Zo and look"))
                 assertNull(ui.lookup(t));
-            Thread.sleep(450);
-            assertNull(ui.lookup("Grue pouch"));
-            assertNull(ui.lookup("Zorp log"));
-            assertNull(ui.lookup("Go to Zanaka | 350m"));
-            assertNull(ui.lookup("Immortal_0419"));
-            assertNull(ui.lookup("sao:latency"));
             var chat = tr.translate("already fine");
             var bad = tr.translate("drop slot 5");
             assertNull(chat.get(10, TimeUnit.SECONDS), "unchanged lines come back as null");
             assertNull(bad.get(10, TimeUnit.SECONDS), "a translation that lost its number is discarded");
             for (int i = 0; i < 100 && ui.lookup("Grue pouch") == null; i++) Thread.sleep(50);
-            assertEquals(List.of(2, 3), sizes.stream().sorted().toList());
+            assertEquals(List.of(2, 4), sizes.stream().sorted().toList());
+            assertEquals("譯:Zo and look", ui.lookup("Zo and look"));
+            assertNull(ui.lookup("Zo and lo"), "typing and word-wrap steps are never sent");
             assertEquals("譯:Grue pouch", ui.lookup("Grue pouch"));
             assertEquals("譯:Go to Zanaka | 349m", ui.lookup("Go to Zanaka | 349m"), "new number, same template: no new call");
             assertEquals("譯:Zorp log", tr.translate("Zorp log").get(1, TimeUnit.SECONDS));
@@ -185,8 +183,7 @@ class CoreTest {
         assertEquals("背包", tr.cached("Backpack"));
         assertNull(tr.translate("Never seen").get(1, TimeUnit.SECONDS));
         assertNull(tr.cached("Quest log"));
-        Thread.sleep(450);
-        assertNull(tr.cached("Quest log"));
+        for (int i = 0; i < 40 && tr.missingCount() == 0; i++) Thread.sleep(50);
         assertEquals(1, tr.missingCount());
         tr.shutdown();
         String missing = Files.readString(cache.resolveSibling("missing-zh-tw.json"));
