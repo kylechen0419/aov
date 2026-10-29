@@ -46,6 +46,15 @@ Scripts are in `scripts/` next to this file. Work in the scratchpad.
    which image numbers to delete, which page numbers to rescan (with image number), optional soft pages. One line on
    what was normal (cover, chapter openers, blank pages). No tables of measurements, no long caveats.
 
+## Token budget (user's top priority)
+
+Use as few tokens as possible. Never view every page at full size. Only:
+- the page-number sheets (step 3), at reduced size if the numbers are still readable;
+- whole-page views only for images whose number is missing or doesn't fit the sequence;
+- blur crops for the top ~20 suspects only (step 5).
+Blur standard: p.383 of the example book (readable but clearly soft on one side) counts as rescan.
+Batch image reads, keep replies minimal, no progress narration.
+
 ## Example result (民法債編總論（上）, 447 images, p.1–434)
 
 p.1–434 all present and in order. Images 18–19 repeated p.8–9 (delete them; image 17 has a finger in the margin only).
