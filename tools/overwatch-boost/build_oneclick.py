@@ -13,7 +13,14 @@ REM The PowerShell code at the end of this file is plain text - open in Notepad 
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo Requesting administrator rights...
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    REM Copy to TEMP first: when run from inside a zip, Explorer may delete its temp copy before the admin window starts.
+    copy /y "%~f0" "%TEMP%\OWBoost_run.bat" >nul
+    powershell -NoProfile -Command "Start-Process -FilePath (Join-Path $env:TEMP 'OWBoost_run.bat') -Verb RunAs"
+    if errorlevel 1 (
+        echo.
+        echo [X] Could not get administrator rights. Please click YES on the Windows prompt.
+        pause
+    )
     exit /b
 )
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$t=[IO.File]::ReadAllText('%~f0',[Text.Encoding]::UTF8); $i=$t.IndexOf('##PS_'+'BEGIN##'); & ([scriptblock]::Create($t.Substring($i))) -Auto"
