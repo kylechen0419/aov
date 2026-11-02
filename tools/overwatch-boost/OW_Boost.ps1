@@ -5,11 +5,14 @@
   還原方式：雙擊「2_Restore.bat」
   這個腳本只做「可還原、無風險」的調整，不會修改 BIOS、不會超頻、不會刪除個人檔案。
 #>
-param([switch]$Restore)
+param([switch]$Restore, [switch]$Check)
 
 $ErrorActionPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $Host.UI.RawUI.WindowTitle = '鬥陣特攻 + Discord 賽前優化'
+
+$logFile = Join-Path ([Environment]::GetFolderPath('Desktop')) 'OWBoost_log.txt'
+Start-Transcript -Path $logFile -Force | Out-Null
 
 $stateFile   = Join-Path $env:LOCALAPPDATA 'OWBoost_state.txt'
 $BALANCED    = '381b4222-f694-41f0-9685-ff5bb260df2e'
@@ -47,6 +50,7 @@ if ($Restore) {
     Ok '電源計畫已還原成優化前的設定'
     Info '遊戲模式與關閉背景錄影維持開啟（對日常使用沒有壞處）。'
     Info '被關掉的程式（瀏覽器、OneDrive…）直接重新打開即可。'
+    Stop-Transcript | Out-Null
     return
 }
 
@@ -139,6 +143,19 @@ if (-not $cs.AutomaticManagedPagefile) {
     if (-not $pf) { Bad '虛擬記憶體 (分頁檔) 被關閉了！16GB 電腦這樣很容易卡頓，請依說明文件改回「自動管理」。' }
     else { Warn '虛擬記憶體不是「系統自動管理」，建議依說明文件改回自動。' }
 } else { Ok '虛擬記憶體為系統自動管理' }
+
+if ($Check) {
+    Title '測試模式：目前最吃記憶體的程式（不會關閉任何東西）'
+    Get-Process | Group-Object ProcessName | ForEach-Object {
+        [pscustomobject]@{ Name = $_.Name; MB = [math]::Round((($_.Group | Measure-Object WorkingSet64 -Sum).Sum) / 1MB) }
+    } | Sort-Object MB -Descending | Select-Object -First 12 | ForEach-Object { Info ("  {0,-28} {1,6} MB" -f $_.Name, $_.MB) }
+    $plan = (powercfg /getactivescheme) -join ' '
+    Info "目前電源計畫：$plan"
+    Write-Host ''
+    Ok "測試完成，沒有修改任何設定。結果已存到桌面：$logFile"
+    Stop-Transcript | Out-Null
+    return
+}
 
 # ------------------------------------------------------------------ 2. 電源計畫
 Title '2/7 電源計畫 → 高效能'
@@ -299,3 +316,5 @@ Info '  NVIDIA Reflex → 開啟 + 加速；減少緩衝 → 開'
 Info 'Discord：設定 > 進階 > 關閉「硬體加速」；設定 > 遊戲疊加 > 關閉'
 Info '更詳細的說明請看同資料夾的 README.md'
 Write-Host ''
+Info "執行記錄已存到桌面：$logFile"
+Stop-Transcript | Out-Null
