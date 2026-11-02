@@ -188,7 +188,8 @@ $cur = (powercfg /getactivescheme) -join ' '
 $curGuid = if ($cur -match '([0-9a-fA-F]{8}-[0-9a-fA-F-]{27})') { $Matches[1] } else { '' }
 if ($curGuid -and $curGuid -ne $BALANCED -and $curGuid -ne $POWER_SAVER) {
     # 已經是高效能 / 品牌效能模式（例如 ASUS Turbo、Lenovo 效能模式），不要蓋掉
-    Ok "目前已是效能型電源計畫，維持不變：$($cur -replace '^.*?\(', '(')"
+    $planName = ($cur -split '\s+' | Select-Object -Last 1)
+    Ok ('目前已是效能型電源計畫，維持不變：' + $planName)
 } else {
     if ($curGuid -and -not (Test-Path $stateFile)) { Set-Content -Path $stateFile -Value $curGuid }
     powercfg /setactive $HIGH_PERF 2>$null | Out-Null
