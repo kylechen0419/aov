@@ -159,17 +159,22 @@ if ($Check) {
 
 # ------------------------------------------------------------------ 2. 電源計畫
 Title '2/7 電源計畫 → 高效能'
+$POWER_SAVER = 'a1841308-3541-4fab-bc81-f71556f20b4a'
 $cur = (powercfg /getactivescheme) -join ' '
-if ($cur -match '([0-9a-fA-F]{8}-[0-9a-fA-F-]{27})' -and -not (Test-Path $stateFile)) {
-    Set-Content -Path $stateFile -Value $Matches[1]
+$curGuid = if ($cur -match '([0-9a-fA-F]{8}-[0-9a-fA-F-]{27})') { $Matches[1] } else { '' }
+if ($curGuid -and $curGuid -ne $BALANCED -and $curGuid -ne $POWER_SAVER) {
+    # 已經是高效能 / 品牌效能模式（例如 ASUS Turbo、Lenovo 效能模式），不要蓋掉
+    Ok "目前已是效能型電源計畫，維持不變：$($cur -replace '^.*?\(', '(')"
+} else {
+    if ($curGuid -and -not (Test-Path $stateFile)) { Set-Content -Path $stateFile -Value $curGuid }
+    powercfg /setactive $HIGH_PERF 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        $dup = (powercfg -duplicatescheme $HIGH_PERF 2>$null) -join ' '
+        if ($dup -match '([0-9a-fA-F]{8}-[0-9a-fA-F-]{27})') { powercfg /setactive $Matches[1] | Out-Null }
+    }
+    if ($LASTEXITCODE -eq 0) { Ok '已切換為「高效能」電源計畫（可用「2_Restore.bat」改回）' }
+    else { Warn '此電腦只支援「平衡」模式：請到 設定 > 系統 > 電源 > 電源模式 選「最佳效能」。' }
 }
-powercfg /setactive $HIGH_PERF 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    $dup = (powercfg -duplicatescheme $HIGH_PERF 2>$null) -join ' '
-    if ($dup -match '([0-9a-fA-F]{8}-[0-9a-fA-F-]{27})') { powercfg /setactive $Matches[1] | Out-Null }
-}
-if ($LASTEXITCODE -eq 0) { Ok '已切換為「高效能」電源計畫（可用「2_Restore.bat」改回）' }
-else { Warn '此電腦只支援「平衡」模式：請到 設定 > 系統 > 電源 > 電源模式 選「最佳效能」。' }
 if (Get-CimInstance Win32_Battery) { Warn '這是筆電：打遊戲請一定要插電，不然顯示卡會降速！' }
 
 # ------------------------------------------------------------------ 3. 遊戲模式 / 關背景錄影
@@ -209,7 +214,10 @@ $apps = [ordered]@{
     'Telegram'           = 'Telegram'
     'Zoom'               = '^Zoom$'
     'Skype'              = 'Skype'
+    'Claude 桌面版'      = '^claude$'
 }
+# 鬥陣不是從 Steam 玩的話，Steam 也可以關
+if (-not ($owPath -match 'steamapps')) { $apps['Steam'] = '^steam$|steamwebhelper' }
 $browsers = [ordered]@{ 'Chrome' = '^chrome$'; 'Edge' = '^msedge$'; 'Firefox' = '^firefox$'; 'Opera' = '^opera$'; 'Brave' = '^brave$' }
 
 function Close-Group($label, $pattern) {
