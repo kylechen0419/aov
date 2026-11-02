@@ -2,6 +2,15 @@
 
 給 **16GB 記憶體** 電腦用：解決「角色變成光球」、卡頓，並讓 Discord 通話不搶遊戲效能。
 
+## ⚡ 最快用法：一鍵版（給不在身邊的朋友）
+
+1. 下載：https://github.com/kylechen0419/aov/raw/claude/friendly-dirac-v3u30e/tools/overwatch-boost/OW_OneClick.zip
+2. 打開 zip，**雙擊 `OW_OneClick.bat`** → 按「是」（藍色警告就按「其他資訊」→「仍要執行」）
+3. 全自動，不用回答任何問題。看到「優化完成」視窗按確定後，再開 Discord 和鬥陣特攻（黑色視窗不要關）。
+
+一鍵版會自動：健檢、切高效能電源（保留 ASUS Turbo 等品牌效能模式）、開遊戲模式、關掉 OneDrive / Teams / Spotify / Steam 等背景程式（**不會關瀏覽器**）、清暫存檔、**重建著色器快取**（修光球）、清 DNS、遊戲啟動後提高優先順序。執行記錄存在桌面 `OWBoost_log.txt`。
+
+
 ## 一、先搞懂：角色為什麼會變光球？
 
 鬥陣特攻的角色「光球 / 發光圓球」其實是**角色模型與貼圖還沒讀進來時的替代畫面**。最常見的原因，依機率排序：

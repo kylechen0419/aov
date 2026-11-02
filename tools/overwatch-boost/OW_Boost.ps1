@@ -5,7 +5,7 @@
   還原方式：雙擊「2_Restore.bat」
   這個腳本只做「可還原、無風險」的調整，不會修改 BIOS、不會超頻、不會刪除個人檔案。
 #>
-param([switch]$Restore, [switch]$Check)
+param([switch]$Restore, [switch]$Check, [switch]$Auto)
 
 $ErrorActionPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
@@ -23,7 +23,12 @@ function Ok($t)    { Write-Host "  [OK] $t" -ForegroundColor Green }
 function Warn($t)  { Write-Host "  [!]  $t" -ForegroundColor Yellow }
 function Bad($t)   { Write-Host "  [X]  $t" -ForegroundColor Red }
 function Info($t)  { Write-Host "       $t" }
-function Ask($q, $default = 'Y') {
+function Ask($q, $default = 'Y', $autoAnswer = $null) {
+    if ($Auto) {
+        $yes = if ($null -ne $autoAnswer) { [bool]$autoAnswer } else { $default -eq 'Y' }
+        Info ("  $q → 自動選擇：" + $(if ($yes) { '是' } else { '否' }))
+        return $yes
+    }
     $hint = if ($default -eq 'Y') { '[Y/n]' } else { '[y/N]' }
     $a = Read-Host "  $q $hint"
     if ([string]::IsNullOrWhiteSpace($a)) { $a = $default }
@@ -273,7 +278,7 @@ Info '如果「角色變光球」已經發生過，建議選 Y 做一次。'
 Info '做完後第一場遊戲開頭可能會小卡幾秒（正在重建快取），之後就會順。'
 if (Get-Process -Name 'Overwatch') {
     Warn '鬥陣特攻正在執行中，略過此步驟（請關遊戲後再執行一次）。'
-} elseif (Ask '要清除著色器快取嗎？' 'N') {
+} elseif (Ask '要清除著色器快取嗎？' 'N' $true) {
     $caches = @(
         "$env:LOCALAPPDATA\NVIDIA\DXCache", "$env:LOCALAPPDATA\NVIDIA\GLCache",
         "$env:LOCALAPPDATA\AMD\DxCache",    "$env:LOCALAPPDATA\AMD\DxcCache", "$env:LOCALAPPDATA\AMD\GLCache",
@@ -290,6 +295,26 @@ if (Get-Process -Name 'Overwatch') {
 Title '7/7 網路'
 ipconfig /flushdns | Out-Null
 Ok '已清除 DNS 快取'
+
+Write-Host ''
+Write-Host '  ==== 電腦優化完成！進遊戲後請確認這些設定 ====' -ForegroundColor Magenta
+Info '選項 > 影像：'
+Info '  材質品質 → 中（顯示記憶體 4GB 以下設「低」）   ← 光球問題最關鍵'
+Info '  動態反射 → 關  /  陰影細節 → 低  /  局部霧氣細節 → 低'
+Info '  算圖比例 → 100%（或自訂；不要超過 100%）'
+Info '  幀數上限 → 自訂，設成螢幕更新率（例如 144），留餘裕給 Discord'
+Info '  NVIDIA Reflex → 開啟 + 加速；減少緩衝 → 開'
+Info 'Discord：設定 > 進階 > 關閉「硬體加速」；設定 > 遊戲疊加 > 關閉'
+
+if ($Auto) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $msg = "電腦優化完成！`n`n進遊戲後請到「選項 > 影像」確認：`n`n" +
+           "• 材質品質 → 中（角色變光球就改「低」）`n• 動態反射 → 關`n• 陰影細節 → 低`n" +
+           "• 算圖比例 → 100%`n• 幀數上限 → 螢幕更新率（例如 60 / 144）`n`n" +
+           "Discord：設定 > 進階 > 關閉「硬體加速」`n`n" +
+           "按「確定」後再開 Discord 和鬥陣特攻，`n這個黑色視窗不要關，它會自動幫遊戲提高優先順序。"
+    [void][System.Windows.Forms.MessageBox]::Show($msg, '鬥陣特攻優化', 'OK', 'Information')
+}
 
 # ------------------------------------------------------------------ 遊戲啟動後提高優先順序
 Title '最後一步：自動提高遊戲與 Discord 的優先順序'
@@ -314,15 +339,7 @@ if ($dc) { $dc | ForEach-Object { $_.PriorityClass = 'AboveNormal' }; Ok 'Discor
 if (-not $owDone) { Warn '20 分鐘內沒偵測到鬥陣特攻，略過。' }
 
 Write-Host ''
-Write-Host '  ==== 全部完成！別忘了檢查遊戲內設定 ====' -ForegroundColor Magenta
-Info '選項 > 影像：'
-Info '  材質品質 → 中（顯示記憶體 4GB 以下設「低」）   ← 光球問題最關鍵'
-Info '  動態反射 → 關  /  陰影細節 → 低  /  局部霧氣細節 → 低'
-Info '  算圖比例 → 100%（或自訂；不要超過 100%）'
-Info '  幀數上限 → 自訂，設成螢幕更新率（例如 144），留餘裕給 Discord'
-Info '  NVIDIA Reflex → 開啟 + 加速；減少緩衝 → 開'
-Info 'Discord：設定 > 進階 > 關閉「硬體加速」；設定 > 遊戲疊加 > 關閉'
-Info '更詳細的說明請看同資料夾的 README.md'
 Write-Host ''
-Info "執行記錄已存到桌面：$logFile"
+Ok '全部完成！'
+Info "執行記錄已存到桌面：$logFile（有問題可以把這個檔案傳給幫你的人）"
 Stop-Transcript | Out-Null
