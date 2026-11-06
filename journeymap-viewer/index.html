@@ -1,0 +1,284 @@
+<title>JourneyMap 地圖檢視</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a tool bar of steps on top, a full-width map canvas below; the map stays dark-on-light-frame like a cartographer's light table. */
+:root {
+  --bg: #eef0ec; --panel: #ffffff; --fg: #1d2420; --muted: #5d6862; --line: #d3d8d2;
+  --accent: #c2410c; --accent-fg: #ffffff; --map-bg: #1b1f1d; --grid: rgba(255,255,255,.06);
+  --font-body: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141816; --panel: #1d2220; --fg: #e4e9e5; --muted: #9aa49e; --line: #313a35;
+  --accent: #f97316; --accent-fg: #1a0d04; --map-bg: #0c0e0d; --grid: rgba(255,255,255,.05); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141816; --panel: #1d2220; --fg: #e4e9e5; --muted: #9aa49e; --line: #313a35;
+  --accent: #f97316; --accent-fg: #1a0d04; --map-bg: #0c0e0d; --grid: rgba(255,255,255,.05); color-scheme: dark }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px;
+  display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; }
+h1 { font-size: 1.25rem; margin: 0; text-wrap: balance; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.head p { margin: 0; color: var(--muted); font-size: .9rem; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: .75rem; color: var(--muted); letter-spacing: .04em; }
+.grow { flex: 1 1 220px; }
+select, input[type=text] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; min-width: 0; width: 100%; box-sizing: border-box; }
+input[type=text] { font-family: var(--font-mono); }
+button, .btn { font: inherit; font-weight: 500; border-radius: 6px; padding: 7px 14px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; white-space: nowrap; }
+.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+button:focus-visible, select:focus-visible, input:focus-visible, .btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+#pick { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.mapwrap { position: relative; flex: 1 1 auto; min-height: 360px; border-radius: 8px; overflow: hidden; background: var(--map-bg); border: 1px solid var(--line); }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+canvas.drag { cursor: grabbing; }
+.hud { position: absolute; left: 10px; bottom: 10px; font-family: var(--font-mono); font-size: .8rem; color: #e8ece9; background: rgba(0,0,0,.55); padding: 4px 8px; border-radius: 5px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.zoom button { width: 36px; height: 36px; padding: 0; background: rgba(0,0,0,.55); color: #fff; border-color: rgba(255,255,255,.2); }
+.badge { position: absolute; left: 10px; top: 10px; font-size: .8rem; background: var(--accent); color: var(--accent-fg); padding: 3px 9px; border-radius: 99px; font-weight: 500; }
+.help { font-size: .85rem; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+.help ol { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
+code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
+#msg { font-size: .85rem; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="head">
+  <h1>JourneyMap 地圖檢視</h1>
+  <p>讀你電腦裡 JourneyMap 存下的地圖，輸入座標標出你在哪。檔案只在你的瀏覽器裡讀，不會上傳。</p>
+</div>
+
+<details class="help" id="help" open>
+  <summary>怎麼用</summary>
+  <ol>
+    <li>按「選擇地圖資料夾」，在視窗上方的路徑列貼上 <code>%APPDATA%\.Triggers Client\instances\Sword Art Online\journeymap\data\mp</code> 按 Enter，再按「上傳」。瀏覽器會問要不要上傳，那只是讓這個頁面讀檔，檔案不會離開你的電腦。</li>
+    <li>在遊戲按 <b>F3</b>，把 XYZ 那行的數字填進「我的座標」（例如 <code>-120 35 482</code>），按「定位」。有填 Y 的話會自動切到那個高度的地下層。</li>
+    <li>JourneyMap 隔一段時間才會把新走過的地方存成圖片。地圖沒更新就再按一次「選擇地圖資料夾」。</li>
+  </ol>
+</details>
+
+<div class="bar">
+  <label class="btn primary" for="pick">選擇地圖資料夾<input id="pick" type="file" webkitdirectory directory multiple></label>
+  <div class="field grow">
+    <label for="layer">地圖圖層</label>
+    <select id="layer"></select>
+  </div>
+  <div class="field grow">
+    <label for="coords">我的座標（X Y Z 或 X Z）</label>
+    <input id="coords" type="text" inputmode="text" placeholder="-120 35 482" autocomplete="off">
+  </div>
+  <button id="go" class="primary" type="button">定位</button>
+  <span id="msg"></span>
+</div>
+
+<div class="mapwrap">
+  <canvas id="map"></canvas>
+  <span class="badge" id="badge">範例地圖</span>
+  <div class="zoom"><button id="zin" type="button" aria-label="放大">＋</button><button id="zout" type="button" aria-label="縮小">－</button></div>
+  <div class="hud" id="hud">X 0 · Z 0</div>
+</div>
+
+<script>
+(() => {
+  const TILE = 512; // one JourneyMap region image = 512×512 blocks
+  const cv = document.getElementById('map'), ctx = cv.getContext('2d');
+  const sel = document.getElementById('layer'), hud = document.getElementById('hud');
+  const msg = document.getElementById('msg'), badge = document.getElementById('badge');
+  const coords = document.getElementById('coords');
+  let groups = new Map();       // dir path -> {tiles: Map("x,z" -> File|bitmap source), newest}
+  let cur = null;               // current group key
+  const bitmaps = new Map();    // "dir|x,z" -> ImageBitmap | 'loading' | 'error'
+  const view = { cx: 0, cz: 0, scale: 1 }; // block at canvas centre, CSS px per block
+  let me = null;                // {x, z}
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  };
+
+  function layerLabel(dir) {
+    const parts = dir.split('/');
+    const last = parts[parts.length - 1], dim = parts[parts.length - 2] || '', world = parts[parts.length - 3] || '';
+    const dimName = /nether/i.test(dim) ? '地獄' : /end/i.test(dim) ? '終界' : '主世界';
+    let layer;
+    if (last === 'day') layer = '地表（白天）';
+    else if (last === 'night') layer = '地表（夜晚）';
+    else if (last === 'topo') layer = '等高線';
+    else if (last === 'biome') layer = '生物群系';
+    else if (/^-?\d+$/.test(last)) { const n = +last; layer = `地下第 ${n} 層（Y ${n * 16} ～ ${n * 16 + 15}）`; }
+    else layer = last;
+    return `${dimName} · ${layer}${world ? ' · ' + world.replace(/~.*/, '') : ''}`;
+  }
+
+  // A made-up corridor maze so the page shows what it does before a folder is chosen.
+  function demo() {
+    const c = document.createElement('canvas'); c.width = c.height = TILE;
+    const g = c.getContext('2d'); g.fillStyle = '#2a2716'; g.fillRect(0, 0, TILE, TILE);
+    let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const N = 32, cell = TILE / N, seen = new Set(), stack = [[16, 16]];
+    g.fillStyle = '#d8cf8a';
+    const open = (x, z) => g.fillRect(x * cell + 3, z * cell + 3, cell - 6, cell - 6);
+    seen.add('16,16'); open(16, 16);
+    while (stack.length) {
+      const [x, z] = stack[stack.length - 1];
+      const n = [[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dz]) => [x+dx, z+dz, dx, dz]).filter(([a,b]) => a>=0&&b>=0&&a<N&&b<N&&!seen.has(a+','+b));
+      if (!n.length) { stack.pop(); continue; }
+      const [a, b, dx, dz] = n[Math.floor(rnd() * n.length)];
+      seen.add(a + ',' + b); open(a, b);
+      g.fillRect(Math.min(x, a) * cell + 3 + (dx ? cell - 6 : 0), Math.min(z, b) * cell + 3 + (dz ? cell - 6 : 0), dx ? 6 : cell - 6, dz ? 6 : cell - 6);
+      stack.push([a, b]);
+    }
+    groups = new Map([['範例/demo/day', { tiles: new Map([['0,0', c]]), newest: 0, demo: true }]]);
+    me = { x: 140, z: 300 };
+    fillSelect('範例/demo/day');
+    view.cx = me.x; view.cz = me.z; view.scale = 1.5;
+  }
+
+  function fillSelect(selected) {
+    sel.innerHTML = '';
+    const keys = [...groups.keys()].sort((a, b) => layerLabel(a).localeCompare(layerLabel(b), 'zh-Hant', { numeric: true }));
+    for (const k of keys) {
+      const o = document.createElement('option'); o.value = k;
+      o.textContent = groups.get(k).demo ? '範例地圖（還沒選資料夾）' : `${layerLabel(k)}（${groups.get(k).tiles.size} 張）`;
+      sel.appendChild(o);
+    }
+    cur = selected; sel.value = selected;
+  }
+
+  function load(files) {
+    const g = new Map();
+    for (const f of files) {
+      const rel = (f.webkitRelativePath || f.name).replace(/\\/g, '/');
+      const m = rel.match(/^(.*)\/(-?\d+),(-?\d+)\.png$/i);
+      if (!m) continue;
+      if (!g.has(m[1])) g.set(m[1], { tiles: new Map(), newest: 0 });
+      const grp = g.get(m[1]); grp.tiles.set(m[2] + ',' + m[3], f); grp.newest = Math.max(grp.newest, f.lastModified);
+    }
+    if (!g.size) { msg.textContent = '這個資料夾裡找不到 JourneyMap 的地圖圖片。請選 journeymap\\data\\mp 這個資料夾。'; return; }
+    const prev = cur && g.has(cur) ? cur : null;
+    groups = g; bitmaps.clear();
+    let best = prev;
+    if (!best) best = [...g.entries()].sort((a, b) => b[1].newest - a[1].newest)[0][0];
+    fillSelect(best);
+    badge.hidden = true;
+    msg.textContent = `讀到 ${[...g.values()].reduce((n, x) => n + x.tiles.size, 0)} 張地圖圖片，${g.size} 個圖層。`;
+    if (!prev) { me ? centerOn(me) : centerOnTiles(); }
+    draw();
+  }
+
+  function centerOnTiles() {
+    const t = [...groups.get(cur).tiles.keys()].map(k => k.split(',').map(Number));
+    const xs = t.map(a => a[0]), zs = t.map(a => a[1]);
+    view.cx = ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * TILE;
+    view.cz = ((Math.min(...zs) + Math.max(...zs) + 1) / 2) * TILE;
+  }
+  function centerOn(p) { view.cx = p.x; view.cz = p.z; if (view.scale < 1) view.scale = 2; draw(); }
+
+  function bitmapFor(key, src) {
+    const id = cur + '|' + key, b = bitmaps.get(id);
+    if (b && b !== 'loading' && b !== 'error') return b;
+    if (!b) {
+      if (src instanceof HTMLCanvasElement) { bitmaps.set(id, src); return src; }
+      bitmaps.set(id, 'loading');
+      createImageBitmap(src).then(bm => { bitmaps.set(id, bm); draw(); }, () => bitmaps.set(id, 'error'));
+    }
+    return null;
+  }
+
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(render); }
+  function render() {
+    raf = 0;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = false;
+    const s = view.scale, x0 = view.cx - w / 2 / s, z0 = view.cz - h / 2 / s;
+    const grp = groups.get(cur);
+    if (grp) {
+      for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x0 + w / s) / TILE); tx++)
+        for (let tz = Math.floor(z0 / TILE); tz <= Math.floor((z0 + h / s) / TILE); tz++) {
+          const src = grp.tiles.get(tx + ',' + tz); if (!src) continue;
+          const bm = bitmapFor(tx + ',' + tz, src);
+          if (bm) ctx.drawImage(bm, (tx * TILE - x0) * s, (tz * TILE - z0) * s, TILE * s, TILE * s);
+        }
+    }
+    // chunk grid when zoomed in, so you can count blocks
+    if (s >= 3) {
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid'); ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = Math.ceil(x0 / 16) * 16; x < x0 + w / s; x += 16) { const px = Math.round((x - x0) * s) + .5; ctx.moveTo(px, 0); ctx.lineTo(px, h); }
+      for (let z = Math.ceil(z0 / 16) * 16; z < z0 + h / s; z += 16) { const pz = Math.round((z - z0) * s) + .5; ctx.moveTo(0, pz); ctx.lineTo(w, pz); }
+      ctx.stroke();
+    }
+    if (me) {
+      const px = (me.x - x0) * s, pz = (me.z - z0) * s, r = Math.max(6, s * 1.5);
+      const acc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#f97316';
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,.7)';
+      ctx.beginPath(); ctx.arc(px, pz, r + 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = acc; ctx.beginPath(); ctx.arc(px, pz, r + 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(px, pz, r / 2, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '600 12px ' + getComputedStyle(document.body).fontFamily;
+      const label = `我 (${Math.round(me.x)}, ${Math.round(me.z)})`, tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(px + r + 10, pz - 10, tw + 10, 20);
+      ctx.fillStyle = '#fff'; ctx.fillText(label, px + r + 15, pz + 4);
+    }
+  }
+
+  // panning and zooming
+  const pts = new Map(); let pinch = null;
+  function zoomAt(f, sx, sy) {
+    const w = cv.clientWidth, h = cv.clientHeight, s = view.scale;
+    const bx = view.cx + (sx - w / 2) / s, bz = view.cz + (sy - h / 2) / s;
+    view.scale = Math.min(32, Math.max(0.05, s * f));
+    view.cx = bx - (sx - w / 2) / view.scale; view.cz = bz - (sy - h / 2) / view.scale; draw();
+  }
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY }); cv.classList.add('drag'); });
+  cv.addEventListener('pointermove', e => {
+    const s = view.scale;
+    hud.textContent = `X ${Math.floor(view.cx + (e.offsetX - cv.clientWidth / 2) / s)} · Z ${Math.floor(view.cz + (e.offsetY - cv.clientHeight / 2) / s)}`;
+    const p = pts.get(e.pointerId); if (!p) return;
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()], d0 = Math.hypot(a.x - b.x, a.y - b.y);
+      p.x = e.offsetX; p.y = e.offsetY;
+      const [c, d] = [...pts.values()], d1 = Math.hypot(c.x - d.x, c.y - d.y);
+      if (d0 > 0) zoomAt(d1 / d0, (c.x + d.x) / 2, (c.y + d.y) / 2);
+      return;
+    }
+    view.cx -= (e.offsetX - p.x) / s; view.cz -= (e.offsetY - p.y) / s; p.x = e.offsetX; p.y = e.offsetY; draw();
+  });
+  const up = e => { pts.delete(e.pointerId); if (!pts.size) cv.classList.remove('drag'); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.25 : 0.8, e.offsetX, e.offsetY); }, { passive: false });
+  document.getElementById('zin').onclick = () => zoomAt(1.5, cv.clientWidth / 2, cv.clientHeight / 2);
+  document.getElementById('zout').onclick = () => zoomAt(1 / 1.5, cv.clientWidth / 2, cv.clientHeight / 2);
+  new ResizeObserver(draw).observe(cv);
+
+  sel.onchange = () => { cur = sel.value; draw(); };
+  document.getElementById('pick').onchange = e => { if (e.target.files.length) load(e.target.files); e.target.value = ''; };
+
+  function locate() {
+    const n = (coords.value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    if (n.length < 2) { msg.textContent = '請輸入座標，例如 -120 35 482（F3 畫面 XYZ 那一行）。'; return; }
+    const [x, y, z] = n.length >= 3 ? n : [n[0], null, n[1]];
+    me = { x, z }; store.set('jm-coords', coords.value);
+    if (y !== null && cur) {
+      // jump to the underground slice that holds this Y, in the same world and dimension
+      const base = cur.slice(0, cur.lastIndexOf('/')), slice = base + '/' + Math.floor(y / 16);
+      if (groups.has(slice)) { cur = slice; sel.value = slice; msg.textContent = `已切到 Y ${y} 的地下層。`; }
+      else msg.textContent = `沒有 Y ${y} 那一層的地下圖，顯示目前圖層。`;
+    }
+    centerOn(me);
+  }
+  document.getElementById('go').onclick = locate;
+  coords.addEventListener('keydown', e => { if (e.key === 'Enter') locate(); });
+
+  demo();
+  const saved = store.get('jm-coords'); if (saved) coords.value = saved;
+  draw();
+})();
+</script>
