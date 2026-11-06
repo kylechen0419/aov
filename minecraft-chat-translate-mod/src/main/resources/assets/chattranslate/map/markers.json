@@ -1,4 +1,4 @@
 [
- {"label": "紙張 A", "kind": "paper", "dim": "minecraft:backrooms", "rel": true, "x": 538, "y": 93, "z": 4154},
- {"label": "紙張 B", "kind": "paper", "dim": "minecraft:backrooms", "rel": true, "x": 299, "y": 93, "z": 4229}
+ {"label": "紙張 A", "kind": "paper", "dim": "minecraft:backrooms", "world": "Triggers_815bd3d6", "x": 114202, "y": 93, "z": 4154},
+ {"label": "紙張 B", "kind": "paper", "dim": "minecraft:backrooms", "world": "Triggers_815bd3d6", "x": 113963, "y": 93, "z": 4229}
 ]

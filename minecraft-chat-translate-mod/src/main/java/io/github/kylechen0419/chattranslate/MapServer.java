@@ -155,8 +155,8 @@ public final class MapServer {
             list.filter(Files::isDirectory).map(d -> d.getFileName().toString()).filter(n -> LAYER.matcher(n).matches()).forEach(layers::add);
         } catch (IOException ignored) {
         }
-        return String.format(Locale.ROOT, "{\"ok\":true,\"x\":%.2f,\"y\":%.2f,\"z\":%.2f,\"yaw\":%.1f,\"dim\":\"%s\",\"found\":%b,\"layers\":[%s]}",
-                s.x(), s.y(), s.z(), s.yaw(), s.dim().replace("\"", ""), dir != null,
+        return String.format(Locale.ROOT, "{\"ok\":true,\"x\":%.2f,\"y\":%.2f,\"z\":%.2f,\"yaw\":%.1f,\"dim\":\"%s\",\"world\":\"%s\",\"found\":%b,\"layers\":[%s]}",
+                s.x(), s.y(), s.z(), s.yaw(), s.dim().replace("\"", ""), dir == null ? "" : worldName(dir), dir != null,
                 String.join(",", layers.stream().map(l -> "\"" + l + "\"").toList()));
     }
 
@@ -215,6 +215,11 @@ public final class MapServer {
         return out;
     }
 
+    /** The JourneyMap world folder a dimension folder sits in, safe to put in JSON. */
+    private static String worldName(Path dimDir) {
+        return dimDir.getParent().getFileName().toString().replaceAll("[\"\\\\\\p{Cntrl}]", "");
+    }
+
     private String allTiles(String layer) {
         List<String> items = new ArrayList<>();
         List<Path> dirs = allDimDirs();
@@ -224,8 +229,8 @@ public final class MapServer {
             try (Stream<Path> files = Files.list(d)) {
                 for (Path f : files.toList()) {
                     Matcher m = NAME.matcher(f.getFileName().toString());
-                    if (m.matches()) items.add(String.format(Locale.ROOT, "{\"w\":%d,\"x\":%s,\"z\":%s,\"t\":%d}",
-                            w, m.group(1), m.group(2), Files.getLastModifiedTime(f).toMillis()));
+                    if (m.matches()) items.add(String.format(Locale.ROOT, "{\"w\":%d,\"n\":\"%s\",\"x\":%s,\"z\":%s,\"t\":%d}",
+                            w, worldName(dirs.get(w)), m.group(1), m.group(2), Files.getLastModifiedTime(f).toMillis()));
                 }
             } catch (IOException ignored) {
             }

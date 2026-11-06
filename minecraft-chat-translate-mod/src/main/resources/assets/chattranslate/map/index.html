@@ -69,9 +69,8 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
 </div>
 <script>
 (() => {
-  // Each visit to the Backrooms puts you in a copy of the same maze, one copy every 1536 blocks along X.
-  // Maps from every earlier copy are stacked into one, and markers there are kept relative to the copy.
-  const SLOT = 1536, SLOT_TILES = SLOT / 512;
+  // Each visit to the Backrooms puts you in a fresh copy of the same maze somewhere else along X.
+  // Earlier copies' maps are lined up with the copy you're in by matching their corridors, then stacked.
   const TILE = 512, KIND = { paper: ['紙張', '#facc15'], dead: ['死路', '#ef4444'], note: ['其他', '#a78bfa'] };
   const $ = id => document.getElementById(id);
   const cv = $('map'), ctx = cv.getContext('2d'), sel = $('layer');
@@ -80,11 +79,19 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   let markers = [], bundled = [], doneBundled = new Set();
   let target = null, route = null, routeAt = 0;
   const tiles = new Map();  // "layer|x,z" -> Image | 'missing'
-  const merged = new Map(), mergeJobs = new Map(); // "layer|slotTileX,z" -> canvas; layer -> Promise
-  const mod = (a, n) => ((a % n) + n) % n;
+  const merged = new Map(), mergeJobs = new Map(); // "layer|x,z" in your copy's coordinates -> canvas
+  const alignCache = new Map(); // "copy|your copy" -> {dx, dz, ok}
+  let copies = []; // the copies JourneyMap saved: {n (world folder), x0, x1 (tile columns), dx, dz, ok}
   const isBR = () => !!me && /backroom/i.test(me.dim);
-  const slotBase = () => Math.floor(me.x / SLOT) * SLOT;
-  const ax = m => m.rel && me ? slotBase() + m.x : m.x; // a marker's X in the copy you're in now
+  // 0 = not mapped (transparent, or the dark blue JourneyMap paints around caves), 1 = floor, 2 = wall
+  const cls = (r, g, b, a) => a <= 100 || (b > r + 20 && b > g + 20) ? 0 : (r + g + b) / 3 > 45 ? 1 : 2;
+  // where a marker is in the copy you're in now; null when its copy couldn't be lined up
+  function at(m) {
+    if (!m.world) return m.rel ? null : { x: m.x, z: m.z };
+    if (!copies.length) return me && me.world && me.world.startsWith(m.world) ? { x: m.x, z: m.z } : null;
+    const tx = Math.floor(m.x / TILE), c = copies.find(c => c.n.startsWith(m.world) && tx >= c.x0 - 3 && tx <= c.x1 + 3);
+    return c && c.ok ? { x: m.x + c.dx, z: m.z + c.dz } : null;
+  }
   const walkCache = new Map(); // "layer|x,z" -> Uint8Array(512*512) | null
 
   // ---------- markers (yours are saved by the mod; bundled ones ship with it) ----------
@@ -101,19 +108,19 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   const here = m => !me || !m.dim || m.dim === me.dim;
   function addMarker(x, y, z) {
     const kind = $('kind').value, n = markers.filter(m => m.kind === kind).length + 1;
-    const rel = isBR();
-    markers.push({ id: 'm' + Date.now(), dim: me ? me.dim : '', x: Math.floor(x) - (rel ? slotBase() : 0), rel, y: Math.floor(y), z: Math.floor(z), kind, label: $('label').value.trim() || `${KIND[kind][0]} ${n}`, done: false });
+    markers.push({ id: 'm' + Date.now(), dim: me ? me.dim : '', world: isBR() ? me.world : undefined, x: Math.floor(x), y: Math.floor(y), z: Math.floor(z), kind, label: $('label').value.trim() || `${KIND[kind][0]} ${n}`, done: false });
     $('label').value = ''; save(); renderList(); draw();
   }
   function renderList() {
     const ul = $('list'); ul.innerHTML = '';
-    const list = all().filter(here);
+    const list = all().filter(m => here(m) && at(m));
     if (!list.length) { ul.innerHTML = '<li class="empty">還沒有標記。找到紙張時按「標在我腳下」，或按「在地圖上點」再點地圖。</li>'; return; }
     for (const m of list.sort((a, b) => dist(a) - dist(b))) {
       const li = document.createElement('li'); if (m.done) li.className = 'done';
       li.innerHTML = `<span class="name"><span style="color:${KIND[m.kind][1]}">●</span> </span><span class="meta"></span><span class="acts"></span>`;
       li.querySelector('.name').append(m.label + (m.bundled ? '（內建）' : ''));
-      li.querySelector('.meta').textContent = `${ax(m)}, ${m.y ?? '?'}, ${m.z}` + (me ? ` · ${Math.round(dist(m))} 格` : '');
+      const p = at(m);
+      li.querySelector('.meta').textContent = `${p.x}, ${m.y ?? '?'}, ${p.z}` + (me ? ` · ${Math.round(dist(m))} 格` : '');
       const acts = li.querySelector('.acts');
       const b = (t, f, cls) => { const e = document.createElement('button'); e.type = 'button'; e.textContent = t; if (cls) e.className = cls; e.onclick = f; acts.append(e); };
       b('導航', () => navigate(m), 'nav');
@@ -122,7 +129,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       ul.append(li);
     }
   }
-  const dist = m => me ? Math.hypot(ax(m) - me.x, m.z - me.z) : 0;
+  const dist = m => { const p = at(m); return !me ? 0 : p ? Math.hypot(p.x - me.x, p.z - me.z) : Infinity; };
 
   // ---------- position ----------
   function layerFor(y) {
@@ -149,7 +156,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
         }
         $('note').hidden = p.found;
         $('note').textContent = 'JourneyMap 還沒存這個世界的地圖。走一下，等它存檔就會出現。';
-        if (isBR()) $('dim').textContent = `後室 · 第 ${Math.floor(p.x / SLOT)} 間（地圖合併你每次來過的紀錄）`;
+        if (isBR()) $('dim').textContent = copies.length ? `後室 · 合併了 ${copies.filter(c => c.ok).length} / ${copies.length} 次的地圖` : '後室 · 地圖合併中…';
         if (follow) { view.cx = p.x; view.cz = p.z; }
         if (target) updateNav();
         if (Date.now() - lastList > 1000) { lastList = Date.now(); renderList(); }
@@ -161,7 +168,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   }
   setInterval(poll, 250);
   setInterval(() => { version = Date.now(); tiles.clear(); if (!isBR()) walkCache.clear(); if (target) routeAt = 0; draw(); }, 10000);
-  setInterval(() => { if (isBR()) { mergeJobs.clear(); draw(); } }, 30000);
+  setInterval(() => { if (isBR()) { mergeJobs.clear(); draw(); } }, 60000);
 
   // ---------- map images ----------
   function tile(layer, tx, tz) {
@@ -175,38 +182,111 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
     return img;
   }
   const loadImg = url => new Promise(res => { const img = new Image(); img.onload = () => res(img); img.onerror = () => res(null); img.src = url; });
-  // Backrooms: stack every saved copy's images, oldest first, so newer pictures cover older ones
+  // Backrooms: find each saved copy of the maze, line it up with yours, and stack them
   function mergeLayer(layer) {
     if (!mergeJobs.has(layer)) mergeJobs.set(layer, (async () => {
       let list = [];
       try { list = await (await fetch(`/all/${layer}`, { cache: 'no-store' })).json(); } catch {}
-      const imgs = await Promise.all(list.map(e => loadImg(`/wtile/${e.w}/${layer}/${e.x},${e.z}.png?v=${version}`)));
-      const order = list.map((e, i) => i).sort((a, b) => list[a].t - list[b].t), out = new Map();
-      for (const i of order) {
-        if (!imgs[i]) continue;
-        const k = `${layer}|${mod(list[i].x, SLOT_TILES)},${list[i].z}`;
-        let c = out.get(k);
-        if (!c) { c = document.createElement('canvas'); c.width = c.height = TILE; out.set(k, c); }
-        c.getContext('2d').drawImage(imgs[i], 0, 0);
+      // a copy = one world folder's run of neighbouring tile columns
+      const found = [];
+      for (const n of new Set(list.map(e => e.n))) {
+        const xs = [...new Set(list.filter(e => e.n === n).map(e => e.x))].sort((a, b) => a - b);
+        let c = null;
+        for (const x of xs) { if (!c || x > c.x1 + 1) { c = { n, x0: x, x1: x, tiles: [] }; found.push(c); } else c.x1 = x; }
       }
+      for (const e of list) found.find(c => c.n === e.n && e.x >= c.x0 && e.x <= c.x1).tiles.push(e);
+      const ptx = Math.floor(me.x / TILE);
+      const ref = found.find(c => c.n === me.world && ptx >= c.x0 && ptx <= c.x1) || found.find(c => ptx >= c.x0 && ptx <= c.x1);
+      for (const c of found) await maskOf(c, layer);
+      for (const c of found) {
+        if (c === ref) { Object.assign(c, { dx: 0, dz: 0, ok: true }); continue; }
+        if (!ref) { c.ok = false; continue; }
+        const k = `${c.n}|${c.x0}|${ref.n}|${ref.x0}`;
+        if (!alignCache.has(k) || !alignCache.get(k).ok) alignCache.set(k, await align(c, ref));
+        Object.assign(c, alignCache.get(k));
+      }
+      // oldest copies first, yours last, so what you see now wins
+      const age = c => Math.max(...c.tiles.map(t => t.t)), out = new Map();
+      for (const c of found.filter(c => c.ok).sort((a, b) => (a === ref) - (b === ref) || age(a) - age(b)))
+        for (const t of c.tiles) {
+          if (!t.img) continue;
+          const X = t.x * TILE + c.dx, Z = t.z * TILE + c.dz;
+          for (let tx = Math.floor(X / TILE); tx <= Math.floor((X + TILE - 1) / TILE); tx++)
+            for (let tz = Math.floor(Z / TILE); tz <= Math.floor((Z + TILE - 1) / TILE); tz++) {
+              const k = `${layer}|${tx},${tz}`;
+              let o = out.get(k);
+              if (!o) { o = document.createElement('canvas'); o.width = o.height = TILE; out.set(k, o); }
+              o.getContext('2d').drawImage(t.img, X - tx * TILE, Z - tz * TILE);
+            }
+        }
+      copies = found;
       for (const k of [...merged.keys()]) if (k.startsWith(layer + '|')) merged.delete(k);
       for (const [k, c] of out) merged.set(k, c);
       for (const k of [...walkCache.keys()]) if (k.startsWith(layer + '|')) walkCache.delete(k);
-      draw();
+      renderList(); draw();
     })());
     return mergeJobs.get(layer);
   }
-  function inSlot(tx) { const b = Math.floor(me.x / SLOT) * SLOT_TILES; return tx >= b && tx < b + SLOT_TILES; }
+  // one copy's floor/wall mask, and its images with the unmapped parts made see-through
+  async function maskOf(c, layer) {
+    c.z0 = Math.min(...c.tiles.map(t => t.z)); c.z1 = Math.max(...c.tiles.map(t => t.z));
+    c.W = (c.x1 - c.x0 + 1) * TILE; c.H = (c.z1 - c.z0 + 1) * TILE; c.mask = new Uint8Array(c.W * c.H);
+    await Promise.all(c.tiles.map(async t => {
+      const img = await loadImg(`/wtile/${t.w}/${layer}/${t.x},${t.z}.png?v=${version}`);
+      if (!img) return;
+      const o = document.createElement('canvas'); o.width = o.height = TILE;
+      const g = o.getContext('2d'); g.drawImage(img, 0, 0);
+      const im = g.getImageData(0, 0, TILE, TILE), d = im.data, ox = (t.x - c.x0) * TILE, oz = (t.z - c.z0) * TILE;
+      for (let i = 0; i < TILE * TILE; i++) {
+        const k = cls(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], d[i * 4 + 3]);
+        if (!k) d[i * 4 + 3] = 0; else c.mask[(oz + (i >> 9)) * c.W + ox + (i & 511)] = k;
+      }
+      g.putImageData(im, 0, 0); t.img = o;
+    }));
+  }
+  // Slide copy c over your copy and keep the shift where the most floor and wall pixels agree.
+  async function align(c, ref) {
+    const sample = (step, max) => {
+      const pts = [];
+      for (let v = 0; v < c.H; v += step) for (let u = 0; u < c.W; u += step) if (c.mask[v * c.W + u]) pts.push(v * c.W + u);
+      for (let i = pts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pts[i], pts[j]] = [pts[j], pts[i]]; }
+      return pts.slice(0, max);
+    };
+    const score = (pts, su, sv) => {
+      let n = 0, same = 0;
+      for (const p of pts) {
+        const u = p % c.W + su, v = Math.floor(p / c.W) + sv;
+        if (u < 0 || v < 0 || u >= ref.W || v >= ref.H) continue;
+        const r = ref.mask[v * ref.W + u]; if (!r) continue;
+        n++; if (r === c.mask[p]) same++;
+      }
+      return { n, same, s: 2 * same - n };
+    };
+    const coarse = sample(4, 3000);
+    let best = { s: -Infinity };
+    for (let su = -c.W + 256; su <= ref.W - 256; su += 4) {
+      for (let sv = -64; sv <= 64; sv += 4) { const r = score(coarse, su, sv); if (r.n >= 150 && r.s > best.s) best = { ...r, su, sv }; }
+      if (su % 256 === 0) await new Promise(r => setTimeout(r));
+    }
+    if (!isFinite(best.s)) return { ok: false };
+    const fine = sample(2, 20000);
+    let top = { s: -Infinity };
+    for (let su = best.su - 4; su <= best.su + 4; su++) for (let sv = best.sv - 4; sv <= best.sv + 4; sv++) {
+      const r = score(fine, su, sv); if (r.n > 0 && r.s > top.s) top = { ...r, su, sv };
+    }
+    const ok = top.n >= 1000 && top.same / top.n >= 0.8;
+    return { ok, dx: top.su + (ref.x0 - c.x0) * TILE, dz: top.sv + (ref.z0 - c.z0) * TILE };
+  }
   // what to draw for one 512×512 square: the real image, or in the Backrooms the stacked one
   function picture(layer, tx, tz) {
     if (!isBR()) { const img = tile(layer, tx, tz); return img !== 'missing' && img.complete && img.naturalWidth ? img : null; }
     mergeLayer(layer);
-    return inSlot(tx) ? merged.get(`${layer}|${mod(tx, SLOT_TILES)},${tz}`) || null : null;
+    return merged.get(`${layer}|${tx},${tz}`) || null;
   }
   async function loadTile(layer, tx, tz) {
     if (!isBR()) return loadImg(`/tile/${layer}/${tx},${tz}.png?v=${version}`);
     await mergeLayer(layer);
-    return inSlot(tx) ? merged.get(`${layer}|${mod(tx, SLOT_TILES)},${tz}`) || null : null;
+    return merged.get(`${layer}|${tx},${tz}`) || null;
   }
   // 0 = not mapped yet (JourneyMap leaves it transparent), 1 = floor you can walk on,
   // 2 = wall or pillar (the cave view draws those dark)
@@ -219,7 +299,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       const c = document.createElement('canvas'); c.width = c.height = TILE;
       const g = c.getContext('2d'); g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, TILE, TILE).data; w = new Uint8Array(TILE * TILE);
-      for (let i = 0; i < w.length; i++) { const a = d[i * 4 + 3], l = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3; w[i] = a <= 100 ? 0 : l > 45 ? 1 : 2; }
+      for (let i = 0; i < w.length; i++) { const a = d[i * 4 + 3]; w[i] = cls(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], a); }
     }
     walkCache.set(k, w);
     return w;
@@ -281,7 +361,8 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
     const off = route && route.pts ? Math.min(...route.pts.map(p => Math.hypot(p.x - me.x, p.z - me.z))) : Infinity;
     if (route && off < 4 && Date.now() - routeAt < 10000) { showGuide(); return; }
     busy = true;
-    try { route = await findRoute(me, { x: ax(target) + .5, z: target.z + .5 }, layerFor(me.y)); routeAt = Date.now(); }
+    const tp = at(target);
+    try { route = tp ? await findRoute(me, { x: tp.x + .5, z: tp.z + .5 }, layerFor(me.y)) : { error: '這個標記所在的地圖還沒對齊。' }; routeAt = Date.now(); }
     finally { busy = false; }
     showGuide(); draw();
   }
@@ -293,7 +374,8 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
     let k = 0, best = Infinity;
     pts.forEach((p, i) => { const d = Math.hypot(p.x - me.x, p.z - me.z); if (d < best) { best = d; k = i; } });
     const remain = pts.length - k;
-    if (Math.hypot(ax(target) + .5 - me.x, target.z + .5 - me.z) < 3) { $('turn').textContent = '到了！'; $('left').textContent = target.label; return; }
+    const tp = at(target);
+    if (tp && Math.hypot(tp.x + .5 - me.x, tp.z + .5 - me.z) < 3) { $('turn').textContent = '到了！'; $('left').textContent = target.label; return; }
     const ahead = pts[Math.min(pts.length - 1, k + 6)];
     const want = Math.atan2(-(ahead.x - me.x), ahead.z - me.z) * 180 / Math.PI;
     let diff = ((want - me.yaw) % 360 + 540) % 360 - 180;
@@ -326,7 +408,8 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
     }
     for (const m of all()) {
       if (!here(m)) continue;
-      const px = X(ax(m) + .5), pz = Z(m.z + .5);
+      const mp = at(m); if (!mp) continue;
+      const px = X(mp.x + .5), pz = Z(mp.z + .5);
       ctx.globalAlpha = m.done ? .35 : 1;
       ctx.fillStyle = KIND[m.kind][1]; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(px, pz, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
