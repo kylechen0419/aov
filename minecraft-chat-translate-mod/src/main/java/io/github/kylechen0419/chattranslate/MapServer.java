@@ -27,6 +27,9 @@ import java.util.stream.Stream;
  */
 public final class MapServer {
     private static final Pattern TILE = Pattern.compile("/tile/(day|night|topo|biome|-?\\d{1,3})/(-?\\d{1,7}),(-?\\d{1,7})\\.png");
+    private static final Pattern WTILE = Pattern.compile("/wtile/(\\d{1,3})/(day|night|topo|biome|-?\\d{1,3})/(-?\\d{1,7}),(-?\\d{1,7})\\.png");
+    private static final Pattern ALL = Pattern.compile("/all/(day|night|topo|biome|-?\\d{1,3})");
+    private static final Pattern NAME = Pattern.compile("(-?\\d{1,7}),(-?\\d{1,7})\\.png");
     private static final Pattern LAYER = Pattern.compile("day|night|topo|biome|-?\\d{1,3}");
 
     private final Path journeymap;
@@ -121,6 +124,16 @@ public final class MapServer {
             } else if (path.equals("/markers")) {
                 send(ex, 200, "application/json; charset=utf-8",
                         Files.isRegularFile(markers) ? Files.readAllBytes(markers) : "[]".getBytes(StandardCharsets.UTF_8));
+            } else if (ALL.matcher(path).matches()) {
+                send(ex, 200, "application/json; charset=utf-8", allTiles(path.substring(5)).getBytes(StandardCharsets.UTF_8));
+            } else if (WTILE.matcher(path).matches()) {
+                Matcher m = WTILE.matcher(path);
+                m.matches();
+                List<Path> dirs = allDimDirs();
+                int w = Integer.parseInt(m.group(1));
+                Path file = w < dirs.size() ? dirs.get(w).resolve(m.group(2)).resolve(m.group(3) + "," + m.group(4) + ".png") : null;
+                if (file != null && Files.isRegularFile(file)) send(ex, 200, "image/png", Files.readAllBytes(file));
+                else send(ex, 404, "text/plain", new byte[0]);
             } else {
                 Matcher m = TILE.matcher(path);
                 Path dir = m.matches() ? dimDir() : null;
@@ -181,6 +194,43 @@ public final class MapServer {
         cachedDir = best;
         cachedAt = now;
         return best;
+    }
+
+    /** This dimension's folder in every world JourneyMap kept, so maps from earlier visits can be merged. */
+    private List<Path> allDimDirs() {
+        Snapshot s = pos;
+        List<Path> out = new ArrayList<>();
+        if (s == null) return out;
+        String id = s.dim(), shortName = id.substring(id.indexOf(':') + 1), tilde = id.replace(':', '~');
+        for (String kind : new String[] {"mp", "sp"}) {
+            Path root = journeymap.resolve(kind);
+            if (!Files.isDirectory(root)) continue;
+            try (Stream<Path> worlds = Files.list(root)) {
+                for (Path w : worlds.filter(Files::isDirectory).sorted().toList())
+                    for (String name : new String[] {tilde, shortName})
+                        if (Files.isDirectory(w.resolve(name))) out.add(w.resolve(name));
+            } catch (IOException ignored) {
+            }
+        }
+        return out;
+    }
+
+    private String allTiles(String layer) {
+        List<String> items = new ArrayList<>();
+        List<Path> dirs = allDimDirs();
+        for (int w = 0; w < dirs.size(); w++) {
+            Path d = dirs.get(w).resolve(layer);
+            if (!Files.isDirectory(d)) continue;
+            try (Stream<Path> files = Files.list(d)) {
+                for (Path f : files.toList()) {
+                    Matcher m = NAME.matcher(f.getFileName().toString());
+                    if (m.matches()) items.add(String.format(Locale.ROOT, "{\"w\":%d,\"x\":%s,\"z\":%s,\"t\":%d}",
+                            w, m.group(1), m.group(2), Files.getLastModifiedTime(f).toMillis()));
+                }
+            } catch (IOException ignored) {
+            }
+        }
+        return "[" + String.join(",", items) + "]";
     }
 
     /**
