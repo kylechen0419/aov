@@ -47,7 +47,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   <button id="follow" class="on" type="button">跟著我</button>
   <button id="nearest" class="nav" type="button">帶我去最近的紙張</button>
   <button id="stop" type="button" hidden>停止導航</button>
-  <button id="walk" type="button">顯示可走的地方</button>
+  <button id="walk" class="on" type="button">清楚地圖</button>
 </div>
 <div class="main">
   <div class="wrap">
@@ -76,7 +76,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   const $ = id => document.getElementById(id);
   const cv = $('map'), ctx = cv.getContext('2d'), sel = $('layer');
   const view = { cx: 0, cz: 0, scale: 2 };
-  let me = null, follow = true, layers = [], version = Date.now(), adding = false, showWalk = false;
+  let me = null, follow = true, layers = [], version = Date.now(), adding = false, clear = true;
   let markers = [], bundled = [], doneBundled = new Set();
   let target = null, route = null, routeAt = 0;
   const tiles = new Map();  // "layer|x,z" -> Image | 'missing'
@@ -208,8 +208,8 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
     await mergeLayer(layer);
     return inSlot(tx) ? merged.get(`${layer}|${mod(tx, SLOT_TILES)},${tz}`) || null : null;
   }
-  // Where you can walk: mapped pixels that aren't dark. JourneyMap leaves unexplored parts transparent
-  // and draws walls and pillars in the cave view as dark pixels.
+  // 0 = not mapped yet (JourneyMap leaves it transparent), 1 = floor you can walk on,
+  // 2 = wall or pillar (the cave view draws those dark)
   async function walkable(layer, tx, tz) {
     const k = `${layer}|${tx},${tz}`;
     if (walkCache.has(k)) return walkCache.get(k);
@@ -219,7 +219,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       const c = document.createElement('canvas'); c.width = c.height = TILE;
       const g = c.getContext('2d'); g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, TILE, TILE).data; w = new Uint8Array(TILE * TILE);
-      for (let i = 0; i < w.length; i++) { const a = d[i * 4 + 3], l = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3; w[i] = a > 100 && l > 45 ? 1 : 0; }
+      for (let i = 0; i < w.length; i++) { const a = d[i * 4 + 3], l = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3; w[i] = a <= 100 ? 0 : l > 45 ? 1 : 2; }
     }
     walkCache.set(k, w);
     return w;
@@ -236,7 +236,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       for (let tz = Math.floor(z0 / TILE); tz <= Math.floor((z0 + H - 1) / TILE); tz++) {
         const w = await walkable(layer, tx, tz); if (!w) continue;
         const bx = Math.max(x0, tx * TILE), ex = Math.min(x0 + W, tx * TILE + TILE), bz = Math.max(z0, tz * TILE), ez = Math.min(z0 + H, tz * TILE + TILE);
-        for (let z = bz; z < ez; z++) for (let x = bx; x < ex; x++) grid[(z - z0) * W + (x - x0)] = w[(z - tz * TILE) * TILE + (x - tx * TILE)];
+        for (let z = bz; z < ez; z++) for (let x = bx; x < ex; x++) grid[(z - z0) * W + (x - x0)] = w[(z - tz * TILE) * TILE + (x - tx * TILE)] === 1 ? 1 : 0;
       }
     const idx = (x, z) => (Math.floor(z) - z0) * W + (Math.floor(x) - x0);
     const snap = p => { // nearest walkable block within 4
@@ -314,9 +314,11 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
     const X = x => (x - x0) * s, Z = z => (z - z0) * s;
     for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x0 + w / s) / TILE); tx++)
       for (let tz = Math.floor(z0 / TILE); tz <= Math.floor((z0 + h / s) / TILE); tz++) {
-        const pic = picture(layer, tx, tz);
-        if (pic) ctx.drawImage(pic, X(tx * TILE), Z(tz * TILE), TILE * s, TILE * s);
-        if (showWalk) { const wk = walkCache.get(`${layer}|${tx},${tz}`); if (wk === undefined) walkable(layer, tx, tz).then(draw); else if (wk) drawWalk(wk, X(tx * TILE), Z(tz * TILE), s); }
+        // clear map: floor light, walls dark, nothing else; falls back to the raw picture while it's being worked out
+        const wk = clear ? walkCache.get(`${layer}|${tx},${tz}`) : undefined;
+        if (clear && wk === undefined && picture(layer, tx, tz)) walkable(layer, tx, tz).then(draw);
+        if (wk) drawWalk(wk, X(tx * TILE), Z(tz * TILE), s);
+        else if (!clear || wk === undefined) { const pic = picture(layer, tx, tz); if (pic) ctx.drawImage(pic, X(tx * TILE), Z(tz * TILE), TILE * s, TILE * s); }
       }
     if (route && route.pts && target) {
       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--route'); ctx.lineWidth = Math.max(3, s * .8); ctx.lineJoin = 'round';
@@ -345,7 +347,11 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
     if (!c) {
       c = document.createElement('canvas'); c.width = c.height = TILE;
       const g = c.getContext('2d'), im = g.createImageData(TILE, TILE);
-      for (let i = 0; i < wk.length; i++) if (wk[i]) { im.data[i * 4 + 1] = 200; im.data[i * 4 + 3] = 110; }
+      for (let i = 0; i < wk.length; i++) {
+        if (!wk[i]) continue;
+        const [r, g, b] = wk[i] === 1 ? [242, 226, 160] : [58, 51, 36];
+        im.data[i * 4] = r; im.data[i * 4 + 1] = g; im.data[i * 4 + 2] = b; im.data[i * 4 + 3] = 255;
+      }
       g.putImageData(im, 0, 0); walkImgs.set(wk, c);
     }
     ctx.drawImage(c, x, z, TILE * s, TILE * s);
@@ -389,7 +395,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   $('here').onclick = () => { if (me) addMarker(me.x, me.y, me.z); };
   $('pick').onclick = () => setAdding(!adding);
   $('stop').onclick = stopNav;
-  $('walk').onclick = () => { showWalk = !showWalk; $('walk').classList.toggle('on', showWalk); draw(); };
+  $('walk').onclick = () => { clear = !clear; $('walk').classList.toggle('on', clear); $('walk').textContent = clear ? '清楚地圖' : '原始地圖'; draw(); };
   $('nearest').onclick = () => {
     const left = all().filter(m => here(m) && m.kind === 'paper' && !m.done).sort((a, b) => dist(a) - dist(b));
     if (!left.length) { $('guide').hidden = false; $('turn').textContent = '沒有紙張標記'; $('left').textContent = '先標記紙張的位置，或等內建的紙張位置更新。'; return; }
