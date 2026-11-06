@@ -244,37 +244,49 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       g.putImageData(im, 0, 0); t.img = o;
     }));
   }
-  // Slide copy c over your copy and keep the shift where the most floor and wall pixels agree.
+  // A 4×4-block summary of a copy: 0 nothing mapped, 1 only floor, 2 some wall. Thin walls survive it.
+  function coarseOf(c) {
+    if (c.coarse) return c.coarse;
+    const W = Math.ceil(c.W / 4), H = Math.ceil(c.H / 4), m = new Uint8Array(W * H);
+    for (let v = 0; v < c.H; v++) for (let u = 0; u < c.W; u++) {
+      const k = c.mask[v * c.W + u]; if (!k) continue;
+      const i = (v >> 2) * W + (u >> 2); if (k > m[i]) m[i] = k;
+    }
+    return c.coarse = { W, H, mask: m };
+  }
+  // Slide copy c over your copy and keep the shift where the walls and pillars line up. Floors alone
+  // prove nothing (most of the Backrooms is floor), so the score only counts walls: walls on walls
+  // gain, a wall over the other copy's floor loses.
   async function align(c, ref) {
-    const sample = (step, max) => {
-      const pts = [];
-      for (let v = 0; v < c.H; v += step) for (let u = 0; u < c.W; u += step) if (c.mask[v * c.W + u]) pts.push(v * c.W + u);
+    const walls = (a, b, pts, su, sv) => {
+      let both = 0, one = 0;
+      for (const p of pts) {
+        const u = p % a.W + su, v = Math.floor(p / a.W) + sv;
+        if (u < 0 || v < 0 || u >= b.W || v >= b.H) continue;
+        const r = b.mask[v * b.W + u], k = a.mask[p]; if (!r) continue;
+        if (k === 2 && r === 2) both++; else if (k === 2 || r === 2) one++;
+      }
+      return { both, one, s: 3 * both - one, dice: both + one ? both / (both + one / 2) : 0 };
+    };
+    const pick = (a, max) => {
+      const pts = []; for (let i = 0; i < a.mask.length; i++) if (a.mask[i]) pts.push(i);
       for (let i = pts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pts[i], pts[j]] = [pts[j], pts[i]]; }
       return pts.slice(0, max);
     };
-    const score = (pts, su, sv) => {
-      let n = 0, same = 0;
-      for (const p of pts) {
-        const u = p % c.W + su, v = Math.floor(p / c.W) + sv;
-        if (u < 0 || v < 0 || u >= ref.W || v >= ref.H) continue;
-        const r = ref.mask[v * ref.W + u]; if (!r) continue;
-        n++; if (r === c.mask[p]) same++;
-      }
-      return { n, same, s: 2 * same - n };
-    };
-    const coarse = sample(4, 3000);
+    const cc = coarseOf(c), rc = coarseOf(ref), coarse = pick(cc, 6000);
+    const sv0 = ((c.z0 - ref.z0) * TILE) >> 2; // copies can start on different tile rows
     let best = { s: -Infinity };
-    for (let su = -c.W + 256; su <= ref.W - 256; su += 4) {
-      for (let sv = -64; sv <= 64; sv += 4) { const r = score(coarse, su, sv); if (r.n >= 150 && r.s > best.s) best = { ...r, su, sv }; }
-      if (su % 256 === 0) await new Promise(r => setTimeout(r));
+    for (let su = -cc.W + 64; su <= rc.W - 64; su++) {
+      for (let sv = sv0 - 24; sv <= sv0 + 24; sv++) { const r = walls(cc, rc, coarse, su, sv); if (r.both >= 40 && r.s > best.s) best = { ...r, su, sv }; }
+      if (su % 64 === 0) await new Promise(r => setTimeout(r));
     }
     if (!isFinite(best.s)) return { ok: false };
-    const fine = sample(2, 20000);
+    const fine = pick(c, 60000);
     let top = { s: -Infinity };
-    for (let su = best.su - 4; su <= best.su + 4; su++) for (let sv = best.sv - 4; sv <= best.sv + 4; sv++) {
-      const r = score(fine, su, sv); if (r.n > 0 && r.s > top.s) top = { ...r, su, sv };
+    for (let su = best.su * 4 - 5; su <= best.su * 4 + 5; su++) for (let sv = best.sv * 4 - 5; sv <= best.sv * 4 + 5; sv++) {
+      const r = walls(c, ref, fine, su, sv); if (r.s > top.s) top = { ...r, su, sv };
     }
-    const ok = top.n >= 1000 && top.same / top.n >= 0.8;
+    const ok = top.both >= 300 && top.dice >= 0.6;
     return { ok, dx: top.su + (ref.x0 - c.x0) * TILE, dz: top.sv + (ref.z0 - c.z0) * TILE };
   }
   // what to draw for one 512×512 square: the real image, or in the Backrooms the stacked one
