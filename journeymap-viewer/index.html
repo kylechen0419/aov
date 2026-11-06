@@ -64,6 +64,10 @@ code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); b
 <div class="bar">
   <label class="btn primary" for="pick">選擇地圖資料夾<input id="pick" type="file" webkitdirectory directory multiple></label>
   <div class="field grow">
+    <label for="world">世界（最近玩的在最上面）</label>
+    <select id="world"></select>
+  </div>
+  <div class="field grow">
     <label for="layer">地圖圖層</label>
     <select id="layer"></select>
   </div>
@@ -100,18 +104,30 @@ code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); b
     set(k, v) { try { localStorage.setItem(k, v); } catch {} }
   };
 
+  const wsel = document.getElementById('world');
+  const baseOf = k => k.slice(0, k.lastIndexOf('/'));   // world + dimension folder
+  const lastOf = k => k.slice(k.lastIndexOf('/') + 1);  // layer folder
+  const LAYER_ORDER = { day: 0, night: 1, topo: 2, biome: 3 };
+
   function layerLabel(dir) {
-    const parts = dir.split('/');
-    const last = parts[parts.length - 1], dim = parts[parts.length - 2] || '', world = parts[parts.length - 3] || '';
+    const last = lastOf(dir);
+    if (last === 'day') return '地表（白天）';
+    if (last === 'night') return '地表（夜晚）';
+    if (last === 'topo') return '等高線';
+    if (last === 'biome') return '生物群系';
+    if (/^-?\d+$/.test(last)) { const n = +last; return `地下 Y ${n * 16} ～ ${n * 16 + 15}`; }
+    return last;
+  }
+  function baseNewest(base) {
+    let t = 0; for (const [k, g] of groups) if (baseOf(k) === base) t = Math.max(t, g.newest); return t;
+  }
+  function worldLabel(base) {
+    const p = base.split('/'), dim = p[p.length - 1], world = p[p.length - 2] || '';
     const dimName = /nether/i.test(dim) ? '地獄' : /end/i.test(dim) ? '終界' : '主世界';
-    let layer;
-    if (last === 'day') layer = '地表（白天）';
-    else if (last === 'night') layer = '地表（夜晚）';
-    else if (last === 'topo') layer = '等高線';
-    else if (last === 'biome') layer = '生物群系';
-    else if (/^-?\d+$/.test(last)) { const n = +last; layer = `地下第 ${n} 層（Y ${n * 16} ～ ${n * 16 + 15}）`; }
-    else layer = last;
-    return `${dimName} · ${layer}${world ? ' · ' + world.replace(/~.*/, '') : ''}`;
+    const t = baseNewest(base), d = new Date(t), pad = n => String(n).padStart(2, '0');
+    const when = t ? `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
+    const name = world.replace(/^Triggers_?/, '').replace(/~.*/, '').slice(0, 8) || world;
+    return `${when ? when + ' · ' : ''}${dimName} · ${name}`;
   }
 
   // A made-up corridor maze so the page shows what it does before a folder is chosen.
@@ -139,11 +155,21 @@ code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); b
   }
 
   function fillSelect(selected) {
+    const base = baseOf(selected);
+    wsel.innerHTML = '';
+    const bases = [...new Set([...groups.keys()].map(baseOf))].sort((a, b) => baseNewest(b) - baseNewest(a));
+    for (const b of bases) {
+      const o = document.createElement('option'); o.value = b;
+      o.textContent = groups.get(b + '/day')?.demo ? '範例地圖（還沒選資料夾）' : worldLabel(b);
+      wsel.appendChild(o);
+    }
+    wsel.value = base;
     sel.innerHTML = '';
-    const keys = [...groups.keys()].sort((a, b) => layerLabel(a).localeCompare(layerLabel(b), 'zh-Hant', { numeric: true }));
+    const rank = k => { const l = lastOf(k); return l in LAYER_ORDER ? LAYER_ORDER[l] - 1000 : /^-?\d+$/.test(l) ? +l : 1000; };
+    const keys = [...groups.keys()].filter(k => baseOf(k) === base).sort((a, b) => rank(a) - rank(b));
     for (const k of keys) {
       const o = document.createElement('option'); o.value = k;
-      o.textContent = groups.get(k).demo ? '範例地圖（還沒選資料夾）' : `${layerLabel(k)}（${groups.get(k).tiles.size} 張）`;
+      o.textContent = groups.get(k).demo ? '範例' : `${layerLabel(k)}（${groups.get(k).tiles.size} 張）`;
       sel.appendChild(o);
     }
     cur = selected; sel.value = selected;
@@ -160,21 +186,28 @@ code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); b
     }
     if (!g.size) { msg.textContent = '這個資料夾裡找不到 JourneyMap 的地圖圖片。請選 journeymap\\data\\mp 這個資料夾。'; return; }
     const prev = cur && g.has(cur) ? cur : null;
+    if (groups.get(cur)?.demo) me = null;
     groups = g; bitmaps.clear();
     let best = prev;
-    if (!best) best = [...g.entries()].sort((a, b) => b[1].newest - a[1].newest)[0][0];
+    if (!best) {
+      // the most recently played world, on its surface layer when it has one
+      const newest = [...g.entries()].sort((a, b) => b[1].newest - a[1].newest)[0][0];
+      best = g.has(baseOf(newest) + '/day') ? baseOf(newest) + '/day' : newest;
+    }
     fillSelect(best);
     badge.hidden = true;
-    msg.textContent = `讀到 ${[...g.values()].reduce((n, x) => n + x.tiles.size, 0)} 張地圖圖片，${g.size} 個圖層。`;
-    if (!prev) { me ? centerOn(me) : centerOnTiles(); }
+    msg.textContent = `讀到 ${[...g.values()].reduce((n, x) => n + x.tiles.size, 0)} 張地圖圖片。輸入座標按「定位」，會自動找到對的世界。`;
+    if (coords.value.trim()) locate();
+    else if (!prev) centerOnNewestTile();
     draw();
   }
 
-  function centerOnTiles() {
-    const t = [...groups.get(cur).tiles.keys()].map(k => k.split(',').map(Number));
-    const xs = t.map(a => a[0]), zs = t.map(a => a[1]);
-    view.cx = ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * TILE;
-    view.cz = ((Math.min(...zs) + Math.max(...zs) + 1) / 2) * TILE;
+  function centerOnNewestTile() {
+    let bestKey = null, t = -1;
+    for (const [k, f] of groups.get(cur).tiles) if ((f.lastModified || 0) > t) { t = f.lastModified || 0; bestKey = k; }
+    if (!bestKey) return;
+    const [tx, tz] = bestKey.split(',').map(Number);
+    view.cx = (tx + .5) * TILE; view.cz = (tz + .5) * TILE; view.scale = Math.max(view.scale, 1);
   }
   function centerOn(p) { view.cx = p.x; view.cz = p.z; if (view.scale < 1) view.scale = 2; draw(); }
 
@@ -259,6 +292,13 @@ code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); b
   new ResizeObserver(draw).observe(cv);
 
   sel.onchange = () => { cur = sel.value; draw(); };
+  wsel.onchange = () => {
+    const b = wsel.value, same = b + '/' + lastOf(cur);
+    const next = groups.has(same) ? same : groups.has(b + '/day') ? b + '/day' : [...groups.keys()].find(k => baseOf(k) === b);
+    fillSelect(next);
+    if (me && groups.get(cur).tiles.has(Math.floor(me.x / TILE) + ',' + Math.floor(me.z / TILE))) centerOn(me); else centerOnNewestTile();
+    draw();
+  };
   document.getElementById('pick').onchange = e => { if (e.target.files.length) load(e.target.files); e.target.value = ''; };
 
   function locate() {
@@ -266,11 +306,21 @@ code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); b
     if (n.length < 2) { msg.textContent = '請輸入座標，例如 -120 35 482（F3 畫面 XYZ 那一行）。'; return; }
     const [x, y, z] = n.length >= 3 ? n : [n[0], null, n[1]];
     me = { x, z }; store.set('jm-coords', coords.value);
-    if (y !== null && cur) {
-      // jump to the underground slice that holds this Y, in the same world and dimension
-      const base = cur.slice(0, cur.lastIndexOf('/')), slice = base + '/' + Math.floor(y / 16);
-      if (groups.has(slice)) { cur = slice; sel.value = slice; msg.textContent = `已切到 Y ${y} 的地下層。`; }
-      else msg.textContent = `沒有 Y ${y} 那一層的地下圖，顯示目前圖層。`;
+    if (!groups.get(cur)?.demo) {
+      // find every world/layer that has a map image at this spot, and take the one updated most recently
+      const tk = Math.floor(x / TILE) + ',' + Math.floor(z / TILE);
+      const cands = [...groups].filter(([, g]) => g.tiles.has(tk));
+      const want = y !== null ? String(Math.floor(y / 16)) : 'day';
+      let pool = cands.filter(([k]) => lastOf(k) === want);
+      if (!pool.length) pool = cands.filter(([k]) => lastOf(k) === 'day');
+      if (!pool.length) pool = cands;
+      if (pool.length) {
+        pool.sort((a, b) => (b[1].tiles.get(tk).lastModified || 0) - (a[1].tiles.get(tk).lastModified || 0));
+        fillSelect(pool[0][0]);
+        msg.textContent = `找到了：${worldLabel(baseOf(cur))} · ${layerLabel(cur)}`;
+      } else {
+        msg.textContent = '你電腦裡沒有這個位置的地圖。可能還沒走過，或 JourneyMap 還沒存檔，等一下再選一次資料夾。';
+      }
     }
     centerOn(me);
   }
