@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>即時地圖</title>
+<style>
+:root { --bg: #141816; --panel: #1d2220; --fg: #e4e9e5; --muted: #9aa49e; --line: #313a35; --accent: #f97316; --map: #0c0e0d;
+  font-family: "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif; color-scheme: dark; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); display: flex; flex-direction: column; font-size: 14px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.pos { font-family: Consolas, monospace; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+select, button { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button.on { background: var(--accent); border-color: var(--accent); color: #1a0d04; }
+.wrap { position: relative; flex: 1; min-height: 0; background: var(--map); }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.zoom button { width: 36px; height: 36px; padding: 0; }
+.note { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); text-align: center; color: var(--muted); max-width: 80%; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="pos" id="pos">等待遊戲…</span>
+  <span class="muted" id="dim"></span>
+  <label>圖層 <select id="layer"><option value="auto">自動（跟著高度）</option></select></label>
+  <button id="follow" class="on" type="button">跟著我</button>
+  <span class="muted">地圖每 10 秒重新讀一次；JourneyMap 存檔後才會出現新走過的地方。</span>
+</div>
+<div class="wrap">
+  <canvas id="map"></canvas>
+  <div class="zoom"><button id="zin" type="button" aria-label="放大">＋</button><button id="zout" type="button" aria-label="縮小">－</button></div>
+  <div class="note" id="note" hidden></div>
+</div>
+<script>
+(() => {
+  const TILE = 512;
+  const cv = document.getElementById('map'), ctx = cv.getContext('2d');
+  const sel = document.getElementById('layer'), note = document.getElementById('note');
+  const followBtn = document.getElementById('follow');
+  const view = { cx: 0, cz: 0, scale: 2 };
+  let me = null, follow = true, layers = [], version = Date.now();
+  const tiles = new Map(); // "layer|x,z|version" -> Image | 'missing'
+
+  function layerFor(y) {
+    if (sel.value !== 'auto') return sel.value;
+    const slice = String(Math.floor(y / 16));
+    if (layers.includes(slice)) return slice;
+    return layers.includes('day') ? 'day' : (layers[0] || 'day');
+  }
+  function layerName(l) {
+    return { day: '地表（白天）', night: '地表（夜晚）', topo: '等高線', biome: '生物群系' }[l] || `地下 Y ${l * 16} ～ ${l * 16 + 15}`;
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch('/pos', { cache: 'no-store' });
+      const p = await r.json();
+      if (!p.ok) { document.getElementById('pos').textContent = '不在遊戲世界裡'; me = null; }
+      else {
+        me = p;
+        document.getElementById('pos').textContent = `X ${Math.floor(p.x)}  Y ${Math.floor(p.y)}  Z ${Math.floor(p.z)}`;
+        document.getElementById('dim').textContent = p.dim;
+        if (p.layers.join() !== layers.join()) {
+          layers = p.layers.slice().sort((a, b) => (isNaN(a) ? -1000 : +a) - (isNaN(b) ? -1000 : +b));
+          const keep = sel.value;
+          sel.length = 1;
+          for (const l of layers) { const o = document.createElement('option'); o.value = l; o.textContent = layerName(l); sel.appendChild(o); }
+          sel.value = layers.includes(keep) ? keep : 'auto';
+        }
+        note.hidden = p.found;
+        note.textContent = 'JourneyMap 還沒存這個世界的地圖。走一下，等它存檔就會出現。';
+        if (follow) { view.cx = p.x; view.cz = p.z; }
+      }
+    } catch {
+      document.getElementById('pos').textContent = '連不到遊戲：遊戲關掉了，或打過 /ct map off。回遊戲打 /ct map 再開一次。';
+    }
+    draw();
+  }
+  setInterval(poll, 250);
+  setInterval(() => { version = Date.now(); tiles.clear(); draw(); }, 10000);
+
+  function tile(layer, tx, tz) {
+    const k = `${layer}|${tx},${tz}`;
+    const t = tiles.get(k);
+    if (t) return t;
+    const img = new Image();
+    img.onload = draw;
+    img.onerror = () => tiles.set(k, 'missing');
+    img.src = `/tile/${layer}/${tx},${tz}.png?v=${version}`;
+    tiles.set(k, img);
+    return img;
+  }
+
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(render); }
+  function render() {
+    raf = 0;
+    const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = false;
+    if (!me) return;
+    const s = view.scale, x0 = view.cx - w / 2 / s, z0 = view.cz - h / 2 / s, layer = layerFor(me.y);
+    for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x0 + w / s) / TILE); tx++)
+      for (let tz = Math.floor(z0 / TILE); tz <= Math.floor((z0 + h / s) / TILE); tz++) {
+        const img = tile(layer, tx, tz);
+        if (img !== 'missing' && img.complete && img.naturalWidth) ctx.drawImage(img, (tx * TILE - x0) * s, (tz * TILE - z0) * s, TILE * s, TILE * s);
+      }
+    // you: an arrow pointing where you face (Minecraft yaw 0 = south, 90 = west)
+    const px = (me.x - x0) * s, pz = (me.z - z0) * s, a = me.yaw * Math.PI / 180;
+    const dx = -Math.sin(a), dz = Math.cos(a), r = Math.max(9, s * 2);
+    ctx.save(); ctx.translate(px, pz);
+    ctx.beginPath();
+    ctx.moveTo(dx * r * 1.4, dz * r * 1.4);
+    ctx.lineTo(-dz * r * 0.8 - dx * r * 0.7, dx * r * 0.8 - dz * r * 0.7);
+    ctx.lineTo(-dx * r * 0.3, -dz * r * 0.3);
+    ctx.lineTo(dz * r * 0.8 - dx * r * 0.7, -dx * r * 0.8 - dz * r * 0.7);
+    ctx.closePath();
+    ctx.fillStyle = '#f97316'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  // drag, wheel and pinch
+  const pts = new Map();
+  function zoomAt(f, sx, sy) {
+    const w = cv.clientWidth, h = cv.clientHeight, s = view.scale;
+    const bx = view.cx + (sx - w / 2) / s, bz = view.cz + (sy - h / 2) / s;
+    view.scale = Math.min(32, Math.max(0.1, s * f));
+    if (!follow) { view.cx = bx - (sx - w / 2) / view.scale; view.cz = bz - (sy - h / 2) / view.scale; }
+    draw();
+  }
+  function setFollow(on) { follow = on; followBtn.classList.toggle('on', on); if (on && me) { view.cx = me.x; view.cz = me.z; } draw(); }
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY }); });
+  cv.addEventListener('pointermove', e => {
+    const p = pts.get(e.pointerId); if (!p) return;
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()], d0 = Math.hypot(a.x - b.x, a.y - b.y);
+      p.x = e.offsetX; p.y = e.offsetY;
+      const [c, d] = [...pts.values()], d1 = Math.hypot(c.x - d.x, c.y - d.y);
+      if (d0 > 0) zoomAt(d1 / d0, (c.x + d.x) / 2, (c.y + d.y) / 2);
+      return;
+    }
+    if (follow) setFollow(false);
+    view.cx -= (e.offsetX - p.x) / view.scale; view.cz -= (e.offsetY - p.y) / view.scale; p.x = e.offsetX; p.y = e.offsetY; draw();
+  });
+  const up = e => pts.delete(e.pointerId);
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.25 : 0.8, e.offsetX, e.offsetY); }, { passive: false });
+  document.getElementById('zin').onclick = () => zoomAt(1.5, cv.clientWidth / 2, cv.clientHeight / 2);
+  document.getElementById('zout').onclick = () => zoomAt(1 / 1.5, cv.clientWidth / 2, cv.clientHeight / 2);
+  followBtn.onclick = () => setFollow(!follow);
+  sel.onchange = draw;
+  new ResizeObserver(draw).observe(cv);
+  poll();
+})();
+</script>
+</body>
+</html>

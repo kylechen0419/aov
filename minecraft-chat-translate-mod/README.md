@@ -61,6 +61,7 @@
 | `/ct system on`、`/ct system off` | 伺服器訊息（公告、任務提示）要不要翻 |
 | `/ct mode replace` | 直接換成中文（預設，滑鼠移上去看原文） |
 | `/ct mode below` | 原文照樣顯示，下面多一行中文 |
+| `/ct map` | 在瀏覽器打開即時地圖：讀 JourneyMap 存在電腦裡的地圖圖片，你的位置和面向即時跟著動（只在自己電腦上，`/ct map off` 關閉） |
 | `/ct lang zh-tw` | 別人的話翻成什麼語言（`zh-tw` `zh-cn` `en` `ja` `ko` …） |
 | `/ct out en` | 你打 `>>` 時翻成什麼語言 |
 

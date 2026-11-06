@@ -12,6 +12,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
@@ -20,6 +21,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
+import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
@@ -45,6 +47,7 @@ public class ChatTranslateClient implements ClientModInitializer {
     private BatchTranslator translator;
     private BatchTranslator outgoing;
     private long lastErrorShown;
+    private final MapServer map = new MapServer(FabricLoader.getInstance().getGameDir());
     private final OrderedQueue<Text> queue = new OrderedQueue<>(text ->
             MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(text)));
 
@@ -72,7 +75,9 @@ public class ChatTranslateClient implements ClientModInitializer {
                 FontCheck.reset();
             }
         });
+        ClientTickEvents.END_CLIENT_TICK.register(map::tick);
         ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> {
+            map.stop();
             if (translator != null) translator.shutdown();
             if (outgoing != null) outgoing.shutdown();
         });
@@ -99,6 +104,8 @@ public class ChatTranslateClient implements ClientModInitializer {
                         .then(literal("chat")
                                 .then(literal("on").executes(c -> setChat(c, true)))
                                 .then(literal("off").executes(c -> setChat(c, false))))
+                        .then(literal("map").executes(this::openMap)
+                                .then(literal("off").executes(this::closeMap)))
                         .then(literal("system")
                                 .then(literal("on").executes(c -> setSystem(c, true)))
                                 .then(literal("off").executes(c -> setSystem(c, false))))));
@@ -280,6 +287,24 @@ public class ChatTranslateClient implements ClientModInitializer {
         config.translateChat = on;
         config.save();
         c.getSource().sendFeedback(Text.literal("§a[譯] 聊天室" + (on ? "會翻譯" : "不翻譯了（任務、選單、物品還是會翻）")));
+        return 1;
+    }
+
+    private int openMap(CommandContext<FabricClientCommandSource> c) {
+        try {
+            String url = map.start();
+            c.getSource().sendFeedback(Text.literal("§a[地圖] 點這裡在瀏覽器打開地圖：").append(Text.literal(url)
+                    .styled(s -> s.withColor(Formatting.AQUA).withUnderline(true).withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url)))));
+        } catch (Exception e) {
+            LOG.warn("map page failed to start", e);
+            c.getSource().sendFeedback(Text.literal("§c[地圖] 開不起來：" + e.getMessage()));
+        }
+        return 1;
+    }
+
+    private int closeMap(CommandContext<FabricClientCommandSource> c) {
+        map.stop();
+        c.getSource().sendFeedback(Text.literal("§a[地圖] 已關閉"));
         return 1;
     }
 
