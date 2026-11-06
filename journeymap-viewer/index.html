@@ -123,7 +123,7 @@ code { font-family: var(--font-mono); font-size: .82em; background: var(--bg); b
   }
   function worldLabel(base) {
     const p = base.split('/'), dim = p[p.length - 1], world = p[p.length - 2] || '';
-    const dimName = /nether/i.test(dim) ? '地獄' : /end/i.test(dim) ? '終界' : '主世界';
+    const dimName = /backroom/i.test(dim) ? '後室' : /nether/i.test(dim) ? '地獄' : /the_end|~end$/i.test(dim) ? '終界' : /overworld/i.test(dim) ? '主世界' : dim.replace(/^.*~/, '');
     const t = baseNewest(base), d = new Date(t), pad = n => String(n).padStart(2, '0');
     const when = t ? `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
     const name = world.replace(/^Triggers_?/, '').replace(/~.*/, '').slice(0, 8) || world;
