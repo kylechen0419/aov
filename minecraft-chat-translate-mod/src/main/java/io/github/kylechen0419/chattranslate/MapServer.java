@@ -30,6 +30,8 @@ public final class MapServer {
     private static final Pattern LAYER = Pattern.compile("day|night|topo|biome|-?\\d{1,3}");
 
     private final Path journeymap;
+    /** Your own markers (papers found, dead ends), kept between games. */
+    private final Path markers;
     private HttpServer server;
     private int port;
 
@@ -41,8 +43,9 @@ public final class MapServer {
 
     private record Snapshot(double x, double y, double z, float yaw, String dim) {}
 
-    public MapServer(Path gameDir) {
+    public MapServer(Path gameDir, Path configDir) {
         this.journeymap = gameDir.resolve("journeymap").resolve("data");
+        this.markers = configDir.resolve("chattranslate").resolve("map-markers.json");
     }
 
     public void tick(MinecraftClient mc) {
@@ -99,6 +102,25 @@ public final class MapServer {
                 }
             } else if (path.equals("/pos")) {
                 send(ex, 200, "application/json; charset=utf-8", posJson().getBytes(StandardCharsets.UTF_8));
+            } else if (path.equals("/bundled")) {
+                // paper spots other players reported, shipped with the mod
+                try (InputStream in = MapServer.class.getResourceAsStream("/assets/chattranslate/map/markers.json")) {
+                    send(ex, 200, "application/json; charset=utf-8", in == null ? "[]".getBytes(StandardCharsets.UTF_8) : in.readAllBytes());
+                }
+            } else if (path.equals("/markers") && ex.getRequestMethod().equals("POST")) {
+                byte[] body = ex.getRequestBody().readNBytes(1_000_001);
+                if (body.length > 1_000_000 || body.length == 0 || body[0] != '[') {
+                    send(ex, 400, "text/plain", new byte[0]);
+                    return;
+                }
+                Files.createDirectories(markers.getParent());
+                Path tmp = markers.resolveSibling("map-markers.json.tmp");
+                Files.write(tmp, body);
+                Files.move(tmp, markers, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                send(ex, 200, "application/json", "{}".getBytes(StandardCharsets.UTF_8));
+            } else if (path.equals("/markers")) {
+                send(ex, 200, "application/json; charset=utf-8",
+                        Files.isRegularFile(markers) ? Files.readAllBytes(markers) : "[]".getBytes(StandardCharsets.UTF_8));
             } else {
                 Matcher m = TILE.matcher(path);
                 Path dir = m.matches() ? dimDir() : null;

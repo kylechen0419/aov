@@ -5,20 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>即時地圖</title>
 <style>
-:root { --bg: #141816; --panel: #1d2220; --fg: #e4e9e5; --muted: #9aa49e; --line: #313a35; --accent: #f97316; --map: #0c0e0d;
+:root { --bg: #141816; --panel: #1d2220; --fg: #e4e9e5; --muted: #9aa49e; --line: #313a35; --accent: #f97316; --route: #22d3ee; --map: #0c0e0d;
   font-family: "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif; color-scheme: dark; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--fg); display: flex; flex-direction: column; font-size: 14px; }
-.bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .pos { font-family: Consolas, monospace; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
-select, button { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+select, button, input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; }
+button { cursor: pointer; }
 button.on { background: var(--accent); border-color: var(--accent); color: #1a0d04; }
-.wrap { position: relative; flex: 1; min-height: 0; background: var(--map); }
+button.nav { background: var(--route); border-color: var(--route); color: #04181c; }
+.main { flex: 1; min-height: 0; display: flex; }
+.wrap { position: relative; flex: 1; min-width: 0; background: var(--map); }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+canvas.adding { cursor: crosshair; }
 .zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .zoom button { width: 36px; height: 36px; padding: 0; }
 .note { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); text-align: center; color: var(--muted); max-width: 80%; }
+.guide { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: rgba(0,0,0,.75); border: 2px solid var(--route); border-radius: 10px; padding: 8px 18px; text-align: center; }
+.guide b { display: block; font-size: 26px; color: var(--route); }
+.side { width: 290px; flex: none; border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+.side h2 { font-size: 14px; margin: 0; padding: 10px 12px 6px; }
+.add { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; border-bottom: 1px solid var(--line); }
+.add input { flex: 1 1 100%; box-sizing: border-box; }
+ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+li { padding: 8px 12px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; }
+li.done .name { text-decoration: line-through; color: var(--muted); }
+li .meta { grid-column: 1; font-family: Consolas, monospace; font-size: 12px; color: var(--muted); }
+li .acts { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 4px; flex-wrap: wrap; justify-content: end; }
+li .acts button { padding: 2px 8px; font-size: 12px; }
+.empty { padding: 12px; color: var(--muted); }
+@media (max-width: 700px) { .main { flex-direction: column; } .side { width: auto; height: 40%; border-left: 0; border-top: 1px solid var(--line); } }
 </style>
 </head>
 <body>
@@ -27,64 +45,116 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: 
   <span class="muted" id="dim"></span>
   <label>圖層 <select id="layer"><option value="auto">自動（跟著高度）</option></select></label>
   <button id="follow" class="on" type="button">跟著我</button>
-  <span class="muted">地圖每 10 秒重新讀一次；JourneyMap 存檔後才會出現新走過的地方。</span>
+  <button id="nearest" class="nav" type="button">帶我去最近的紙張</button>
+  <button id="stop" type="button" hidden>停止導航</button>
+  <button id="walk" type="button">顯示可走的地方</button>
 </div>
-<div class="wrap">
-  <canvas id="map"></canvas>
-  <div class="zoom"><button id="zin" type="button" aria-label="放大">＋</button><button id="zout" type="button" aria-label="縮小">－</button></div>
-  <div class="note" id="note" hidden></div>
+<div class="main">
+  <div class="wrap">
+    <canvas id="map"></canvas>
+    <div class="guide" id="guide" hidden><b id="turn"></b><span id="left"></span></div>
+    <div class="zoom"><button id="zin" type="button" aria-label="放大">＋</button><button id="zout" type="button" aria-label="縮小">－</button></div>
+    <div class="note" id="note" hidden></div>
+  </div>
+  <div class="side">
+    <h2>標記</h2>
+    <div class="add">
+      <input id="label" type="text" placeholder="名稱（例如：紙張 3）" maxlength="40">
+      <select id="kind"><option value="paper">紙張</option><option value="dead">死路</option><option value="note">其他</option></select>
+      <button id="here" type="button">標在我腳下</button>
+      <button id="pick" type="button">在地圖上點</button>
+    </div>
+    <ul id="list"></ul>
+  </div>
 </div>
 <script>
 (() => {
-  const TILE = 512;
-  const cv = document.getElementById('map'), ctx = cv.getContext('2d');
-  const sel = document.getElementById('layer'), note = document.getElementById('note');
-  const followBtn = document.getElementById('follow');
+  const TILE = 512, KIND = { paper: ['紙張', '#facc15'], dead: ['死路', '#ef4444'], note: ['其他', '#a78bfa'] };
+  const $ = id => document.getElementById(id);
+  const cv = $('map'), ctx = cv.getContext('2d'), sel = $('layer');
   const view = { cx: 0, cz: 0, scale: 2 };
-  let me = null, follow = true, layers = [], version = Date.now();
-  const tiles = new Map(); // "layer|x,z|version" -> Image | 'missing'
+  let me = null, follow = true, layers = [], version = Date.now(), adding = false, showWalk = false;
+  let markers = [], bundled = [], doneBundled = new Set();
+  let target = null, route = null, routeAt = 0, routeFor = null;
+  const tiles = new Map();  // "layer|x,z" -> Image | 'missing'
+  const walkCache = new Map(); // "layer|x,z" -> Uint8Array(512*512) | null
 
+  // ---------- markers (yours are saved by the mod; bundled ones ship with it) ----------
+  async function loadMarkers() {
+    try { const m = await (await fetch('/markers')).json(); markers = (Array.isArray(m) ? m : []).filter(x => !x.bundledDone); doneBundled = new Set((Array.isArray(m) ? m : []).filter(x => x.bundledDone).map(x => x.id)); } catch {}
+    try { bundled = (await (await fetch('/bundled')).json()).map((b, i) => ({ ...b, id: 'b' + i, bundled: true, kind: b.kind || 'paper' })); } catch {}
+    renderList(); draw();
+  }
+  function save() {
+    const out = markers.concat([...doneBundled].map(id => ({ id, bundledDone: true })));
+    fetch('/markers', { method: 'POST', body: JSON.stringify(out) }).catch(() => {});
+  }
+  const all = () => bundled.map(b => ({ ...b, done: doneBundled.has(b.id) })).concat(markers);
+  const here = m => !me || !m.dim || m.dim === me.dim;
+  function addMarker(x, y, z) {
+    const kind = $('kind').value, n = markers.filter(m => m.kind === kind).length + 1;
+    markers.push({ id: 'm' + Date.now(), dim: me ? me.dim : '', x: Math.floor(x), y: Math.floor(y), z: Math.floor(z), kind, label: $('label').value.trim() || `${KIND[kind][0]} ${n}`, done: false });
+    $('label').value = ''; save(); renderList(); draw();
+  }
+  function renderList() {
+    const ul = $('list'); ul.innerHTML = '';
+    const list = all().filter(here);
+    if (!list.length) { ul.innerHTML = '<li class="empty">還沒有標記。找到紙張時按「標在我腳下」，或按「在地圖上點」再點地圖。</li>'; return; }
+    for (const m of list.sort((a, b) => dist(a) - dist(b))) {
+      const li = document.createElement('li'); if (m.done) li.className = 'done';
+      li.innerHTML = `<span class="name"><span style="color:${KIND[m.kind][1]}">●</span> </span><span class="meta"></span><span class="acts"></span>`;
+      li.querySelector('.name').append(m.label + (m.bundled ? '（內建）' : ''));
+      li.querySelector('.meta').textContent = `${m.x}, ${m.y ?? '?'}, ${m.z}` + (me ? ` · ${Math.round(dist(m))} 格` : '');
+      const acts = li.querySelector('.acts');
+      const b = (t, f, cls) => { const e = document.createElement('button'); e.type = 'button'; e.textContent = t; if (cls) e.className = cls; e.onclick = f; acts.append(e); };
+      b('導航', () => navigate(m), 'nav');
+      b(m.done ? '還沒拿' : '拿到了', () => { if (m.bundled) { m.done ? doneBundled.delete(m.id) : doneBundled.add(m.id); } else { const x = markers.find(k => k.id === m.id); x.done = !x.done; } save(); renderList(); draw(); });
+      if (!m.bundled) b('刪除', () => { markers = markers.filter(k => k.id !== m.id); if (target && target.id === m.id) stopNav(); save(); renderList(); draw(); });
+      ul.append(li);
+    }
+  }
+  const dist = m => me ? Math.hypot(m.x - me.x, m.z - me.z) : 0;
+
+  // ---------- position ----------
   function layerFor(y) {
     if (sel.value !== 'auto') return sel.value;
     const slice = String(Math.floor(y / 16));
     if (layers.includes(slice)) return slice;
     return layers.includes('day') ? 'day' : (layers[0] || 'day');
   }
-  function layerName(l) {
-    return { day: '地表（白天）', night: '地表（夜晚）', topo: '等高線', biome: '生物群系' }[l] || `地下 Y ${l * 16} ～ ${l * 16 + 15}`;
-  }
-
+  const layerName = l => ({ day: '地表（白天）', night: '地表（夜晚）', topo: '等高線', biome: '生物群系' }[l] || `地下 Y ${l * 16} ～ ${l * 16 + 15}`);
+  let lastList = 0;
   async function poll() {
     try {
-      const r = await fetch('/pos', { cache: 'no-store' });
-      const p = await r.json();
-      if (!p.ok) { document.getElementById('pos').textContent = '不在遊戲世界裡'; me = null; }
+      const p = await (await fetch('/pos', { cache: 'no-store' })).json();
+      if (!p.ok) { $('pos').textContent = '不在遊戲世界裡'; me = null; }
       else {
         me = p;
-        document.getElementById('pos').textContent = `X ${Math.floor(p.x)}  Y ${Math.floor(p.y)}  Z ${Math.floor(p.z)}`;
-        document.getElementById('dim').textContent = p.dim;
+        $('pos').textContent = `X ${Math.floor(p.x)}  Y ${Math.floor(p.y)}  Z ${Math.floor(p.z)}`;
+        $('dim').textContent = p.dim;
         if (p.layers.join() !== layers.join()) {
           layers = p.layers.slice().sort((a, b) => (isNaN(a) ? -1000 : +a) - (isNaN(b) ? -1000 : +b));
-          const keep = sel.value;
-          sel.length = 1;
+          const keep = sel.value; sel.length = 1;
           for (const l of layers) { const o = document.createElement('option'); o.value = l; o.textContent = layerName(l); sel.appendChild(o); }
           sel.value = layers.includes(keep) ? keep : 'auto';
         }
-        note.hidden = p.found;
-        note.textContent = 'JourneyMap 還沒存這個世界的地圖。走一下，等它存檔就會出現。';
+        $('note').hidden = p.found;
+        $('note').textContent = 'JourneyMap 還沒存這個世界的地圖。走一下，等它存檔就會出現。';
         if (follow) { view.cx = p.x; view.cz = p.z; }
+        if (target) updateNav();
+        if (Date.now() - lastList > 1000) { lastList = Date.now(); renderList(); }
       }
     } catch {
-      document.getElementById('pos').textContent = '連不到遊戲：遊戲關掉了，或打過 /ct map off。回遊戲打 /ct map 再開一次。';
+      $('pos').textContent = '連不到遊戲：遊戲關掉了，或打過 /ct map off。回遊戲打 /ct map 再開一次。';
     }
     draw();
   }
   setInterval(poll, 250);
-  setInterval(() => { version = Date.now(); tiles.clear(); draw(); }, 10000);
+  setInterval(() => { version = Date.now(); tiles.clear(); walkCache.clear(); if (target) routeAt = 0; draw(); }, 10000);
 
+  // ---------- map images ----------
   function tile(layer, tx, tz) {
-    const k = `${layer}|${tx},${tz}`;
-    const t = tiles.get(k);
+    const k = `${layer}|${tx},${tz}`, t = tiles.get(k);
     if (t) return t;
     const img = new Image();
     img.onload = draw;
@@ -93,69 +163,203 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: 
     tiles.set(k, img);
     return img;
   }
+  function loadTile(layer, tx, tz) {
+    return new Promise(res => {
+      const img = new Image();
+      img.onload = () => res(img); img.onerror = () => res(null);
+      img.src = `/tile/${layer}/${tx},${tz}.png?v=${version}`;
+    });
+  }
+  // Where you can walk: mapped pixels that aren't dark. JourneyMap leaves unexplored parts transparent
+  // and draws walls and pillars in the cave view as dark pixels.
+  async function walkable(layer, tx, tz) {
+    const k = `${layer}|${tx},${tz}`;
+    if (walkCache.has(k)) return walkCache.get(k);
+    const img = await loadTile(layer, tx, tz);
+    let w = null;
+    if (img) {
+      const c = document.createElement('canvas'); c.width = c.height = TILE;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, TILE, TILE).data; w = new Uint8Array(TILE * TILE);
+      for (let i = 0; i < w.length; i++) { const a = d[i * 4 + 3], l = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3; w[i] = a > 100 && l > 45 ? 1 : 0; }
+    }
+    walkCache.set(k, w);
+    return w;
+  }
 
+  // ---------- route finding (A* over blocks, 8 directions, no cutting corners) ----------
+  async function findRoute(from, to, layer) {
+    const pad = 96;
+    const x0 = Math.floor(Math.min(from.x, to.x)) - pad, z0 = Math.floor(Math.min(from.z, to.z)) - pad;
+    const W = Math.floor(Math.max(from.x, to.x)) + pad - x0 + 1, H = Math.floor(Math.max(from.z, to.z)) + pad - z0 + 1;
+    if (W * H > 9e6) return { error: '太遠了，地圖範圍太大算不出來。先走近一點再導航。' };
+    const grid = new Uint8Array(W * H);
+    for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x0 + W - 1) / TILE); tx++)
+      for (let tz = Math.floor(z0 / TILE); tz <= Math.floor((z0 + H - 1) / TILE); tz++) {
+        const w = await walkable(layer, tx, tz); if (!w) continue;
+        const bx = Math.max(x0, tx * TILE), ex = Math.min(x0 + W, tx * TILE + TILE), bz = Math.max(z0, tz * TILE), ez = Math.min(z0 + H, tz * TILE + TILE);
+        for (let z = bz; z < ez; z++) for (let x = bx; x < ex; x++) grid[(z - z0) * W + (x - x0)] = w[(z - tz * TILE) * TILE + (x - tx * TILE)];
+      }
+    const idx = (x, z) => (Math.floor(z) - z0) * W + (Math.floor(x) - x0);
+    const snap = p => { // nearest walkable block within 4
+      const cx = Math.floor(p.x) - x0, cz = Math.floor(p.z) - z0;
+      for (let r = 0; r <= 4; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+        const x = cx + dx, z = cz + dz; if (x >= 0 && z >= 0 && x < W && z < H && grid[z * W + x]) return z * W + x;
+      }
+      const i = idx(p.x, p.z); grid[i] = 1; return i;
+    };
+    const s = snap(from), t = snap(to), tx_ = t % W, tz_ = Math.floor(t / W);
+    const g = new Float32Array(W * H).fill(Infinity), came = new Int32Array(W * H).fill(-1), closed = new Uint8Array(W * H);
+    const heap = [], push = (i, f) => { heap.push([f, i]); let c = heap.length - 1; while (c) { const p = (c - 1) >> 1; if (heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = 2 * c + 1, r = l + 1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top[1]; };
+    const h = i => { const dx = Math.abs(i % W - tx_), dz = Math.abs(Math.floor(i / W) - tz_); return Math.max(dx, dz) + 0.4142 * Math.min(dx, dz); };
+    g[s] = 0; push(s, h(s));
+    const D = [[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.4142],[1,-1,1.4142],[-1,1,1.4142],[-1,-1,1.4142]];
+    let steps = 0;
+    while (heap.length) {
+      const c = pop(); if (closed[c]) continue; closed[c] = 1;
+      if (c === t) break;
+      if (++steps % 200000 === 0) await new Promise(r => setTimeout(r));
+      const cx = c % W, cz = Math.floor(c / W);
+      for (const [dx, dz, cost] of D) {
+        const nx = cx + dx, nz = cz + dz; if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+        const n = nz * W + nx; if (!grid[n] || closed[n]) continue;
+        if (dx && dz && (!grid[cz * W + nx] || !grid[nz * W + cx])) continue;
+        const ng = g[c] + cost; if (ng < g[n]) { g[n] = ng; came[n] = c; push(n, ng + h(n)); }
+      }
+    }
+    if (came[t] === -1 && t !== s) return { error: '找不到走得到的路。可能那裡還沒存進地圖，或在別的樓層。' };
+    const pts = []; for (let c = t; c !== -1; c = came[c]) pts.push({ x: c % W + x0 + .5, z: Math.floor(c / W) + z0 + .5 });
+    pts.reverse();
+    return { pts, len: g[t] };
+  }
+
+  // ---------- navigation ----------
+  function navigate(m) { target = m; route = null; routeAt = 0; $('stop').hidden = false; $('guide').hidden = false; $('turn').textContent = '計算路線中…'; $('left').textContent = ''; updateNav(); }
+  function stopNav() { target = null; route = null; $('stop').hidden = true; $('guide').hidden = true; draw(); }
+  let busy = false;
+  async function updateNav() {
+    if (!me || !target || busy) { showGuide(); return; }
+    const off = route && route.pts ? Math.min(...route.pts.map(p => Math.hypot(p.x - me.x, p.z - me.z))) : Infinity;
+    if (route && off < 4 && Date.now() - routeAt < 10000) { showGuide(); return; }
+    busy = true;
+    try { route = await findRoute(me, target, layerFor(me.y)); routeFor = target; routeAt = Date.now(); }
+    finally { busy = false; }
+    showGuide(); draw();
+  }
+  function showGuide() {
+    if (!target || !me) return;
+    if (route && route.error) { $('turn').textContent = '找不到路'; $('left').textContent = route.error; return; }
+    if (!route || !route.pts) return;
+    const pts = route.pts;
+    let k = 0, best = Infinity;
+    pts.forEach((p, i) => { const d = Math.hypot(p.x - me.x, p.z - me.z); if (d < best) { best = d; k = i; } });
+    const remain = pts.length - k;
+    if (Math.hypot(target.x + .5 - me.x, target.z + .5 - me.z) < 3) { $('turn').textContent = '到了！'; $('left').textContent = target.label; return; }
+    const ahead = pts[Math.min(pts.length - 1, k + 6)];
+    const want = Math.atan2(-(ahead.x - me.x), ahead.z - me.z) * 180 / Math.PI;
+    let diff = ((want - me.yaw) % 360 + 540) % 360 - 180;
+    $('turn').textContent = Math.abs(diff) > 135 ? '⬇ 回頭' : diff > 25 ? '➡ 右轉' : diff < -25 ? '⬅ 左轉' : '⬆ 直走';
+    $('left').textContent = `${target.label} · 還有約 ${Math.round(remain)} 格`;
+  }
+
+  // ---------- drawing ----------
   let raf = 0;
   function draw() { if (!raf) raf = requestAnimationFrame(render); }
   function render() {
     raf = 0;
     const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); ctx.imageSmoothingEnabled = false;
     if (!me) return;
     const s = view.scale, x0 = view.cx - w / 2 / s, z0 = view.cz - h / 2 / s, layer = layerFor(me.y);
+    const X = x => (x - x0) * s, Z = z => (z - z0) * s;
     for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x0 + w / s) / TILE); tx++)
       for (let tz = Math.floor(z0 / TILE); tz <= Math.floor((z0 + h / s) / TILE); tz++) {
         const img = tile(layer, tx, tz);
-        if (img !== 'missing' && img.complete && img.naturalWidth) ctx.drawImage(img, (tx * TILE - x0) * s, (tz * TILE - z0) * s, TILE * s, TILE * s);
+        if (img !== 'missing' && img.complete && img.naturalWidth) ctx.drawImage(img, X(tx * TILE), Z(tz * TILE), TILE * s, TILE * s);
+        if (showWalk) { const wk = walkCache.get(`${layer}|${tx},${tz}`); if (wk === undefined) walkable(layer, tx, tz).then(draw); else if (wk) drawWalk(wk, X(tx * TILE), Z(tz * TILE), s); }
       }
-    // you: an arrow pointing where you face (Minecraft yaw 0 = south, 90 = west)
-    const px = (me.x - x0) * s, pz = (me.z - z0) * s, a = me.yaw * Math.PI / 180;
-    const dx = -Math.sin(a), dz = Math.cos(a), r = Math.max(9, s * 2);
-    ctx.save(); ctx.translate(px, pz);
-    ctx.beginPath();
+    if (route && route.pts && target) {
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--route'); ctx.lineWidth = Math.max(3, s * .8); ctx.lineJoin = 'round';
+      ctx.beginPath(); route.pts.forEach((p, i) => i ? ctx.lineTo(X(p.x), Z(p.z)) : ctx.moveTo(X(p.x), Z(p.z))); ctx.stroke();
+    }
+    for (const m of all()) {
+      if (!here(m)) continue;
+      const px = X(m.x + .5), pz = Z(m.z + .5);
+      ctx.globalAlpha = m.done ? .35 : 1;
+      ctx.fillStyle = KIND[m.kind][1]; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, pz, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if (s >= 1) { ctx.font = '12px sans-serif'; ctx.fillStyle = '#fff'; ctx.strokeText(m.label, px + 10, pz + 4); ctx.fillText(m.label, px + 10, pz + 4); }
+      ctx.globalAlpha = 1;
+    }
+    const px = X(me.x), pz = Z(me.z), a = me.yaw * Math.PI / 180, dx = -Math.sin(a), dz = Math.cos(a), r = Math.max(9, s * 2);
+    ctx.save(); ctx.translate(px, pz); ctx.beginPath();
     ctx.moveTo(dx * r * 1.4, dz * r * 1.4);
-    ctx.lineTo(-dz * r * 0.8 - dx * r * 0.7, dx * r * 0.8 - dz * r * 0.7);
-    ctx.lineTo(-dx * r * 0.3, -dz * r * 0.3);
-    ctx.lineTo(dz * r * 0.8 - dx * r * 0.7, -dx * r * 0.8 - dz * r * 0.7);
-    ctx.closePath();
-    ctx.fillStyle = '#f97316'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
-    ctx.restore();
+    ctx.lineTo(-dz * r * .8 - dx * r * .7, dx * r * .8 - dz * r * .7);
+    ctx.lineTo(-dx * r * .3, -dz * r * .3);
+    ctx.lineTo(dz * r * .8 - dx * r * .7, -dx * r * .8 - dz * r * .7);
+    ctx.closePath(); ctx.fillStyle = '#f97316'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  const walkImgs = new WeakMap();
+  function drawWalk(wk, x, z, s) {
+    let c = walkImgs.get(wk);
+    if (!c) {
+      c = document.createElement('canvas'); c.width = c.height = TILE;
+      const g = c.getContext('2d'), im = g.createImageData(TILE, TILE);
+      for (let i = 0; i < wk.length; i++) if (wk[i]) { im.data[i * 4 + 1] = 200; im.data[i * 4 + 3] = 110; }
+      g.putImageData(im, 0, 0); walkImgs.set(wk, c);
+    }
+    ctx.drawImage(c, x, z, TILE * s, TILE * s);
   }
 
-  // drag, wheel and pinch
-  const pts = new Map();
+  // ---------- input ----------
+  const pts = new Map(); let moved = 0;
   function zoomAt(f, sx, sy) {
-    const w = cv.clientWidth, h = cv.clientHeight, s = view.scale;
-    const bx = view.cx + (sx - w / 2) / s, bz = view.cz + (sy - h / 2) / s;
+    const w = cv.clientWidth, h = cv.clientHeight, s = view.scale, bx = view.cx + (sx - w / 2) / s, bz = view.cz + (sy - h / 2) / s;
     view.scale = Math.min(32, Math.max(0.1, s * f));
     if (!follow) { view.cx = bx - (sx - w / 2) / view.scale; view.cz = bz - (sy - h / 2) / view.scale; }
     draw();
   }
-  function setFollow(on) { follow = on; followBtn.classList.toggle('on', on); if (on && me) { view.cx = me.x; view.cz = me.z; } draw(); }
-  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY }); });
+  function setFollow(on) { follow = on; $('follow').classList.toggle('on', on); if (on && me) { view.cx = me.x; view.cz = me.z; } draw(); }
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY }); moved = 0; });
   cv.addEventListener('pointermove', e => {
     const p = pts.get(e.pointerId); if (!p) return;
     if (pts.size === 2) {
-      const [a, b] = [...pts.values()], d0 = Math.hypot(a.x - b.x, a.y - b.y);
-      p.x = e.offsetX; p.y = e.offsetY;
-      const [c, d] = [...pts.values()], d1 = Math.hypot(c.x - d.x, c.y - d.y);
-      if (d0 > 0) zoomAt(d1 / d0, (c.x + d.x) / 2, (c.y + d.y) / 2);
-      return;
+      const [a, b] = [...pts.values()], d0 = Math.hypot(a.x - b.x, a.y - b.y); p.x = e.offsetX; p.y = e.offsetY;
+      const [c, d] = [...pts.values()], d1 = Math.hypot(c.x - d.x, c.y - d.y); if (d0 > 0) zoomAt(d1 / d0, (c.x + d.x) / 2, (c.y + d.y) / 2); moved = 99; return;
     }
+    moved += Math.abs(e.offsetX - p.x) + Math.abs(e.offsetY - p.y);
+    if (moved < 5) return;
     if (follow) setFollow(false);
     view.cx -= (e.offsetX - p.x) / view.scale; view.cz -= (e.offsetY - p.y) / view.scale; p.x = e.offsetX; p.y = e.offsetY; draw();
   });
-  const up = e => pts.delete(e.pointerId);
-  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('pointerup', e => {
+    if (pts.has(e.pointerId) && moved < 5 && adding && me) {
+      const s = view.scale;
+      addMarker(view.cx + (e.offsetX - cv.clientWidth / 2) / s, me.y, view.cz + (e.offsetY - cv.clientHeight / 2) / s);
+      setAdding(false);
+    }
+    pts.delete(e.pointerId);
+  });
+  cv.addEventListener('pointercancel', e => pts.delete(e.pointerId));
   cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.25 : 0.8, e.offsetX, e.offsetY); }, { passive: false });
-  document.getElementById('zin').onclick = () => zoomAt(1.5, cv.clientWidth / 2, cv.clientHeight / 2);
-  document.getElementById('zout').onclick = () => zoomAt(1 / 1.5, cv.clientWidth / 2, cv.clientHeight / 2);
-  followBtn.onclick = () => setFollow(!follow);
-  sel.onchange = draw;
+  function setAdding(on) { adding = on; $('pick').classList.toggle('on', on); cv.classList.toggle('adding', on); $('pick').textContent = on ? '點地圖上的位置…' : '在地圖上點'; }
+  $('zin').onclick = () => zoomAt(1.5, cv.clientWidth / 2, cv.clientHeight / 2);
+  $('zout').onclick = () => zoomAt(1 / 1.5, cv.clientWidth / 2, cv.clientHeight / 2);
+  $('follow').onclick = () => setFollow(!follow);
+  $('here').onclick = () => { if (me) addMarker(me.x, me.y, me.z); };
+  $('pick').onclick = () => setAdding(!adding);
+  $('stop').onclick = stopNav;
+  $('walk').onclick = () => { showWalk = !showWalk; $('walk').classList.toggle('on', showWalk); draw(); };
+  $('nearest').onclick = () => {
+    const left = all().filter(m => here(m) && m.kind === 'paper' && !m.done).sort((a, b) => dist(a) - dist(b));
+    if (!left.length) { $('guide').hidden = false; $('turn').textContent = '沒有紙張標記'; $('left').textContent = '先標記紙張的位置，或等內建的紙張位置更新。'; return; }
+    navigate(left[0]);
+  };
+  sel.onchange = () => { routeAt = 0; draw(); };
   new ResizeObserver(draw).observe(cv);
-  poll();
+  loadMarkers(); poll();
 })();
 </script>
 </body>

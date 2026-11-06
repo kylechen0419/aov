@@ -47,7 +47,7 @@ public class ChatTranslateClient implements ClientModInitializer {
     private BatchTranslator translator;
     private BatchTranslator outgoing;
     private long lastErrorShown;
-    private final MapServer map = new MapServer(FabricLoader.getInstance().getGameDir());
+    private final MapServer map = new MapServer(FabricLoader.getInstance().getGameDir(), FabricLoader.getInstance().getConfigDir());
     private final OrderedQueue<Text> queue = new OrderedQueue<>(text ->
             MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(text)));
 
