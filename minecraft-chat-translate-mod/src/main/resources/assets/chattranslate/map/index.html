@@ -104,9 +104,17 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   // 0 = not mapped (transparent, or the dark blue JourneyMap paints around caves), 1 = floor, 2 = wall
   // how dark a mapped pixel must be to count as wall; tuned from where you actually walk (see check())
   const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-  let wallLum = +store.get('ct-wall-lum') || 45;
+  // Floor colours are learned from the pixels under your feet (where you stand is always floor);
+  // everything else that's mapped counts as wall. Until enough is learned, bright = floor is a guess.
+  // Colours are binned 16 levels per channel: bin = r>>4, g>>4, b>>4.
+  const binOf = (r, g, b) => (r >> 4) << 8 | (g >> 4) << 4 | (b >> 4);
+  let floorSet = null; // Uint8Array(4096), 1 = a floor colour
+  try { const saved = JSON.parse(store.get('ct-floor') || 'null'); if (Array.isArray(saved) && saved.length) { floorSet = new Uint8Array(4096); for (const i of saved) floorSet[i] = 1; } } catch {}
+  const floorBins = new Uint32Array(4096); let learned = 0;
+  const wallLum = 45;
   const excluded = new Set(JSON.parse(store.get('ct-excluded') || '[]'));
-  const cls = (r, g, b, a) => a <= 100 || (b > r + 20 && b > g + 20) ? 0 : (r + g + b) / 3 > wallLum ? 1 : 2;
+  const cls = (r, g, b, a) => a <= 100 || (b > r + 20 && b > g + 20) ? 0
+    : floorSet ? (floorSet[binOf(r, g, b)] ? 1 : 2) : (r + g + b) / 3 > wallLum ? 1 : 2;
   const copyKey = c => `${c.n}|${c.x0}`;
   const mod = (a, n) => ((a % n) + n) % n;
   // ---------- diagnostics: a short log you can copy and send ----------
@@ -210,7 +218,7 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
   // (a lined-up copy almost never does; a shifted one does as often as walls cover the map) was lined
   // up wrong: it's dropped and lined up again. If your own copy keeps calling your floor a wall, the
   // darkness cut-off is wrong for this map and is lowered.
-  let lastCheck = null; const lums = [];
+  let lastCheck = null;
   // your own copy's map agrees with your feet; until then a wall under you means the cut-off is off, not the copy
   const trusted = ref => ref.chk.n >= 20 && ref.chk.bad / ref.chk.n < 0.05;
   function check() {
@@ -227,26 +235,42 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       if (at(0, 0) === 2) c.chk.bad++;
       if (c.ref) {
         const t = c.tiles.find(t => t.x === Math.floor(X / TILE) && t.z === Math.floor(Z / TILE));
-        if (t && t.img) { const d = t.img.getContext('2d').getImageData(mod(X, TILE), mod(Z, TILE), 1, 1).data; if (d[3] > 100) lums.push((d[0] + d[1] + d[2]) / 3); }
+        if (t && t.img) {
+          const d = t.img.getContext('2d').getImageData(mod(X, TILE), mod(Z, TILE), 1, 1).data;
+          if (d[3] > 100) { floorBins[binOf(d[0], d[1], d[2])]++; learned++; if (learned % 40 === 0) learnFloor(); }
+        }
       } else if (ref && trusted(ref) && c.chk.n >= 40 && c.chk.bad / c.chk.n > 0.1) {
         note(`第 ${copies.indexOf(c) + 1} 次的地圖跟你走的路對不上（${Math.round(c.chk.bad / c.chk.n * 100)}% 站在牆上），已拿掉並重新對齊`);
         alignCache.delete(`${c.n}|${c.x0}|${ref.n}|${ref.x0}`);
         c.ok = false; mergeJobs.clear(); draw();
       }
     }
-    if (lums.length >= 40) {
-      const sorted = lums.slice().sort((a, b) => a - b), walls = sorted.filter(l => l <= wallLum).length;
-      if (walls / sorted.length > 0.1) {
-        const next = Math.max(12, Math.round(sorted[Math.floor(sorted.length * 0.05)] - 6));
-        if (next < wallLum) {
-          note(`你腳下的地板有 ${Math.round(walls / sorted.length * 100)}% 被當成牆，牆的亮度門檻 ${wallLum} → ${next}`);
-          wallLum = next; store.set('ct-wall-lum', String(next));
-          alignCache.clear(); mergeJobs.clear(); walkCache.clear(); routeAt = 0; draw();
-        }
-      }
-      lums.length = 0;
-    }
     renderDiag();
+  }
+  // The colours under your feet, most common first, until they cover 95% of your steps; each one
+  // also takes its neighbouring bins so light and shade variations still count.
+  function learnFloor() {
+    const order = [...floorBins.keys()].filter(i => floorBins[i]).sort((x, y) => floorBins[y] - floorBins[x]);
+    const total = order.reduce((n, i) => n + floorBins[i], 0), next = new Uint8Array(4096);
+    let covered = 0;
+    for (const i of order) {
+      if (covered / total >= 0.95) break;
+      covered += floorBins[i];
+      const r = i >> 8, g = i >> 4 & 15, b = i & 15;
+      for (let dr = -1; dr <= 1; dr++) for (let dg = -1; dg <= 1; dg++) for (let db = -1; db <= 1; db++) {
+        const R = r + dr, G = g + dg, B = b + db;
+        if (R >= 0 && G >= 0 && B >= 0 && R < 16 && G < 16 && B < 16) next[R << 8 | G << 4 | B] = 1;
+      }
+    }
+    let changed = 0;
+    for (let i = 0; i < 4096; i++) if (next[i] !== (floorSet ? floorSet[i] : 0)) changed++;
+    if (floorSet && changed < 20) return;
+    const first = !floorSet;
+    floorSet = next;
+    store.set('ct-floor', JSON.stringify([...next.keys()].filter(i => next[i])));
+    const sample = order.slice(0, 3).map(i => `rgb(${(i >> 8) * 16 + 8},${(i >> 4 & 15) * 16 + 8},${(i & 15) * 16 + 8})`).join('、');
+    note(`${first ? '學會' : '更新'}了地板的顏色（${learned} 步，最常見：${sample}），重新判斷牆和對齊`);
+    alignCache.clear(); mergeJobs.clear(); walkCache.clear(); routeAt = 0; draw();
   }
   function renderDiag() {
     const box = document.getElementById('diagCopies'); box.innerHTML = '';
@@ -273,15 +297,15 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       }
       box.append(row);
     });
-    document.getElementById('diagCal').textContent = `牆的亮度門檻：${wallLum}（比這個暗的算牆）`;
+    document.getElementById('diagCal').textContent = floorSet ? `地板顏色：已學會（走了 ${learned} 步）` : `地板顏色：學習中（${learned}/40 步，先用亮的當地板）`;
   }
   document.getElementById('realign').onclick = () => { alignCache.clear(); mergeJobs.clear(); note('手動重新對齊'); draw(); };
   document.getElementById('report').onclick = async () => {
     const lines = [
       '【即時地圖診斷】',
       me ? `位置 ${Math.floor(me.x)} ${Math.floor(me.y)} ${Math.floor(me.z)} · ${me.dim} · ${me.world || ''}` : '不在遊戲裡',
-      `圖層 ${me ? layerFor(me.y) : '?'} · 牆門檻 ${wallLum} · 清楚地圖 ${clear ? '開' : '關'}`,
-      ...copies.map((c, i) => `第${i + 1}次 圖${c.x0}~${c.x1} z${c.z0}~${c.z1} ${c.ref ? '現在' : c.ok ? `dx=${c.dx} dz=${c.dz} 牆${Math.round((c.dice || 0) * 100)}%` : '跳過'} 驗證${c.chk ? (c.chk.n - c.chk.bad) + '/' + c.chk.n : '-'}`),
+      `圖層 ${me ? layerFor(me.y) : '?'} · 地板顏色 ${floorSet ? '已學會 ' + floorSet.reduce((n, v) => n + v, 0) + ' 格' : '學習中'} · 走了 ${learned} 步 · 清楚地圖 ${clear ? '開' : '關'}`,
+      ...copies.map((c, i) => `第${i + 1}次 圖${c.x0}~${c.x1} z${c.z0}~${c.z1} ${c.ref ? '現在' : c.ok ? `dx=${c.dx} dz=${c.dz} 牆${Math.round((c.dice || 0) * 100)}%` : `跳過（最好 牆${Math.round((c.dice || 0) * 100)}% ${c.both ?? '-'} 點）`} 驗證${c.chk ? (c.chk.n - c.chk.bad) + '/' + c.chk.n : '-'}`),
       `導航：${target ? target.label + ' · ' + document.getElementById('turn').textContent + ' ' + document.getElementById('left').textContent : '沒有'}`,
       `標記 ${all().length} 個`, '紀錄：', ...logLines.slice(-15)
     ].join('\n');
@@ -403,14 +427,14 @@ li .acts button { padding: 2px 8px; font-size: 12px; }
       for (let sv = sv0 - 24; sv <= sv0 + 24; sv++) { const r = walls(cc, rc, coarse, su, sv); if (r.both >= 40 && r.s > best.s) best = { ...r, su, sv }; }
       if (su % 64 === 0) await new Promise(r => setTimeout(r));
     }
-    if (!isFinite(best.s)) return { ok: false };
+    if (!isFinite(best.s)) return { ok: false, dice: 0, both: 0 };
     const fine = pick(c, 60000);
     let top = { s: -Infinity };
     for (let su = best.su * 4 - 5; su <= best.su * 4 + 5; su++) for (let sv = best.sv * 4 - 5; sv <= best.sv * 4 + 5; sv++) {
       const r = walls(c, ref, fine, su, sv); if (r.s > top.s) top = { ...r, su, sv };
     }
     const ok = top.both >= 300 && top.dice >= 0.6;
-    return { ok, dice: top.dice, dx: top.su + (ref.x0 - c.x0) * TILE, dz: top.sv + (ref.z0 - c.z0) * TILE };
+    return { ok, dice: top.dice, both: top.both, dx: top.su + (ref.x0 - c.x0) * TILE, dz: top.sv + (ref.z0 - c.z0) * TILE };
   }
   // what to draw for one 512×512 square: the real image, or in the Backrooms the stacked one
   function picture(layer, tx, tz) {
