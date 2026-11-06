@@ -1,1 +1,4 @@
-[]
+[
+ {"label": "紙張 A", "kind": "paper", "dim": "minecraft:backrooms", "rel": true, "x": 538, "y": 93, "z": 4154},
+ {"label": "紙張 B", "kind": "paper", "dim": "minecraft:backrooms", "rel": true, "x": 299, "y": 93, "z": 4229}
+]
